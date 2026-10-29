@@ -38,7 +38,6 @@ All commands are run from the repository root.
    ```sh
    git clone https://github.com/ohault/soc2soc-over-serdes
    cd soc2soc-over-serdes
-   git checkout claude/litex-acorn-serdes-sfp-zi0mno   # Until it is merged into main.
    ```
 
 ## 1. Simulation
