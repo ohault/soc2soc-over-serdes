@@ -95,6 +95,9 @@ LEDs on the Acorn module:
 
 ## Bring-up and tests
 
+The full step-by-step procedure, with expected results for each scenario, troubleshooting and a
+results template, is in [docs/test-procedure.md](docs/test-procedure.md). Quick reference:
+
 ```sh
 # Single board.
 litex_server --uart --uart-port=/dev/ttyUSBX
