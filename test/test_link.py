@@ -22,9 +22,10 @@ from soc2soc.link import SerDesLinkPHY
 
 # Migen simulation compatibility ------------------------------------------------------------------
 
-# Migen versions since 7bf0214 (write-only memory ports, used by SyncFIFO/AsyncFIFO) fail to simulate
-# them (AttributeError on dat_r=None). Fixed by patches/migen-0001-*.patch; when the installed Migen
-# is not fixed, give write-only ports a dummy read data signal.
+# The stale GitHub copy of Migen (github.com/m-labs/migen, commit 7bf0214, reverted in the official
+# git.m-labs.hk repository) makes SyncFIFO/AsyncFIFO write ports write-only, which its simulator
+# cannot handle (AttributeError on dat_r=None). When running on it, give write-only ports a dummy
+# read data signal.
 from migen.fhdl import simplify
 from migen.fhdl.specials import Memory
 

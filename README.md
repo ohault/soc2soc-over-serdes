@@ -185,19 +185,16 @@ reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.
 python3 -m unittest test.test_link -v
 ```
 
-### Known Migen issue
+### Migen version
 
-Since Migen commit `7bf0214`, `SyncFIFO` and `AsyncFIFO` use write-only memory ports, but the
-simulator cannot handle them yet. Any simulation that contains one of these FIFOs fails with
-`AttributeError: 'NoneType' object has no attribute 'eq'`. Migen's own `SyncFIFO` tests fail the same
-way.
+Use the official Migen: install it with `litex_setup.py` (it clones https://git.m-labs.hk/M-Labs/migen)
+or with `pip install migen`.
 
-`patches/migen-0001-fhdl-simplify-support-write-only-memory-ports.patch` fixes it and adds regression
-tests. It is meant for upstream Migen; to apply it locally:
+Do not use the old GitHub copy, https://github.com/m-labs/migen. That repository stopped being
+updated when Migen moved to git.m-labs.hk in January 2026. It still contains commit `7bf0214`
+("specials: memory: add read_capable option"), which breaks the simulation of any design with a
+`SyncFIFO`/`AsyncFIFO`: it fails with `AttributeError: 'NoneType' object has no attribute 'eq'`. The
+official repository reverted that commit (`0efcff4`), and the GitHub copy never received the revert.
 
-```sh
-cd migen && git am /path/to/soc2soc-over-serdes/patches/migen-0001-*.patch
-```
-
-Until a fixed Migen is installed, `test/test_link.py` detects the issue and works around it, so the
-simulation runs either way. Hardware builds (Verilog generation) are not affected.
+`test/test_link.py` detects that broken Migen and works around it, so the simulation runs with
+either version. Hardware builds (Verilog generation) are not affected.
