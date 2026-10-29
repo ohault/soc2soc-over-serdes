@@ -184,3 +184,20 @@ reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.
 ```sh
 python3 -m unittest test.test_link -v
 ```
+
+### Known Migen issue
+
+Since Migen commit `7bf0214`, `SyncFIFO` and `AsyncFIFO` use write-only memory ports, but the
+simulator cannot handle them yet. Any simulation that contains one of these FIFOs fails with
+`AttributeError: 'NoneType' object has no attribute 'eq'`. Migen's own `SyncFIFO` tests fail the same
+way.
+
+`patches/migen-0001-fhdl-simplify-support-write-only-memory-ports.patch` fixes it and adds regression
+tests. It is meant for upstream Migen; to apply it locally:
+
+```sh
+cd migen && git am /path/to/soc2soc-over-serdes/patches/migen-0001-*.patch
+```
+
+Until a fixed Migen is installed, `test/test_link.py` detects the issue and works around it, so the
+simulation runs either way. Hardware builds (Verilog generation) are not affected.

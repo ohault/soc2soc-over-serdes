@@ -1,0 +1,183 @@
+From d675c43858f971939d90a8614c38e71a724d38e2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 29 Oct 2026 21:07:46 +0000
+Subject: [PATCH] fhdl/simplify: support write-only memory ports
+
+Since 7bf0214 ("specials: memory: add read_capable option"), memory ports
+can be created with read_capable=False (dat_r=None), and SyncFIFO/AsyncFIFO
+use it for their write ports. MemoryToArray (used by the simulator) and
+SplitMemory were not updated and still dereferenced port.dat_r, so any
+simulation containing a SyncFIFO or AsyncFIFO failed with:
+
+    AttributeError: 'NoneType' object has no attribute 'eq'
+
+Skip the read logic for ports without dat_r in MemoryToArray, and preserve
+read capability when splitting ports in SplitMemory.
+
+Add AsyncFIFO and write-only port (plain and split) simulation tests.
+---
+ migen/fhdl/simplify.py    | 35 ++++++++++++++++++---------------
+ migen/test/test_fifo.py   | 33 ++++++++++++++++++++++++++++++-
+ migen/test/test_memory.py | 41 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 92 insertions(+), 17 deletions(-)
+ create mode 100644 migen/test/test_memory.py
+
+diff --git a/migen/fhdl/simplify.py b/migen/fhdl/simplify.py
+index 2db3b3a..56c1a53 100644
+--- a/migen/fhdl/simplify.py
++++ b/migen/fhdl/simplify.py
+@@ -84,22 +84,23 @@ class MemoryToArray(ModuleTransformer):
+                 except KeyError:
+                     sync = f.sync[port.clock.cd] = []
+ 
+-                # read
+-                if port.async_read:
+-                    f.comb.append(port.dat_r.eq(storage[port.adr]))
+-                else:
+-                    if port.mode == WRITE_FIRST:
+-                        adr_reg = Signal.like(port.adr)
+-                        rd_stmt = adr_reg.eq(port.adr)
+-                        f.comb.append(port.dat_r.eq(storage[adr_reg]))
+-                    elif port.mode == NO_CHANGE and port.we is not None:
+-                        rd_stmt = If(~port.we, port.dat_r.eq(storage[port.adr]))
+-                    else: # NO_CHANGE without write capability reduces to READ_FIRST
+-                        rd_stmt = port.dat_r.eq(storage[port.adr])
+-                    if port.re is None:
+-                        sync.append(rd_stmt)
++                # read (write-only ports have no dat_r)
++                if port.dat_r is not None:
++                    if port.async_read:
++                        f.comb.append(port.dat_r.eq(storage[port.adr]))
+                     else:
+-                        sync.append(If(port.re, rd_stmt))
++                        if port.mode == WRITE_FIRST:
++                            adr_reg = Signal.like(port.adr)
++                            rd_stmt = adr_reg.eq(port.adr)
++                            f.comb.append(port.dat_r.eq(storage[adr_reg]))
++                        elif port.mode == NO_CHANGE and port.we is not None:
++                            rd_stmt = If(~port.we, port.dat_r.eq(storage[port.adr]))
++                        else: # NO_CHANGE without write capability reduces to READ_FIRST
++                            rd_stmt = port.dat_r.eq(storage[port.adr])
++                        if port.re is None:
++                            sync.append(rd_stmt)
++                        else:
++                            sync.append(If(port.re, rd_stmt))
+ 
+                 # write
+                 if port.we is not None:
+@@ -176,6 +177,7 @@ class SplitMemory(ModuleTransformer):
+ 
+     def _split_port(self, port, mems):
+         ports = [mem.get_port(write_capable=port.we is not None,
++                              read_capable=port.dat_r is not None,
+                               async_read=port.async_read,
+                               has_re=port.re is not None,
+                               we_granularity=port.we_granularity,
+@@ -196,7 +198,8 @@ class SplitMemory(ModuleTransformer):
+         comb += reversed([If(~port.adr[len(p.adr)], sel.eq(i))
+                           for i, p in enumerate(ports)])
+         comb += [p.adr.eq(port.adr) for p in ports]
+-        comb.append(port.dat_r.eq(Array([p.dat_r for p in ports])[sel_r]))
++        if port.dat_r is not None:
++            comb.append(port.dat_r.eq(Array([p.dat_r for p in ports])[sel_r]))
+         if port.we is not None:
+             comb.append(Array([p.we for p in ports])[sel].eq(port.we))
+             comb += [p.dat_w.eq(port.dat_w) for p in ports]
+diff --git a/migen/test/test_fifo.py b/migen/test/test_fifo.py
+index 6dfc9c4..2476604 100644
+--- a/migen/test/test_fifo.py
++++ b/migen/test/test_fifo.py
+@@ -2,7 +2,7 @@ import unittest
+ from itertools import count
+ 
+ from migen import *
+-from migen.genlib.fifo import SyncFIFO
++from migen.genlib.fifo import SyncFIFO, AsyncFIFO
+ 
+ from migen.test.support import SimCase
+ 
+@@ -54,3 +54,34 @@ class SyncFIFOCase(SimCase, unittest.TestCase):
+                     self.assertEqual((yield self.tb.dut.dout[32:]), i*2)
+                 yield
+         self.run_with(gen())
++
++
++class AsyncFIFOCase(SimCase, unittest.TestCase):
++    class TestBench(Module):
++        def __init__(self):
++            self.clock_domains.cd_write = ClockDomain()
++            self.clock_domains.cd_read  = ClockDomain()
++            self.submodules.dut = AsyncFIFO(32, 8)
++
++    def test_run_sequence(self):
++        seq = list(range(20))
++        received = []
++        def writer():
++            for i in seq:
++                yield self.tb.dut.din.eq(i)
++                yield self.tb.dut.we.eq(1)
++                yield
++                while not (yield self.tb.dut.writable):
++                    yield
++            yield self.tb.dut.we.eq(0)
++        def reader():
++            yield self.tb.dut.re.eq(1)
++            for _ in range(200):
++                if (yield self.tb.dut.readable):
++                    received.append((yield self.tb.dut.dout))
++                    if len(received) == len(seq):
++                        break
++                yield
++        run_simulation(self.tb, {"write": writer(), "read": reader()},
++            clocks={"write": 10, "read": 7})
++        self.assertEqual(received, seq)
+diff --git a/migen/test/test_memory.py b/migen/test/test_memory.py
+new file mode 100644
+index 0000000..b7d669b
+--- /dev/null
++++ b/migen/test/test_memory.py
+@@ -0,0 +1,41 @@
++import unittest
++
++from migen import *
++from migen.fhdl.simplify import SplitMemory
++
++from migen.test.support import SimCase
++
++
++class WriteOnlyPortCase(SimCase, unittest.TestCase):
++    # Memory with a write-only port (read_capable=False, dat_r=None) and a separate read port.
++    class TestBench(Module):
++        def __init__(self, depth=16):
++            self.specials.mem = Memory(8, depth)
++            self.specials.wrport = self.mem.get_port(write_capable=True, read_capable=False)
++            self.specials.rdport = self.mem.get_port()
++
++    def check(self):
++        depth = self.tb.mem.depth
++        def gen():
++            for i in range(depth):
++                yield self.tb.wrport.adr.eq(i)
++                yield self.tb.wrport.dat_w.eq(i + 1)
++                yield self.tb.wrport.we.eq(1)
++                yield
++            yield self.tb.wrport.we.eq(0)
++            for i in range(depth):
++                yield self.tb.rdport.adr.eq(i)
++                yield
++                yield
++                self.assertEqual((yield self.tb.rdport.dat_r), i + 1)
++        self.run_with(gen())
++
++    def test_write_only_port(self):
++        self.assertIsNone(self.tb.wrport.dat_r)
++        self.check()
++
++    def test_write_only_port_split(self):
++        # Non power-of-2 depth split into power-of-2 memories.
++        self.setUp(depth=24)
++        self.tb = SplitMemory()(self.tb)
++        self.check()
+-- 
+2.43.0
+

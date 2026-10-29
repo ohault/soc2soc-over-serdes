@@ -22,20 +22,32 @@ from soc2soc.link import SerDesLinkPHY
 
 # Migen simulation compatibility ------------------------------------------------------------------
 
-# Some Migen versions fail to simulate write-only memory ports (dat_r=None, used by AsyncFIFO):
-# give them a dummy read data signal.
+# Migen versions since 7bf0214 (write-only memory ports, used by SyncFIFO/AsyncFIFO) fail to simulate
+# them (AttributeError on dat_r=None). Fixed by patches/migen-0001-*.patch; when the installed Migen
+# is not fixed, give write-only ports a dummy read data signal.
 from migen.fhdl import simplify
 from migen.fhdl.specials import Memory
 
-_memory_to_array = simplify.MemoryToArray.transform_fragment
-def _transform_fragment(self, i, f):
-    for mem in f.specials:
-        if isinstance(mem, Memory):
-            for port in mem.ports:
-                if port.dat_r is None:
-                    port.dat_r = Signal(mem.width)
-    return _memory_to_array(self, i, f)
-simplify.MemoryToArray.transform_fragment = _transform_fragment
+def _migen_simulates_write_only_ports():
+    m = Module()
+    m.specials.mem = mem = Memory(8, 4)
+    m.specials.port = mem.get_port(write_capable=True, read_capable=False)
+    try:
+        simplify.MemoryToArray().transform_fragment(None, m.get_fragment())
+    except AttributeError:
+        return False
+    return True
+
+if not _migen_simulates_write_only_ports():
+    _memory_to_array = simplify.MemoryToArray.transform_fragment
+    def _transform_fragment(self, i, f):
+        for mem in f.specials:
+            if isinstance(mem, Memory):
+                for port in mem.ports:
+                    if port.dat_r is None:
+                        port.dat_r = Signal(mem.width)
+        return _memory_to_array(self, i, f)
+    simplify.MemoryToArray.transform_fragment = _transform_fragment
 
 # Channel ------------------------------------------------------------------------------------------
 
