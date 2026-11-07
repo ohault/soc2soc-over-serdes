@@ -24,7 +24,7 @@
 # domains + 2-bit 8b/10b invalid flags) so the link layer can be simulated without the GTP.
 
 from migen import *
-from migen.genlib.cdc import MultiReg, BusSynchronizer
+from migen.genlib.cdc import MultiReg, BusSynchronizer, PulseSynchronizer
 
 from litex.gen import *
 
@@ -78,6 +78,7 @@ class SerDesLinkPHY(LiteXModule):
         self.remote_ok   = remote_ok   = Signal() # Remote reports it receives our IDLEs (cd_rx).
         self.rx_errors   = rx_errors   = Signal(32) # 8b/10b/framing errors (cd_rx).
         self.rx_overflow = rx_overflow = Signal()   # Sticky, RX CDC overflow (cd_rx).
+        self.rx_errors_clear = rx_errors_clear = Signal() # Clear rx_errors (cd_rx).
 
         # # #
 
@@ -257,6 +258,9 @@ class SerDesLinkPHY(LiteXModule):
                 rx_good.eq(0),
                 rx_ok.eq(0),
                 remote_ok.eq(0),
+            ),
+            If(rx_errors_clear,
+                rx_errors.eq(0)
             )
         ]
 
@@ -276,8 +280,15 @@ class SerDesLinkPHY(LiteXModule):
         self._rx_errors   = CSRStatus(32, description="RX 8b/10b/framing errors (saturating).")
         self._rx_overflow = CSRStatus(description="RX CDC overflow (sticky, cleared on RX reset).")
         self._link_drops  = CSRStatus(32, description="Number of link losses (ready to not ready).")
+        self._reset_counters = CSR() # Write to clear the RX errors and link drops counters.
 
         # # #
+
+        self.rx_errors_clear_ps = PulseSynchronizer("sys", self.cd_rx)
+        self.comb += [
+            self.rx_errors_clear_ps.i.eq(self._reset_counters.re),
+            self.rx_errors_clear.eq(self.rx_errors_clear_ps.o),
+        ]
 
         sys_remote_ok   = Signal()
         sys_rx_overflow = Signal()
@@ -300,5 +311,8 @@ class SerDesLinkPHY(LiteXModule):
             ready_d.eq(self.init.ready),
             If(ready_d & ~self.init.ready & (self._link_drops.status != (2**32 - 1)),
                 self._link_drops.status.eq(self._link_drops.status + 1)
+            ),
+            If(self._reset_counters.re,
+                self._link_drops.status.eq(0)
             )
         ]

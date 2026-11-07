@@ -18,7 +18,8 @@ from litex.soc.interconnect import wishbone
 
 from liteiclink.serwb.core import SERWBCore
 
-from soc2soc.link import SerDesLinkPHY
+from soc2soc.link        import SerDesLinkPHY
+from soc2soc.serdes_link import RemoteWindow
 
 # Migen simulation compatibility ------------------------------------------------------------------
 
@@ -32,7 +33,11 @@ from migen.fhdl.specials import Memory
 def _migen_simulates_write_only_ports():
     m = Module()
     m.specials.mem = mem = Memory(8, 4)
-    m.specials.port = mem.get_port(write_capable=True, read_capable=False)
+    try:
+        m.specials.port = mem.get_port(write_capable=True, read_capable=False)
+    except TypeError:
+        # Official Migen: no read_capable parameter, ports are always readable.
+        return True
     try:
         simplify.MemoryToArray().transform_fragment(None, m.get_fragment())
     except AttributeError:
@@ -89,7 +94,16 @@ class _Channel(LiteXModule):
 # DUT ----------------------------------------------------------------------------------------------
 
 class _DUT(LiteXModule):
-    def __init__(self, byte_shift=False, with_crc=False):
+    """Two link ends back to back.
+
+    interconnect=None    : two SoCs, A host -> A initiator ... B target -> B SRAM.
+    interconnect="shared"/"crossbar": single SoC (scenario 1, SFP0 <-> SFP1 on the same board), the
+    host and the target core are both masters of the same bus, with the SRAM and the initiator
+    window as slaves: host -> window -> A initiator ... B target -> same bus -> SRAM.
+    """
+    WINDOW_BASE = 0x0800_0000 # Word address of the window (byte 0x2000_0000) in single-SoC mode.
+
+    def __init__(self, byte_shift=False, with_crc=False, interconnect=None):
         self.cd_sys  = ClockDomain()
         self.cd_a_tx = ClockDomain()
         self.cd_b_tx = ClockDomain()
@@ -111,7 +125,27 @@ class _DUT(LiteXModule):
         self.core_a = core_a = SERWBCore(phy_a, 100e6, mode="slave",  with_crc=with_crc)
         self.core_b = core_b = SERWBCore(phy_b, 100e6, mode="master", with_crc=with_crc)
         self.sram   = sram   = wishbone.SRAM(1024)
-        self.comb += core_b.bus.connect(sram.bus)
+        if interconnect is None:
+            self.host      = core_a.bus
+            self.host_base = 0
+            self.comb += core_b.bus.connect(sram.bus)
+        else:
+            self.host      = wishbone.Interface(data_width=32, adr_width=30)
+            self.host_base = self.WINDOW_BASE
+            self.window    = window = RemoteWindow(core_a.bus, default_page=0)
+            interconnect_cls = {
+                "shared"   : wishbone.InterconnectShared,
+                "crossbar" : wishbone.Crossbar,
+            }[interconnect]
+            self.interconnect = interconnect_cls(
+                masters = [self.host, core_b.bus],
+                slaves  = [
+                    (lambda a: a[27] == 0, sram.bus),
+                    (lambda a: a[27] == 1, window.bus),
+                ],
+                register       = True,
+                timeout_cycles = 4096,
+            )
 
 # Test ---------------------------------------------------------------------------------------------
 
@@ -128,15 +162,19 @@ def wb_test(dut, results, words=8, seed=0):
     rng  = random.Random(seed)
     data = [rng.getrandbits(32) for _ in range(words)]
     for i, d in enumerate(data):
-        yield from dut.core_a.bus.write(i, d)
+        yield from dut.host.write(dut.host_base + i, d)
     readback = []
     for i in range(words):
-        readback.append((yield from dut.core_a.bus.read(i)))
+        readback.append((yield from dut.host.read(dut.host_base + i)))
     results["errors"] = sum(a != b for a, b in zip(data, readback))
+    # Direct check of the SRAM content (remote writes).
+    for i, d in enumerate(data):
+        if (yield dut.sram.mem[i]) != d:
+            results["write_errors"] = results.get("write_errors", 0) + 1
 
 class TestLink(unittest.TestCase):
-    def run_link(self, byte_shift=False, with_crc=False, inject_error=False):
-        dut     = _DUT(byte_shift=byte_shift, with_crc=with_crc)
+    def run_link(self, byte_shift=False, with_crc=False, inject_error=False, interconnect=None):
+        dut     = _DUT(byte_shift=byte_shift, with_crc=with_crc, interconnect=interconnect)
         results = {}
 
         def generator():
@@ -159,21 +197,67 @@ class TestLink(unittest.TestCase):
 
         run_simulation(dut, generator(), clocks=CLOCKS)
         self.assertTrue(results["ready"], "Link not ready.")
-        self.assertEqual(results["errors"], 0)
         if inject_error:
             self.assertTrue(results["dropped"], "Link did not drop on error.")
+        return results
+
+    def check_link(self, **kwargs):
+        results = self.run_link(**kwargs)
+        self.assertEqual(results["errors"], 0)
+        self.assertEqual(results.get("write_errors", 0), 0)
 
     def test_link(self):
-        self.run_link()
+        self.check_link()
 
     def test_link_byte_shift(self):
-        self.run_link(byte_shift=True)
+        self.check_link(byte_shift=True)
 
     def test_link_crc(self):
-        self.run_link(with_crc=True)
+        self.check_link(with_crc=True)
 
     def test_link_error_recovery(self):
-        self.run_link(inject_error=True)
+        self.check_link(inject_error=True)
+
+    def test_reset_counters(self):
+        dut = _DUT()
+        dut.phy_b.add_csr()
+        results = {}
+
+        def generator():
+            assert (yield from wait_ready(dut))
+            # Error -> link drop and RX error counted on B.
+            yield dut.a2b.corrupt.eq(1)
+            yield
+            yield dut.a2b.corrupt.eq(0)
+            assert (yield from wait_ready(dut))
+            for _ in range(16):
+                yield
+            results["before"] = ((yield dut.phy_b.rx_errors), (yield dut.phy_b._link_drops.status))
+            # Clear.
+            yield dut.phy_b._reset_counters.re.eq(1)
+            yield
+            yield dut.phy_b._reset_counters.re.eq(0)
+            for _ in range(16):
+                yield
+            results["after"] = ((yield dut.phy_b.rx_errors), (yield dut.phy_b._link_drops.status))
+
+        run_simulation(dut, generator(), clocks=CLOCKS)
+        self.assertGreater(results["before"][0], 0)
+        self.assertGreater(results["before"][1], 0)
+        self.assertEqual(results["after"], (0, 0))
+
+    def test_single_soc_crossbar(self):
+        # Scenario 1: the target executes the access on the bus the host is waiting on. With a
+        # crossbar, the host -> window and target -> SRAM accesses proceed in parallel.
+        self.check_link(interconnect="crossbar")
+
+    def test_single_soc_shared_read_deadlock(self):
+        # With a shared bus, the host holds the bus while waiting for the read response, so the
+        # target cannot execute the read: every read times out (bus timeout, 0xffffffff). Writes are
+        # posted by the SerWB initiator so they are not blocked. This is why the SoC uses a
+        # crossbar interconnect.
+        results = self.run_link(interconnect="shared")
+        self.assertEqual(results["errors"], 8)
 
 if __name__ == "__main__":
     unittest.main()

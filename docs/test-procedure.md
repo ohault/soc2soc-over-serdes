@@ -49,8 +49,13 @@ link ends connected back to back.
 python3 -m unittest test.test_link -v
 ```
 
-**Pass:** the 4 tests (`test_link`, `test_link_byte_shift`, `test_link_crc`,
-`test_link_error_recovery`) report `ok`. This takes about one minute.
+**Pass:** the 7 tests (`test_link`, `test_link_byte_shift`, `test_link_crc`,
+`test_link_error_recovery`, `test_reset_counters`, `test_single_soc_crossbar`,
+`test_single_soc_shared_read_deadlock`) report `ok`. This takes a few seconds.
+
+The two `test_single_soc_*` tests model scenario 1, where the host and the SFP1 target are masters of
+the same bus: remote reads only work with a crossbar interconnect, which is the default of
+`acorn_soc2soc.py` (`--bus-interconnect=crossbar`).
 
 ## 2. Scenario 1: single board, SFP0 ⇄ SFP1
 
@@ -114,6 +119,7 @@ Keep it running and use a second terminal for the tests. All test commands below
 ```
 
 **Pass:** this prints `RX OK with rx_polarity=X` for `sfp0` and `sfp1`, then `link ready: 1` for both.
+The RX errors and link drops counters are then cleared, since changing polarity causes errors.
 
 If a polarity differs from the default (SFP0 RX=1, SFP1 RX=1), note it and add it to every later
 build. For example, if SFP1 needs `rx_polarity=0`, add `--sfp1-rx-polarity=0`. These values are
@@ -143,7 +149,8 @@ Run `status` again after a minute: the error and link drop counters must not inc
 ```
 
 This sends a PRBS31 pattern in both directions (`sfp0→sfp1` and `sfp1→sfp0`) and counts bit
-errors. While it runs the links are down; they come back up at the end of the test.
+errors. While it runs the links are down; they come back up at the end of the test, and the RX
+errors and link drops counters (which count the PRBS pattern as errors) are cleared.
 
 **Pass:** 0 errors in both directions. After 300 s at 2.5 Gbps, 0 errors means a BER below
 1.3e-12.
@@ -286,6 +293,7 @@ at that rate is a limitation of the board's clocking, not necessarily a bug.
 | `RX errors` or `Link drops` increase | Marginal signal quality. Run `prbs`, try a lower line rate or another cable, or tune the TX drive (`sfpN_serdes_tx_diffctrl`, `sfpN_serdes_tx_postcursor` CSRs). |
 | PRBS errors in one direction only | Check that direction's cable end and its TX/RX electrical settings. |
 | `remote`: "link not ready, skipping" | The link is down: fix `status` first. |
+| `remote`: reads return `0xffffffff` but writes work (scenario 1) | Bus deadlock: the gateware was built with `--bus-interconnect=shared`. Rebuild with the default (`crossbar`). |
 | `remote`: wrong data or a bus error | Check `SerWB overflows` / `RX errors` in `status`, and rebuild with `--with-crc` to detect corrupted packets. |
 | `litex_server` gets no response | Wrong `/dev/ttyUSBx`, or the board is not loaded. Check that LED0 blinks. |
 | Loading programs the wrong board | Only plug in the board being loaded (see 3.2), or use openFPGALoader `--ftdi-serial`. |

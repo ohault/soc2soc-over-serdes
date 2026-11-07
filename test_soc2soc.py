@@ -68,16 +68,36 @@ class SFPLink:
         return bool(self.status() & STATUS_RX_OK)
 
     def measure_clocks(self, duration=1.0):
+        # Time the interval between the two latches (not the sleep): the CSR reads in between take
+        # tens of ms through a UART bridge.
+        t_start = time.time()
         self.reg("serdes_clock_latch").write(1)
         tx_start = self.reg("serdes_clock_tx_cycles").read()
         rx_start = self.reg("serdes_clock_rx_cycles").read()
         time.sleep(duration)
+        t_end = time.time()
         self.reg("serdes_clock_latch").write(1)
         tx_end = self.reg("serdes_clock_tx_cycles").read()
         rx_end = self.reg("serdes_clock_rx_cycles").read()
-        tx_freq = ((tx_end - tx_start) % 2**32)/duration
-        rx_freq = ((rx_end - rx_start) % 2**32)/duration
+        elapsed = t_end - t_start
+        tx_freq = ((tx_end - tx_start) % 2**32)/elapsed
+        rx_freq = ((rx_end - rx_start) % 2**32)/elapsed
         return tx_freq, rx_freq
+
+    def reset_counters(self):
+        # Clear RX errors / link drops (gateware with the phy_reset_counters CSR only).
+        if hasattr(self.bus.regs, f"sfp{self.n}_phy_reset_counters"):
+            self.reg("phy_reset_counters").write(1)
+            return True
+        return False
+
+    def wait_ready(self, timeout=2.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.ready():
+                return True
+            time.sleep(0.01)
+        return False
 
     def print_status(self):
         status = self.status()
@@ -176,9 +196,13 @@ def cmd_autopolarity(buses, args):
             print(f"{link.name}: no valid IDLEs received with either RX polarity (check cabling/linerate/remote).")
         else:
             print(f"{link.name}: RX OK with rx_polarity={polarity} (build option: --sfp{link.n}-rx-polarity={polarity}).")
-    time.sleep(0.1)
-    for link in get_links(buses):
-        print(f"{link.name}: link ready: {int(link.ready())}")
+    links = get_links(buses)
+    ready = {link.name: link.wait_ready() for link in links}
+    # Polarity changes cause RX errors and link drops: start from clean counters.
+    for link in links:
+        link.reset_counters()
+    for link in links:
+        print(f"{link.name}: link ready: {int(ready[link.name])}")
 
 def cmd_prbs(buses, args):
     mode  = PRBS_MODES[args.mode]
@@ -222,6 +246,15 @@ def cmd_prbs(buses, args):
     for tx, rx in pairs:
         tx.reg("serdes_tx_prbs_config").write(0)
         rx.reg("serdes_rx_prbs_config").write(0)
+    # The link layer sees the PRBS pattern as errors and the links drop: once they are back up,
+    # clear the counters so that status reflects normal operation again.
+    links = {rx.name: rx for tx, rx in pairs}.values()
+    ready = {link.name: link.wait_ready() for link in links}
+    for link in links:
+        if link.reset_counters():
+            print(f"{link.name}: link ready: {int(ready[link.name])} (RX errors / link drops counters cleared).")
+        else:
+            print(f"{link.name}: link ready: {int(ready[link.name])} (RX errors / link drops include the PRBS test).")
 
 def cmd_remote(buses, args):
     # Access the remote SoC through each initiator link.

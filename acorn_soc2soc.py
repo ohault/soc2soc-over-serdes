@@ -103,6 +103,10 @@ class SoC2SoC(SoCCore):
         roles = " / ".join(f"SFP{n}: {r}" for n, r in sfp_roles.items())
         kwargs.setdefault("ident", f"LiteX SoC2SoC over SerDes on Acorn Baseboard Mini ({roles})")
         kwargs.setdefault("ident_version", True)
+        # Crossbar interconnect: with SFP0 <-> SFP1 on the same board, the target link executes the
+        # remote access on the same bus the initiator access is waiting on. With a shared bus, the
+        # initiator holds the bus and remote reads deadlock until the bus timeout.
+        kwargs.setdefault("bus_interconnect", "crossbar")
 
         # SoCCore ----------------------------------------------------------------------------------
         SoCCore.__init__(self, platform, sys_clk_freq, **kwargs)
@@ -189,7 +193,7 @@ def main():
         parser.add_target_argument(f"--sfp{n}-rx-polarity", default=rx, type=int, choices=[0, 1], help=f"SFP{n} RX polarity swap (default: {rx}).")
     parser.add_target_argument("--flash",        action="store_true",         help="Flash bitstream.")
     parser.add_target_argument("--programmer",   default="openfpgaloader",    choices=["openocd", "openfpgaloader"], help="Programmer.")
-    parser.set_defaults(uart_name="crossover+uartbone")
+    parser.set_defaults(uart_name="crossover+uartbone", bus_interconnect="crossbar")
     args = parser.parse_args()
 
     soc = SoC2SoC(
