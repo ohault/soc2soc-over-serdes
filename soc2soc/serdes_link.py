@@ -69,6 +69,7 @@ class GTPSoCLink(LiteXModule):
         tx_polarity   = 0,
         rx_polarity   = 0,
         with_crc      = False,
+        burst_depth   = 64,
         default_page  = 0xf,
         window_size   = 0x1000_0000):
         assert role in ["initiator", "target"]
@@ -124,8 +125,9 @@ class GTPSoCLink(LiteXModule):
         # SerWB naming: "slave" core = Wishbone Slave on the initiator side, "master" core = Wishbone
         # Master on the target side.
         self.core = core = SERWBCore(phy, sys_clk_freq,
-            mode     = {"initiator": "slave", "target": "master"}[role],
-            with_crc = with_crc,
+            mode        = {"initiator": "slave", "target": "master"}[role],
+            with_crc    = with_crc,
+            burst_depth = burst_depth, # SerWB write coalescing / read response size (both sides).
         )
 
         # Remote Window (Initiator).

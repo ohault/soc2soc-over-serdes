@@ -80,12 +80,12 @@ python3 -m unittest test.test_bench -v   # Bandwidth/latency of each scenario, a
 ```
 
 **Pass:**
-- `test_link`: the 7 tests report `ok`. The two `test_single_soc_*` tests model scenario 1, where
+- `test_link`: the 9 tests report `ok`, including `test_flow_control` (receiver slower than the
+  link, no word lost). The two `test_single_soc_*` tests model scenario 1, where
   the host and the SFP1 target are masters of the same bus: remote reads only work with a crossbar
   interconnect, the default of `acorn_soc2soc.py`.
-- `test_bench`: the scenario tests report `ok` and `test_scenario2_crc` reports `expected failure`
-  (known issue with `--with-crc`, see [6](#6-optional-line-rate-and-crc)). The measured bandwidth is
-  printed for each scenario (see [Reference figures](#reference-figures)).
+- `test_bench`: all tests report `ok`. The measured bandwidth is printed for each scenario (see
+  [Reference figures](#reference-figures)).
 
 ## 2. Build and load
 
@@ -305,31 +305,37 @@ correctly.
 | `--refclk-freq=156.25e6 --linerate=3.125e9` | 156.25 MHz | `--linerate=3.125e9` |
 | `--linerate=5e9` | 250 MHz, check timing | `--linerate=5e9` |
 | `--with-crc` | unchanged | – |
+| `--sys-clk-freq=125e6` (higher bandwidth, see [Reference figures](#reference-figures)) | unchanged | – |
+| `--burst-depth=N` (SerWB write coalescing, default 64) | unchanged | – |
 
 At 5 Gbps the GTP reference clock comes from the fabric PLL, so it is more jittery. A non-zero BER
 at that rate is a limitation of the board's clocking, not necessarily a bug.
 
-**Known issue with `--with-crc`:** in simulation (`test_scenario2_crc`), back-to-back remote writes
-complete but about half of the following reads return wrong data. Do not use `--with-crc` for
-bandwidth measurements until this is fixed.
+`--with-crc` slows the receiver down (CRC checking): the link layer flow control keeps it lossless,
+at a lower bandwidth.
 
 ## Reference figures
 
-Scenario 1 on boards A and B at the same time, 2.5 Gbps, sys clock 100 MHz, no CRC. The link layer
-payload capacity is 248 MB/s per direction (2 bytes per 125 MHz cycle, one IDLE every 64 words).
+Measured on hardware between boards A and B (one cable), 4M accesses per run, one access in flight
+at a time, 0 errors. Details and analysis: [results/2026-11-07-bandwidth.md](results/2026-11-07-bandwidth.md).
 
-| Path | Write | Read | Access latency (read) |
-|------|-------|------|-----------------------|
-| Local mailbox (no link) | 200 MB/s | 200 MB/s | 20 ns |
-| Through one cable, hardware | 123 MB/s | 4.9 MB/s | 820 ns |
-| Through one cable, simulation | 124 MB/s | 10.7 MB/s | ≈ 400 ns |
-| Two cables at the same time, hardware | 246 MB/s total | 9.8 MB/s total | 820 ns |
+| Build options | Link capacity | Write | Read | Read round trip |
+|---------------|---------------|-------|------|-----------------|
+| Defaults: 2.5 Gbps, sys 100 MHz, `--burst-depth=64` | 248 MB/s | 192 MB/s | 4.6 MB/s | 870 ns |
+| `--sys-clk-freq=125e6` | 248 MB/s | 233 MB/s | 4.9 MB/s | 816 ns |
+| `--sys-clk-freq=125e6 --linerate=5e9` | 496 MB/s | 241 MB/s | 7.9 MB/s | 512 ns |
+| Before (burst 4, for reference) | 248 MB/s | 123 MB/s | 4.9 MB/s | 820 ns |
 
-- **Writes** are posted by the SerWB initiator: back-to-back writes use half of the link capacity.
-- **Reads** wait for the response, one at a time: the bandwidth is 4 bytes per round trip. The
-  hardware round trip is longer than in simulation because of the GTP latency (TX/RX buffers, 8b/10b,
-  serialization), which the simulation does not model.
+- **Writes** are posted and coalesced by SerWB (`--burst-depth` words per packet, 4 words of
+  overhead): `burst / (burst + 4)` of the link capacity, at most 2 sys cycles per access (200 MB/s at
+  100 MHz, 250 MB/s at 125 MHz).
+- **Reads** wait for the response, one at a time: the bandwidth is 4 bytes per round trip, mostly
+  fixed latency (GTP pipelines, CDC FIFOs, SerWB buffering). A higher line rate shortens it.
 - Each cable is independent: two cables at the same time give twice the bandwidth.
+- `--sys-clk-freq=150e6` does not meet timing. With `--sys-clk-freq=125e6` and `--linerate=5e9`
+  the timing margins are small (check the timing report).
+- The simulation (`test/test_bench.py`) models the transceivers as direct connections, so its read
+  round trip is shorter than on hardware.
 
 ## Troubleshooting
 

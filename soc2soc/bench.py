@@ -66,19 +66,46 @@ class WishboneBench(LiteXModule):
             bus.we.eq(self._control.storage[0]),
         ]
 
+        # Checks are pipelined (one cycle after the access ends) to keep them out of the bus timing
+        # paths: done is set once the last check is done.
+        check      = Signal()
+        check_last = Signal()
+        chk_access = Signal(32)
+        chk_err    = Signal()
+        chk_dat_r  = Signal(32)
+        chk_expect = Signal(32)
+        self.sync += [
+            check.eq(0),
+            check_last.eq(0),
+            If(check,
+                If(chk_access > self._latency.status,
+                    self._latency.status.eq(chk_access),
+                ),
+                If(chk_err | (~self._control.storage[0] & (chk_dat_r != chk_expect)),
+                    self._errors.status.eq(self._errors.status + 1),
+                ),
+                If(check_last,
+                    self._done.status.eq(1),
+                )
+            ),
+            If(self._start.re,
+                self._done.status.eq(0),
+                self._latency.status.eq(0),
+                self._errors.status.eq(0),
+                If(self._length.storage == 0,
+                    self._done.status.eq(1),
+                )
+            ),
+        ]
+
         self.fsm = fsm = FSM(reset_state="IDLE")
         fsm.act("IDLE",
             If(self._start.re,
                 NextValue(count, 0),
                 NextValue(access, 0),
-                NextValue(self._done.status,    0),
-                NextValue(self._cycles.status,  0),
-                NextValue(self._latency.status, 0),
-                NextValue(self._errors.status,  0),
+                NextValue(self._cycles.status, 0),
                 If(self._length.storage != 0,
                     NextState("RUN")
-                ).Else(
-                    NextValue(self._done.status, 1),
                 )
             )
         )
@@ -89,15 +116,14 @@ class WishboneBench(LiteXModule):
             NextValue(access, access + 1),
             If(bus.ack | bus.err,
                 NextValue(access, 0),
-                If(access + 1 > self._latency.status,
-                    NextValue(self._latency.status, access + 1),
-                ),
-                If(bus.err | (~self._control.storage[0] & (bus.dat_r != pattern)),
-                    NextValue(self._errors.status, self._errors.status + 1),
-                ),
+                NextValue(check,      1),
+                NextValue(chk_access, access + 1),
+                NextValue(chk_err,    bus.err),
+                NextValue(chk_dat_r,  bus.dat_r),
+                NextValue(chk_expect, pattern),
                 NextValue(count, count + 1),
                 If(count == (self._length.storage - 1),
-                    NextValue(self._done.status, 1),
+                    NextValue(check_last, 1),
                     NextState("IDLE")
                 )
             )

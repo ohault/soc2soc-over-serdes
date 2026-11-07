@@ -80,6 +80,10 @@ Useful options:
   link must use the same line rate.
 - `--with-crc`: adds a CRC to SerWB packets; corrupted packets are dropped and counted. Set it on
   both ends of a link.
+- `--burst-depth`: the default is `64`. Consecutive writes coalesced in one SerWB packet. Set the
+  same value on both ends of a link.
+- `--sys-clk-freq`: the default is `100e6`. `125e6` gives more bandwidth (see Throughput);
+  `150e6` does not meet timing.
 - `--sfpN-tx-polarity` / `--sfpN-rx-polarity`: the default polarity of each GTP. See
   [Polarity](#polarity).
 - `--cpu-type`: the default is a VexRiscv with its BIOS. Use `--cpu-type=None --uart-name=uartbone`
@@ -177,12 +181,16 @@ correction is needed.
   keeps alignment and status fresh.
 - Any 8b/10b or framing error drops the link immediately. The link comes back after 16 clean IDLEs,
   and SerWB is reset on each drop. Counters show RX errors, link drops and overflows.
+- Flow control: received words go to a 256-word buffer. When it fills up (slow remote bus, CRC
+  checking), a pause request is sent in an IDLE and the remote stops sending data until it is
+  released, so no word is lost.
 
 **Throughput.** The link layer payload capacity is linerate × 0.8 (8b/10b) minus the IDLE overhead,
 248 MB/s per direction at 2.5 Gbps. Measured on hardware with the bench (one access in flight at a
-time): back-to-back writes, which SerWB posts, reach 123 MB/s per cable; reads wait for each
-response and reach 4.9 MB/s (820 ns round trip). Each cable is independent. See the
-[reference figures](docs/test-procedure.md#reference-figures).
+time): writes, which SerWB posts and coalesces (`--burst-depth`, default 64), reach 192 MB/s at the
+default 100 MHz sys clock, 233 MB/s at `--sys-clk-freq=125e6` and 241 MB/s with `--linerate=5e9`.
+Reads wait for each response and reach 4.6 to 7.9 MB/s (one word per round trip of 500 to 870 ns).
+Each cable is independent. See the [reference figures](docs/test-procedure.md#reference-figures).
 
 **SFP sideband.** The SFP sideband is not used: the SFP I2C bus (`sfp_i2c`) is in the platform for
 reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.

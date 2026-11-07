@@ -7,7 +7,8 @@
 #
 # Line format (one 2-byte transceiver word per TX/RX clock cycle):
 #
-#   IDLE : byte0 = K28.5 (comma, K), byte1 = status (D): [7:4] = 0x5 (magic), [0] = local RX OK.
+#   IDLE : byte0 = K28.5 (comma, K), byte1 = status (D): [7:4] = 0x5 (magic), [1] = pause request,
+#          [0] = local RX OK.
 #   DATA : two consecutive D-words, low 16-bit half first, then high 16-bit half.
 #
 # - IDLEs are sent when there is nothing to send and at least every ``idle_period`` 32-bit words so
@@ -16,6 +17,13 @@
 # - RX is declared OK after ``rx_qualify`` consecutive valid IDLEs without 8b/10b error and stays OK
 #   while IDLEs are received at least every ``rx_timeout`` cycles and no error is seen.
 # - The link is ready when both sides report RX OK (each side echoes its RX state in the IDLEs).
+#
+# Flow control: received words go to an ``rx_buffer_depth`` words buffer (sys domain). When its level
+# reaches ``rx_buffer_depth - rx_pause_margin`` (or when ``pause`` is set by the user, e.g. SerWB's
+# own RX buffer), a pause request is sent to the remote, in an IDLE sent as soon as the request
+# changes. While paused, the remote finishes its current word and only sends IDLEs. The margin
+# absorbs the words in flight during the pause round trip, so no word is lost when the receiver is
+# slower than the link (e.g. a remote bus slower than the line rate, or SerWB CRC checking).
 #
 # Data is only forwarded while the link is ready; nothing is retransmitted at this level (SerWB
 # packets can optionally be CRC-protected, see SERWBCore's with_crc).
@@ -60,18 +68,26 @@ class SerDesLinkPHY(LiteXModule):
     cdc_common_rst : Reset the CDC FIFOs from both clock domains (required in hardware since the TX/RX
                      domains are reset independently on transceiver re-initialization; can only be
                      disabled for simulation, where the derived clock domains are not supported).
+    rx_buffer_depth : RX buffer (sys domain) for flow control, in 32-bit words (0: no flow control).
+    rx_pause_margin : Free words left in the RX buffer when a pause is requested.
+
+    ``pause`` (sys domain): user pause request (SERWBCore drives it from its RX buffer level).
     """
     def __init__(self, trx_sink, trx_source, rx_invalid, trx_ready, cd_tx="tx", cd_rx="rx",
         idle_period = 64,
         rx_qualify  = 16,
         rx_timeout  = 1024,
         fifo_depth  = 16,
+        rx_buffer_depth = 256,
+        rx_pause_margin = 128,
         cdc_common_rst = True):
         assert len(trx_sink.data)   == 16
         assert len(trx_source.data) == 16
+        assert (rx_buffer_depth == 0) or (rx_buffer_depth > rx_pause_margin)
         self.sink   = sink   = stream.Endpoint([("data", 32)])
         self.source = source = stream.Endpoint([("data", 32)])
         self.init   = init   = _LinkInit()
+        self.pause  = pause  = Signal() # User pause request (sys).
 
         # Status.
         self.rx_ok       = rx_ok       = Signal() # Local RX receives valid IDLEs (cd_rx).
@@ -79,6 +95,8 @@ class SerDesLinkPHY(LiteXModule):
         self.rx_errors   = rx_errors   = Signal(32) # 8b/10b/framing errors (cd_rx).
         self.rx_overflow = rx_overflow = Signal()   # Sticky, RX CDC overflow (cd_rx).
         self.rx_errors_clear = rx_errors_clear = Signal() # Clear rx_errors (cd_rx).
+        self.remote_pause = remote_pause = Signal() # Remote requests us to pause (cd_rx).
+        self.local_pause  = local_pause  = Signal() # We request the remote to pause (sys).
 
         # # #
 
@@ -94,11 +112,15 @@ class SerDesLinkPHY(LiteXModule):
         sys_rx_ok  = Signal()
         sys_link_ok = Signal()
         self.comb += rx_link_ok.eq(rx_ok & remote_ok)
+        tx_local_pause  = Signal()
+        tx_remote_pause = Signal()
         self.specials += [
-            MultiReg(rx_ok,      tx_rx_ok,    cd_tx),
-            MultiReg(rx_link_ok, tx_link_ok,  cd_tx),
-            MultiReg(rx_ok,      sys_rx_ok,   "sys"),
-            MultiReg(rx_link_ok, sys_link_ok, "sys"),
+            MultiReg(rx_ok,        tx_rx_ok,        cd_tx),
+            MultiReg(rx_link_ok,   tx_link_ok,      cd_tx),
+            MultiReg(rx_ok,        sys_rx_ok,       "sys"),
+            MultiReg(rx_link_ok,   sys_link_ok,     "sys"),
+            MultiReg(local_pause,  tx_local_pause,  cd_tx),
+            MultiReg(remote_pause, tx_remote_pause, cd_tx),
         ]
         self.comb += init.ready.eq(sys_link_ok & trx_ready)
         self.sys_rx_ok = sys_rx_ok
@@ -120,13 +142,16 @@ class SerDesLinkPHY(LiteXModule):
         tx_half  = Signal()
         tx_count = Signal(max=idle_period + 1)
         status   = Signal(8)
-        self.comb += status.eq(Cat(tx_rx_ok, Constant(0, 3), Constant(IDLE_MAGIC, 4)))
+        tx_pause_sent = Signal() # Pause request state sent in the last IDLE.
+        self.comb += status.eq(Cat(tx_rx_ok, tx_local_pause, Constant(0, 2), Constant(IDLE_MAGIC, 4)))
         tx_idle = [
             trx_sink.ctrl.eq(0b01),
             trx_sink.data.eq(Cat(Constant(K28_5, 8), status)),
         ]
         tx_start = Signal()
-        self.comb += tx_start.eq(~tx_half & tx_cdc.source.valid & (tx_count != 0))
+        self.comb += tx_start.eq(~tx_half & tx_cdc.source.valid & (tx_count != 0) &
+            ~tx_remote_pause &                 # Remote asks us to pause.
+            (tx_pause_sent == tx_local_pause)) # Pause request changed: send an IDLE first.
         self.comb += [
             trx_sink.valid.eq(1),
             If(~tx_link_ok,
@@ -150,13 +175,16 @@ class SerDesLinkPHY(LiteXModule):
             If(~tx_link_ok,
                 tx_half.eq(0),
                 tx_count.eq(idle_period),
+                tx_pause_sent.eq(tx_local_pause),
             ).Elif(tx_half,
                 tx_half.eq(0),
             ).Elif(tx_start,
                 tx_half.eq(1),
                 tx_count.eq(tx_count - 1),
             ).Else(
+                # IDLE.
                 tx_count.eq(idle_period),
+                tx_pause_sent.eq(tx_local_pause),
             )
         ]
 
@@ -233,6 +261,7 @@ class SerDesLinkPHY(LiteXModule):
                 rx_good.eq(0),
                 rx_ok.eq(0),
                 remote_ok.eq(0),
+                remote_pause.eq(0),
                 If(rx_errors != (2**32 - 1),
                     rx_errors.eq(rx_errors + 1)
                 )
@@ -240,6 +269,7 @@ class SerDesLinkPHY(LiteXModule):
                 rx_half.eq(0),
                 rx_timer.eq(rx_timeout),
                 remote_ok.eq(data[8]),
+                remote_pause.eq(data[9]),
                 If(rx_good == rx_qualify,
                     rx_ok.eq(1)
                 ).Else(
@@ -258,17 +288,32 @@ class SerDesLinkPHY(LiteXModule):
                 rx_good.eq(0),
                 rx_ok.eq(0),
                 remote_ok.eq(0),
+                remote_pause.eq(0),
             ),
             If(rx_errors_clear,
                 rx_errors.eq(0)
             )
         ]
 
+        # RX Buffer / Flow Control (sys).
+        # -------------------------------
+        if rx_buffer_depth:
+            self.rx_buffer = rx_buffer = ResetInserter()(stream.SyncFIFO([("data", 32)], rx_buffer_depth, buffered=True))
+            self.comb += [
+                rx_buffer.reset.eq(~init.ready),
+                rx_cdc.source.connect(rx_buffer.sink),
+                local_pause.eq(pause | (rx_buffer.level >= (rx_buffer_depth - rx_pause_margin))),
+            ]
+            rx_output = rx_buffer.source
+        else:
+            self.comb += local_pause.eq(pause)
+            rx_output = rx_cdc.source
+
         # Output (only forward data while link is ready, flush otherwise).
         self.comb += [
-            source.valid.eq(rx_cdc.source.valid & init.ready),
-            source.data.eq(rx_cdc.source.data),
-            rx_cdc.source.ready.eq(source.ready | ~init.ready),
+            source.valid.eq(rx_output.valid & init.ready),
+            source.data.eq(rx_output.data),
+            rx_output.ready.eq(source.ready | ~init.ready),
         ]
 
     def add_csr(self):
@@ -276,6 +321,8 @@ class SerDesLinkPHY(LiteXModule):
             CSRField("ready",     size=1, description="Link ready (both sides receive each other)."),
             CSRField("rx_ok",     size=1, description="Local RX receives valid IDLEs from remote."),
             CSRField("remote_ok", size=1, description="Remote reports it receives our IDLEs."),
+            CSRField("local_pause",  size=1, description="We request the remote to pause (RX buffer almost full)."),
+            CSRField("remote_pause", size=1, description="The remote requests us to pause."),
         ])
         self._rx_errors   = CSRStatus(32, description="RX 8b/10b/framing errors (saturating).")
         self._rx_overflow = CSRStatus(description="RX CDC overflow (sticky, cleared on RX reset).")
@@ -290,11 +337,17 @@ class SerDesLinkPHY(LiteXModule):
             self.rx_errors_clear.eq(self.rx_errors_clear_ps.o),
         ]
 
-        sys_remote_ok   = Signal()
-        sys_rx_overflow = Signal()
+        sys_remote_ok    = Signal()
+        sys_rx_overflow  = Signal()
+        sys_remote_pause = Signal()
         self.specials += [
-            MultiReg(self.remote_ok,   sys_remote_ok),
-            MultiReg(self.rx_overflow, sys_rx_overflow),
+            MultiReg(self.remote_ok,    sys_remote_ok),
+            MultiReg(self.rx_overflow,  sys_rx_overflow),
+            MultiReg(self.remote_pause, sys_remote_pause),
+        ]
+        self.comb += [
+            self._status.fields.local_pause.eq(self.local_pause),
+            self._status.fields.remote_pause.eq(sys_remote_pause),
         ]
         self.rx_errors_sync = BusSynchronizer(32, idomain=self.cd_rx, odomain="sys")
         self.comb += [

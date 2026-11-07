@@ -103,7 +103,7 @@ class _DUT(LiteXModule):
     """
     WINDOW_BASE = 0x0800_0000 # Word address of the window (byte 0x2000_0000) in single-SoC mode.
 
-    def __init__(self, byte_shift=False, with_crc=False, interconnect=None):
+    def __init__(self, byte_shift=False, with_crc=False, interconnect=None, with_serwb=True, **phy_kwargs):
         self.cd_sys  = ClockDomain()
         self.cd_a_tx = ClockDomain()
         self.cd_b_tx = ClockDomain()
@@ -117,9 +117,11 @@ class _DUT(LiteXModule):
         # PHYs.
         # (No CDC common reset: derived clock domains are not supported by the simulator).
         self.phy_a = phy_a = SerDesLinkPHY(a2b.sink, b2a.source, b2a.invalid, self.trx_ready,
-            cd_tx="a_tx", cd_rx="b_tx", cdc_common_rst=False)
+            cd_tx="a_tx", cd_rx="b_tx", cdc_common_rst=False, **phy_kwargs)
         self.phy_b = phy_b = SerDesLinkPHY(b2a.sink, a2b.source, a2b.invalid, self.trx_ready,
-            cd_tx="b_tx", cd_rx="a_tx", cdc_common_rst=False)
+            cd_tx="b_tx", cd_rx="a_tx", cdc_common_rst=False, **phy_kwargs)
+        if not with_serwb:
+            return # Raw 32-bit streams over the PHYs.
 
         # SerWB: A initiator (Wishbone Slave), B target (Wishbone Master) -> SRAM.
         self.core_a = core_a = SERWBCore(phy_a, 100e6, mode="slave",  with_crc=with_crc)
@@ -217,6 +219,54 @@ class TestLink(unittest.TestCase):
 
     def test_link_error_recovery(self):
         self.check_link(inject_error=True)
+
+    def run_flow_control(self, words=2000, ready_period=4, **phy_kwargs):
+        # A sends a continuous stream of words, B's output only accepts one word every ready_period
+        # cycles (receiver slower than the link).
+        dut = _DUT(with_serwb=False, **phy_kwargs)
+        received = []
+        state    = {}
+
+        def sender():
+            assert (yield from wait_ready(dut))
+            for i in range(words):
+                yield dut.phy_a.sink.valid.eq(1)
+                yield dut.phy_a.sink.data.eq(i)
+                yield
+                while not (yield dut.phy_a.sink.ready):
+                    yield
+            yield dut.phy_a.sink.valid.eq(0)
+
+        def receiver():
+            cycle = 0
+            idle  = 0
+            while idle < 20000:
+                ready = (cycle % ready_period) == 0
+                yield dut.phy_b.source.ready.eq(ready)
+                yield
+                if ready and (yield dut.phy_b.source.valid):
+                    received.append((yield dut.phy_b.source.data))
+                    idle = 0
+                else:
+                    idle += 1
+                cycle += 1
+                if len(received) == words:
+                    break
+            state["overflow"] = (yield dut.phy_b.rx_overflow)
+
+        run_simulation(dut, [sender(), receiver()], clocks=CLOCKS)
+        return received, state
+
+    def test_flow_control(self):
+        received, state = self.run_flow_control()
+        self.assertEqual(received, list(range(2000)))
+        self.assertEqual(state["overflow"], 0)
+
+    def test_no_flow_control_overflows(self):
+        # Without flow control, a receiver slower than the link loses words.
+        received, state = self.run_flow_control(rx_buffer_depth=0)
+        self.assertNotEqual(received, list(range(2000)))
+        self.assertEqual(state["overflow"], 1)
 
     def test_reset_counters(self):
         dut = _DUT()

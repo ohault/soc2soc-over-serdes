@@ -95,6 +95,7 @@ class SoC2SoC(SoCCore):
         linerate         = 2.5e9,
         refclk_freq      = 125e6,
         with_crc         = False,
+        burst_depth      = 64,
         mailbox_size     = 0x2000,
         with_bench       = True,
         with_led_chaser  = False,
@@ -147,6 +148,7 @@ class SoC2SoC(SoCCore):
                 tx_polarity  = tx_polarity,
                 rx_polarity  = rx_polarity,
                 with_crc     = with_crc,
+                burst_depth  = burst_depth,
             )
             self.add_module(name=f"sfp{n}", module=link)
             link.add_timing_constraints(platform, self.crg.cd_sys.clk)
@@ -194,6 +196,7 @@ def main():
     parser.add_target_argument("--linerate",     default=2.5e9,  type=float,  help="SerDes linerate (1.25e9, 2.5e9 or 5e9 with 125MHz RefClk, 3.125e9 with 156.25MHz).")
     parser.add_target_argument("--refclk-freq",  default=125e6,  type=float,  help="GTP QPLL reference clock frequency (from fabric PLL).")
     parser.add_target_argument("--with-crc",     action="store_true",         help="Enable SerWB CRC (must match on both sides).")
+    parser.add_target_argument("--burst-depth",  default=64, type=int,   help="SerWB burst depth: consecutive writes coalesced per packet (1-256, must match on both sides).")
     parser.add_target_argument("--no-bench",     action="store_true",         help="Disable the bandwidth/latency bench (Wishbone traffic generator).")
     for n in [0, 1]:
         tx, rx = SFP_POLARITIES[n]
@@ -216,6 +219,7 @@ def main():
         linerate       = args.linerate,
         refclk_freq    = args.refclk_freq,
         with_crc       = args.with_crc,
+        burst_depth    = args.burst_depth,
         with_bench     = not args.no_bench,
         **parser.soc_argdict
     )

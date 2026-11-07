@@ -60,11 +60,13 @@ def _region(addr):
 # Topology -----------------------------------------------------------------------------------------
 
 class _Topology(LiteXModule):
-    def __init__(self, scenario, with_crc=False):
+    def __init__(self, scenario, with_crc=False, burst_depth=64, sys_clk_freq=SYS_CLK_FREQ, linerate=LINERATE):
         links = SCENARIOS[scenario]
         socs  = sorted({s for l in links for s in (l[0], l[2])})
         self.cd_sys = ClockDomain()
-        self.clocks = {"sys": 10}
+        # Clock periods in 0.1ns units.
+        self.clocks = {"sys": round(1e10/sys_clk_freq)}
+        tx_period   = round(1e10/(linerate/20))
         self.trx_ready = Signal(reset=1)
 
         masters = {s: [] for s in socs}
@@ -85,7 +87,7 @@ class _Topology(LiteXModule):
             cd_i2t, cd_t2i = f"l{n}_i2t", f"l{n}_t2i"
             for cd in [cd_i2t, cd_t2i]:
                 self.clock_domains += ClockDomain(cd)
-                self.clocks[cd] = 8
+                self.clocks[cd] = tx_period
             i2t = _Channel(cd_i2t)
             t2i = _Channel(cd_t2i)
             self.add_module(f"l{n}_i2t", i2t)
@@ -94,8 +96,8 @@ class _Topology(LiteXModule):
                 cd_tx=cd_i2t, cd_rx=cd_t2i, cdc_common_rst=False)
             phy_t = SerDesLinkPHY(t2i.sink, i2t.source, i2t.invalid, self.trx_ready,
                 cd_tx=cd_t2i, cd_rx=cd_i2t, cdc_common_rst=False)
-            core_i = SERWBCore(phy_i, SYS_CLK_FREQ, mode="slave",  with_crc=with_crc)
-            core_t = SERWBCore(phy_t, SYS_CLK_FREQ, mode="master", with_crc=with_crc)
+            core_i = SERWBCore(phy_i, sys_clk_freq, mode="slave",  with_crc=with_crc, burst_depth=burst_depth)
+            core_t = SERWBCore(phy_t, sys_clk_freq, mode="master", with_crc=with_crc, burst_depth=burst_depth)
             window = RemoteWindow(core_i.bus, default_page=_page(MAILBOX))
             for name, m in [("phy_i", phy_i), ("phy_t", phy_t), ("core_i", core_i),
                             ("core_t", core_t), ("window", window)]:
@@ -156,18 +158,20 @@ def _wait_done(benches, timeout=1_000_000):
         })
     return results
 
-def _mbps(length, cycles):
-    return length*4/(cycles/SYS_CLK_FREQ)/1e6 if cycles else 0.0
+def _mbps(length, cycles, sys_clk_freq=SYS_CLK_FREQ):
+    return length*4/(cycles/sys_clk_freq)/1e6 if cycles else 0.0
 
-def link_capacity():
+def link_capacity(linerate=LINERATE):
     """Link layer payload capacity per direction (bytes/s): 2 bytes per TX clock, 1 IDLE every
     64 32-bit words (128 cycles)."""
-    return LINERATE/20*2*128/129
+    return linerate/20*2*128/129
 
-def run_scenario(scenario, length=512, concurrent=True, with_crc=False):
+def run_scenario(scenario, length=512, concurrent=True, with_crc=False, burst_depth=64,
+    sys_clk_freq=SYS_CLK_FREQ, linerate=LINERATE):
     """Returns {"write"/"read": [result per run]}, result = dict(soc, base, mbps, latency_ns,
     errors, done)."""
-    top  = _Topology(scenario, with_crc=with_crc)
+    top  = _Topology(scenario, with_crc=with_crc, burst_depth=burst_depth,
+        sys_clk_freq=sys_clk_freq, linerate=linerate)
     wrap = MAILBOX_SIZE//4 - 1
     out  = {}
 
@@ -183,8 +187,8 @@ def run_scenario(scenario, length=512, concurrent=True, with_crc=False):
                 results = yield from _wait_done(benches)
                 for (soc, base), r in zip(group, results):
                     out[mode].append(dict(r, soc=soc, base=base,
-                        mbps       = _mbps(length, r["cycles"]),
-                        latency_ns = r["latency"]*1e9/SYS_CLK_FREQ))
+                        mbps       = _mbps(length, r["cycles"], sys_clk_freq),
+                        latency_ns = r["latency"]*1e9/sys_clk_freq))
         # Remote writes landed in the remote mailbox?
         out["mailbox_errors"] = 0
         for init_soc, init_sfp, tgt_soc, _ in SCENARIOS[scenario]:
@@ -220,6 +224,22 @@ class TestBench(unittest.TestCase):
         self.assertEqual(out["mailbox_errors"], 0)
         return out
 
+    def test_bench_detects_errors(self):
+        # Write with one seed, read back expecting another: every read must be counted as an error.
+        top   = _Topology("1")
+        bench = top.benches["a"]
+        wrap  = MAILBOX_SIZE//4 - 1
+        out   = {}
+        def generator():
+            assert (yield from _wait_ready(top))
+            yield from _start(bench, MAILBOX, 64, wrap, write=True, seed=1)
+            yield from _wait_done([bench])
+            yield from _start(bench, MAILBOX, 64, wrap, write=False, seed=2)
+            out["read"] = (yield from _wait_done([bench]))[0]
+        run_simulation(top, generator(), clocks=top.clocks)
+        self.assertTrue(out["read"]["done"])
+        self.assertEqual(out["read"]["errors"], 64)
+
     def test_scenario1_one_dac_single_soc(self):
         self.check("1")
 
@@ -237,10 +257,7 @@ class TestBench(unittest.TestCase):
             for r_conc, r_alone in zip(out[mode], alone[mode]):
                 self.assertGreater(r_conc["mbps"], 0.8*r_alone["mbps"])
 
-    # Known issue: with CRC, back-to-back remote writes complete but the following reads return
-    # wrong data (~half of them) and the simulation becomes very slow. Under investigation; CRC is
-    # disabled by default.
-    @unittest.expectedFailure
+    # With CRC, the receiver is slower than the link: requires the link layer flow control.
     def test_scenario2_crc(self):
         self.check("2", with_crc=True)
 
