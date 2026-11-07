@@ -345,6 +345,25 @@ class TestLink(unittest.TestCase):
             results["err"] = (err0, err1, dat1)
         self.assertEqual(self.run_prefetch(body)["err"], (1, 0, 0x1234))
 
+    def test_prefetch_lookahead_past_end(self):
+        # Sequential reads up to the end of a memory region followed by an error region: the
+        # look-ahead block past the end fails and is dropped, all reads of the region succeed, and a
+        # read in the error region reports its error.
+        last = 0x03ff_ffc0 # Last 64-word block before remote word address bit 26 (error slave).
+        def body(dut, results):
+            for i in range(64):
+                yield from dut.host.write(dut.host_base + last + i, 0x100 + i)
+            errors = 0
+            for i in range(64):
+                dat, err = yield from wb_access(dut.host, dut.host_base + last + i)
+                errors += (err or dat != 0x100 + i)
+            yield dut.window.page.storage.eq(1)
+            _, err_end = yield from wb_access(dut.host, dut.host_base + 0)
+            yield dut.window.page.storage.eq(0)
+            dat, err = yield from wb_access(dut.host, dut.host_base + last)
+            results["result"] = (errors, err_end, err, dat)
+        self.assertEqual(self.run_prefetch(body, burst_depth=16)["result"], (0, 1, 0, 0x100))
+
     def test_reset_counters(self):
         dut = _DUT()
         dut.phy_b.add_csr()

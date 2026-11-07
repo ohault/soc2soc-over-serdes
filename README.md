@@ -146,7 +146,8 @@ mem_read  0x80000000 64     # Remote mailbox.
 
 Sequential reads through the window can be accelerated with **read prefetch**: set the
 `sfpN_window_prefetch` CSR to 1 and blocks of up to `--burst-depth` words are read ahead on the
-remote bus (4.6 → 82 MB/s). Only enable it when the page holds memory: prefetched words are really
+remote bus, and the next block is requested while the current one is consumed (4.6 → 125 MB/s).
+Read-ahead never crosses a 4 KB boundary, so it does not go past the end of a 4 KB-aligned memory. Only enable it when the page holds memory: prefetched words are really
 read on the remote side, so registers with read side effects (FIFOs, clear-on-read) would be
 affected. The block is discarded on any write or non-sequential read. It is off by default.
 
@@ -197,7 +198,7 @@ correction is needed.
 time): writes, which SerWB posts and coalesces (`--burst-depth`, default 64), reach 192 MB/s at the
 default 100 MHz sys clock, 233 MB/s at `--sys-clk-freq=125e6` and 241 MB/s with `--linerate=5e9`.
 Reads wait for each response and reach 4.6 to 7.9 MB/s (one word per round trip of 500 to 870 ns),
-or 82 MB/s with read prefetch. Each cable is independent. See the [reference figures](docs/test-procedure.md#reference-figures).
+or 125 MB/s with read prefetch. Each cable is independent. See the [reference figures](docs/test-procedure.md#reference-figures).
 
 **SFP sideband.** The SFP sideband is not used: the SFP I2C bus (`sfp_i2c`) is in the platform for
 reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.

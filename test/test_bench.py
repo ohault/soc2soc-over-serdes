@@ -79,7 +79,9 @@ class _Topology(LiteXModule):
             self.add_module(f"bench_{s}", bench)
             self.add_module(f"sram_{s}",  sram)
             masters[s].append(bench.bus)
-            slaves[s].append((_region(MAILBOX), sram.bus))
+            # Mailbox decoded exactly (8KB): the rest of its region is unmapped (bus timeout), as in
+            # the SoC.
+            slaves[s].append((lambda a: a[11:30] == (MAILBOX >> 13), sram.bus))
 
         self.phys    = []
         self.windows = []
@@ -265,6 +267,12 @@ class TestBench(unittest.TestCase):
                 self.assertGreater(r_conc["mbps"], 0.8*r_alone["mbps"])
 
     # With CRC, the receiver is slower than the link: requires the link layer flow control.
+    def test_scenario2_wrap(self):
+        # Runs longer than the mailbox: the bench wraps around it (non-sequential read), and the read
+        # prefetch must not read ahead past its end (unmapped: remote bus timeouts).
+        out = self.check("2", length=4096)
+        self.assertGreater(out["read+pf"][0]["mbps"], 5*out["read"][0]["mbps"])
+
     def test_scenario2_crc(self):
         self.check("2", with_crc=True)
 

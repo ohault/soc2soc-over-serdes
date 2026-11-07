@@ -70,5 +70,27 @@ report in [2026-11-07-scenario3-prefetch.md](2026-11-07-scenario3-prefetch.md):
 | Both at the same time (aggregate) | 384.97 MB/s | 9.30 MB/s | 163.24 MB/s |
 
 Simulation (scenario 2, 2.5 Gbps, 100 MHz, burst 64): read 9.9 MB/s, read + prefetch 95.5 MB/s.
-Each block costs one round trip plus its transfer (64 words); requesting the next block before the
-current one is consumed (look-ahead) would overlap them.
+Each block costs one round trip plus its transfer (64 words).
+
+#### Read prefetch with look-ahead
+
+Once a sequential stream is detected (3 hits), the next 64-word block is requested while the
+current one is still being received and consumed (2 responses outstanding, 128-word buffer), so the
+round trip overlaps with the consumption.
+
+A first version read ahead past the end of the mailbox when the bench wrapped around it: the
+remote words were unmapped and each waited for the remote bus timeout (10 ms), so the run did not
+finish within 60 s. Look-ahead now never crosses a 4 KB boundary, and the testbench mailbox is
+decoded exactly (8 KB, rest unmapped) with a wrap-around test (`test_scenario2_wrap`).
+
+Hardware, defaults, scenario 3, report in
+[2026-11-07-scenario3-lookahead.md](2026-11-07-scenario3-lookahead.md):
+
+| Path | Write | Read | Read + prefetch (no look-ahead) | Read + prefetch (look-ahead) |
+|------|-------|------|---------------------------------|------------------------------|
+| A.sfp0 -> B.sfp1 | 192.48 MB/s | 4.69 MB/s | 81.68 MB/s | 124.64 MB/s |
+| B.sfp0 -> A.sfp1 | 192.48 MB/s | 4.65 MB/s | 81.57 MB/s | 124.58 MB/s |
+| Both at the same time (aggregate) | 384.97 MB/s | 9.34 MB/s | 163.24 MB/s | 249.22 MB/s |
+
+Simulation (scenario 2): read + prefetch 124.2 MB/s (512 words), 127.0 MB/s (4096 words, with
+mailbox wrap-around).

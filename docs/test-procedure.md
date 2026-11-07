@@ -321,12 +321,12 @@ at a time, 0 errors. Details and analysis: [results/2026-11-07-bandwidth.md](res
 
 | Build options | Link capacity | Write | Read | Read + prefetch | Read round trip |
 |---------------|---------------|-------|------|-----------------|-----------------|
-| Defaults: 2.5 Gbps, sys 100 MHz, `--burst-depth=64` | 248 MB/s | 192 MB/s | 4.6 MB/s | 82 MB/s | 870 ns |
+| Defaults: 2.5 Gbps, sys 100 MHz, `--burst-depth=64` | 248 MB/s | 192 MB/s | 4.6 MB/s | 125 MB/s | 870 ns |
 | `--sys-clk-freq=125e6` | 248 MB/s | 233 MB/s | 4.9 MB/s | – | 816 ns |
 | `--sys-clk-freq=125e6 --linerate=5e9` | 496 MB/s | 241 MB/s | 7.9 MB/s | – | 512 ns |
 | Before (burst 4, for reference) | 248 MB/s | 123 MB/s | 4.9 MB/s | – | 820 ns |
 
-In scenario 3, both directions at the same time give twice these figures (385 MB/s write, 163 MB/s
+In scenario 3, both directions at the same time give twice these figures (385 MB/s write, 249 MB/s
 read with prefetch, measured).
 
 - **Writes** are posted and coalesced by SerWB (`--burst-depth` words per packet, 4 words of
@@ -335,7 +335,8 @@ read with prefetch, measured).
 - **Reads** wait for the response, one at a time: the bandwidth is 4 bytes per round trip, mostly
   fixed latency (GTP pipelines, CDC FIFOs, SerWB buffering). A higher line rate shortens it.
 - **Read prefetch** (`sfpN_window_prefetch` CSR, off by default) reads blocks of up to `burst-depth`
-  words ahead and serves sequential reads from them. Only enable it on remote pages without read side
+  words ahead and serves sequential reads from them; once a sequential stream is detected, the next
+  block is requested while the current one is consumed (never across a 4 KB boundary). Only enable it on remote pages without read side
   effects (memories). `bandwidth` measures reads with and without it.
 - Each cable is independent: two cables at the same time give twice the bandwidth.
 - `--sys-clk-freq=150e6` does not meet timing. With `--sys-clk-freq=125e6` and `--linerate=5e9`
