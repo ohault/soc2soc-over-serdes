@@ -19,19 +19,23 @@ memory-mapped protocol. One SoC (the *initiator*) reads and writes the bus of th
 
 ## Scenarios
 
-Each SFP port has a role, set with `--sfp0` / `--sfp1`: `none`, `initiator` or `target`.
+Every board runs the same gateware: **SFP0 is the initiator and SFP1 the target**. Every DAC cable
+joins an SFP0 to an SFP1, so going from one scenario to another only means moving cables (no
+rebuild, no reload), and `test_soc2soc.py` detects the cabling by itself.
 
-| # | Setup | Board A | Board B |
-|---|-------|---------|---------|
-| 1 | Single board, SFP0 ⇄ DAC ⇄ SFP1 | `--sfp0=initiator --sfp1=target` | – |
-| 2 | Two boards, SFP0 ⇄ DAC ⇄ SFP0 | `--sfp0=initiator` | `--sfp0=target` |
-| 3 | Two boards, SFP0 ⇄ DAC0 ⇄ SFP0 and SFP1 ⇄ DAC1 ⇄ SFP1 | `--sfp0=initiator --sfp1=target` | `--sfp0=target --sfp1=initiator` |
+| # | Cables | Access |
+|---|--------|--------|
+| 1 | A.SFP0 ⇄ A.SFP1 (and/or B.SFP0 ⇄ B.SFP1 at the same time) | Each board accesses its own bus |
+| 2 | A.SFP0 ⇄ B.SFP1 | A accesses B |
+| 3 | A.SFP0 ⇄ B.SFP1 and B.SFP0 ⇄ A.SFP1 | Each board accesses the other |
 
 - **Scenario 1** is a loopback. The SoC reaches its own bus through the cable: SFP0 sends, SFP1
   executes. This validates both GTP channels, the cable and the protocol on a single board.
 - **Scenario 2** lets board A access board B.
-- **Scenario 3** has two independent links, one per direction. Each board can access the other
-  board through its SFP initiator window.
+- **Scenario 3** has two independent links, one per direction. Each board accesses the other
+  through its SFP0 initiator window, both at the same time.
+
+The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or `target`).
 
 ## Layout
 
@@ -40,8 +44,10 @@ Each SFP port has a role, set with `--sfp0` / `--sfp1`: `none`, `initiator` or `
 | `acorn_soc2soc.py` | LiteX target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |
 | `soc2soc/link.py` | SerDes link layer: 32-bit stream over a 2-byte 8b/10b transceiver, link-up handshake, error detection. Can be used as a SerWB PHY. |
 | `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window. |
-| `test_soc2soc.py` | Host utility (through `litex_server`): `ident`, `status`, `autopolarity`, `prbs`, `remote`. |
-| `test/test_link.py` | Simulation: two link layers back to back with SerWB on top (byte misalignment, CRC and error recovery cases). |
+| `soc2soc/bench.py` | `WishboneBench`: Wishbone traffic generator to measure bandwidth and latency from the FPGA. |
+| `test_soc2soc.py` | Host utility (through `litex_server`): `ident`, `status`, `autopolarity`, `wiring`, `prbs`, `remote`, `bandwidth`, `run` (full sequence with report). |
+| `test/test_link.py` | Simulation: two link layers back to back with SerWB on top (byte misalignment, CRC and error recovery cases, single-SoC bus deadlock). |
+| `test/test_bench.py` | Simulation: bandwidth/latency of each scenario (one and two DAC cables). |
 
 ## Installation
 
@@ -57,17 +63,15 @@ pip3 install --user meson ninja && python3 litex_setup.py --gcc=riscv   # For th
 ## Build and load
 
 ```sh
-# Scenario 1 (single board).
-./acorn_soc2soc.py --sfp0=initiator --sfp1=target --build --load
-
-# Scenario 2.
-./acorn_soc2soc.py --sfp0=initiator --output-dir=build/board_a --build --load   # Board A
-./acorn_soc2soc.py --sfp0=target    --output-dir=build/board_b --build --load   # Board B
-
-# Scenario 3.
-./acorn_soc2soc.py --sfp0=initiator --sfp1=target    --output-dir=build/board_a --build --load
-./acorn_soc2soc.py --sfp0=target    --sfp1=initiator --output-dir=build/board_b --build --load
+./acorn_soc2soc.py --build                    # One build for all boards and scenarios.
+./acorn_soc2soc.py --load --usb-port=1-3      # Board A (or --flash, once).
+./acorn_soc2soc.py --load --usb-port=1-5      # Board B.
 ```
+
+The board's FTDI chip has no USB serial number: with several boards connected, `--usb-port` selects
+a board by the host USB port it is plugged into (see `/sys/bus/usb/devices`, and
+[docs/test-procedure.md](docs/test-procedure.md#22-load-or-flash)). It can be omitted with a single
+board.
 
 Useful options:
 
@@ -99,25 +103,23 @@ The full step-by-step procedure, with expected results for each scenario, troubl
 results template, is in [docs/test-procedure.md](docs/test-procedure.md). Quick reference:
 
 ```sh
-# Single board.
-litex_server --uart --uart-port=/dev/ttyUSBX
-./test_soc2soc.py --csr-csv=build/sqrl_acorn/csr.csv status        # GTP/link status, clocks, counters.
-./test_soc2soc.py --csr-csv=build/sqrl_acorn/csr.csv autopolarity  # Fix RX polarities if needed.
-./test_soc2soc.py --csr-csv=build/sqrl_acorn/csr.csv prbs          # PRBS31 BER test, both directions.
-./test_soc2soc.py --csr-csv=build/sqrl_acorn/csr.csv remote        # Remote ident + mailbox through the link.
+# One litex_server per board: board A on port 1234, board B on port 1235 (stable UART names).
+litex_server --uart --uart-port=/dev/serial/by-path/<board A>-usb-0:3:1.1-port0 --bind-port=1234
+litex_server --uart --uart-port=/dev/serial/by-path/<board B>-usb-0:5:1.1-port0 --bind-port=1235
 
-# Two boards: one litex_server per board, on different ports.
-litex_server --uart --uart-port=/dev/ttyUSBX --bind-port=1234
-litex_server --uart --uart-port=/dev/ttyUSBY --bind-port=1235
-./test_soc2soc.py --csr-csv=build/board_a/csr.csv --port=1234 \
-                  --peer-csr-csv=build/board_b/csr.csv --peer-port=1235 status   # Or autopolarity/prbs/remote.
+T="./test_soc2soc.py --boards=AB"   # Or --boards=A / --boards=B.
+$T run --report=results.md          # Everything below in sequence, with pass/fail summary and report.
+
+$T autopolarity  # Fix RX polarities if needed.
+$T wiring        # Detect the cables and the scenario.
+$T status        # GTP/link status, clocks, counters.
+$T prbs          # PRBS31 BER test, both directions of every cable.
+$T remote        # Remote ident + mailbox through each cable, direct check on the target board.
+$T bandwidth     # Bandwidth/latency through each cable, measured from the FPGA.
 ```
 
-The `remote` command does the following for each link where the board is the initiator:
-
-1. It reads the remote SoC's identifier through the window.
-2. It writes random data to the remote mailbox and reads it back through the link.
-3. With two boards, it also checks the data directly on the remote board.
+`wiring` silences the TX of each SFP in turn and sees which SFP stops receiving. `prbs`, `remote`
+and `bandwidth` run it first, so they work with any cabling.
 
 ### Remote window
 
@@ -176,8 +178,11 @@ correction is needed.
 - Any 8b/10b or framing error drops the link immediately. The link comes back after 16 clean IDLEs,
   and SerWB is reset on each drop. Counters show RX errors, link drops and overflows.
 
-**Throughput.** The raw payload is linerate × 0.8 (8b/10b) minus the IDLE overhead, about 2 Gbps at
-2.5 Gbps. Actual SerWB throughput is lower: each transaction is a request/response over the link.
+**Throughput.** The link layer payload capacity is linerate × 0.8 (8b/10b) minus the IDLE overhead,
+248 MB/s per direction at 2.5 Gbps. Measured on hardware with the bench (one access in flight at a
+time): back-to-back writes, which SerWB posts, reach 123 MB/s per cable; reads wait for each
+response and reach 4.9 MB/s (820 ns round trip). Each cable is independent. See the
+[reference figures](docs/test-procedure.md#reference-figures).
 
 **SFP sideband.** The SFP sideband is not used: the SFP I2C bus (`sfp_i2c`) is in the platform for
 reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.
@@ -185,7 +190,8 @@ reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.
 ## Simulation
 
 ```sh
-python3 -m unittest test.test_link -v
+python3 -m unittest test.test_link -v    # Link layer + SerWB.
+python3 -m unittest test.test_bench -v   # Bandwidth/latency of each scenario (one and two DAC cables).
 ```
 
 ### Migen version

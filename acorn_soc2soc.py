@@ -12,15 +12,15 @@
 # - initiator : local SoC accesses the remote SoC through a 256MB window of its memory map.
 # - target    : remote SoC accesses the local SoC bus.
 #
-# Scenarios:
-# 1) Single board, SFP0 <-DAC-> SFP1:
-#      ./acorn_soc2soc.py --sfp0=initiator --sfp1=target --build --load
-# 2) Two boards, SFP0 <-DAC-> SFP0:
-#      Board A: ./acorn_soc2soc.py --sfp0=initiator --build --load
-#      Board B: ./acorn_soc2soc.py --sfp0=target    --build --load
-# 3) Two boards, SFP0 <-DAC0-> SFP0 and SFP1 <-DAC1-> SFP1 (bidirectional):
-#      Board A: ./acorn_soc2soc.py --sfp0=initiator --sfp1=target    --build --load
-#      Board B: ./acorn_soc2soc.py --sfp0=target    --sfp1=initiator --build --load
+# Default: SFP0 = initiator, SFP1 = target, the same gateware on every board. Every DAC cable joins
+# an SFP0 to an SFP1, so moving from one scenario to another is only a matter of moving cables:
+# 1) Single board, A.SFP0 <-DAC-> A.SFP1 (can run on boards A and B at the same time).
+# 2) Two boards, A.SFP0 <-DAC-> B.SFP1 (A accesses B).
+# 3) Two boards, A.SFP0 <-DAC-> B.SFP1 and B.SFP0 <-DAC-> A.SFP1 (each board accesses the other).
+#
+#   ./acorn_soc2soc.py --build
+#   ./acorn_soc2soc.py --load --usb-port=1-3     # Board A (host USB port, see README).
+#   ./acorn_soc2soc.py --load --usb-port=1-5     # Board B.
 
 from migen import *
 
@@ -39,6 +39,7 @@ from litex.soc.cores.clock import S7PLL
 from liteiclink.serdes.gtp_7series import GTPQuadPLL
 
 from soc2soc.serdes_link import GTPSoCLink
+from soc2soc.bench       import WishboneBench
 
 # Board Polarities ---------------------------------------------------------------------------------
 
@@ -95,6 +96,7 @@ class SoC2SoC(SoCCore):
         refclk_freq      = 125e6,
         with_crc         = False,
         mailbox_size     = 0x2000,
+        with_bench       = True,
         with_led_chaser  = False,
         **kwargs):
         platform = sqrl_acorn.Platform(variant=variant)
@@ -119,6 +121,11 @@ class SoC2SoC(SoCCore):
             self.mailbox = wishbone.SRAM(mailbox_size)
             self.bus.add_slave("mailbox", self.mailbox.bus,
                 SoCRegion(origin=self.mem_map["mailbox"], size=mailbox_size))
+
+        # Bandwidth/latency bench (Wishbone traffic generator, see soc2soc/bench.py) ---------------
+        if with_bench:
+            self.bench = WishboneBench()
+            self.bus.add_master(name="bench", master=self.bench.bus)
 
         # GTP QPLL (shared by the SFP channels, same GTP Quad) -------------------------------------
         platform.add_platform_command("set_property SEVERITY {{Warning}} [get_drc_checks REQP-49]")
@@ -183,16 +190,18 @@ def main():
     parser.add_target_argument("--variant",      default="cle-215+",          help="Acorn variant (cle-215+, cle-215 or cle-101).")
     parser.add_target_argument("--sys-clk-freq", default=100e6, type=float,   help="System clock frequency.")
     parser.add_target_argument("--sfp0",         default="initiator",         choices=["none", "initiator", "target"], help="SFP0 role.")
-    parser.add_target_argument("--sfp1",         default="none",              choices=["none", "initiator", "target"], help="SFP1 role.")
+    parser.add_target_argument("--sfp1",         default="target",            choices=["none", "initiator", "target"], help="SFP1 role.")
     parser.add_target_argument("--linerate",     default=2.5e9,  type=float,  help="SerDes linerate (1.25e9, 2.5e9 or 5e9 with 125MHz RefClk, 3.125e9 with 156.25MHz).")
     parser.add_target_argument("--refclk-freq",  default=125e6,  type=float,  help="GTP QPLL reference clock frequency (from fabric PLL).")
     parser.add_target_argument("--with-crc",     action="store_true",         help="Enable SerWB CRC (must match on both sides).")
+    parser.add_target_argument("--no-bench",     action="store_true",         help="Disable the bandwidth/latency bench (Wishbone traffic generator).")
     for n in [0, 1]:
         tx, rx = SFP_POLARITIES[n]
         parser.add_target_argument(f"--sfp{n}-tx-polarity", default=tx, type=int, choices=[0, 1], help=f"SFP{n} TX polarity swap (default: {tx}).")
         parser.add_target_argument(f"--sfp{n}-rx-polarity", default=rx, type=int, choices=[0, 1], help=f"SFP{n} RX polarity swap (default: {rx}).")
     parser.add_target_argument("--flash",        action="store_true",         help="Flash bitstream.")
     parser.add_target_argument("--programmer",   default="openfpgaloader",    choices=["openocd", "openfpgaloader"], help="Programmer.")
+    parser.add_target_argument("--usb-port",     default=None,                help="Board to load/flash, by host USB port (e.g. 1-3, see /sys/bus/usb/devices), when several boards are connected (openFPGALoader only).")
     parser.set_defaults(uart_name="crossover+uartbone", bus_interconnect="crossbar")
     args = parser.parse_args()
 
@@ -207,6 +216,7 @@ def main():
         linerate       = args.linerate,
         refclk_freq    = args.refclk_freq,
         with_crc       = args.with_crc,
+        with_bench     = not args.no_bench,
         **parser.soc_argdict
     )
 
@@ -214,12 +224,27 @@ def main():
     builder.build(**parser.toolchain_argdict, run=args.build)
 
     if args.load:
-        prog = soc.platform.create_programmer(args.programmer)
+        prog = create_programmer(soc.platform, args.programmer, args.usb_port)
         prog.load_bitstream(builder.get_bitstream_filename(mode="sram"))
 
     if args.flash:
-        prog = soc.platform.create_programmer(args.programmer)
+        prog = create_programmer(soc.platform, args.programmer, args.usb_port)
         prog.flash(0, builder.get_bitstream_filename(mode="flash"))
+
+def create_programmer(platform, name, usb_port=None):
+    prog = platform.create_programmer(name)
+    if usb_port is not None:
+        # The FTDI chip of the board has no serial number: select it by USB bus/device number, which
+        # changes on each replug, so resolve it from the (stable) host USB port.
+        assert name == "openfpgaloader", "--usb-port requires --programmer=openfpgaloader."
+        import os
+        path = os.path.join("/sys/bus/usb/devices", usb_port)
+        if not os.path.exists(os.path.join(path, "busnum")):
+            raise RuntimeError(f"No USB device on port {usb_port} ({path}).")
+        busnum = int(open(os.path.join(path, "busnum")).read())
+        devnum = int(open(os.path.join(path, "devnum")).read())
+        prog.cmd += ["--busdev-num", f"{busnum}:{devnum}"]
+    return prog
 
 if __name__ == "__main__":
     main()
