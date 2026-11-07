@@ -52,3 +52,23 @@ Before this campaign, the link layer had no flow control: a receiver slower than
 bus, or SerWB CRC checking) silently lost words. This was the cause of the `--with-crc` read errors
 seen in simulation. With flow control, `test_scenario2_crc` and the new `test_flow_control` (receiver
 4x slower than the link, 2000 words, no loss) pass, and burst 64 / 5 Gbps run without overflow.
+
+#### Read prefetch
+
+Reads are blocking, one word per round trip, because SERWBMMAPSlave requests one word per Wishbone
+read. `soc2soc/serwb_prefetch.py` requests the block from the read address to the end of its
+`burst_depth`-aligned block (64 words) and serves the next sequential reads from it as the words
+arrive (opt-in per window, `sfpN_window_prefetch` CSR).
+
+Hardware, defaults (2.5 Gbps, 100 MHz, burst 64), scenario 3 (A.SFP0 ⇄ B.SFP1 and B.SFP0 ⇄ A.SFP1),
+report in [2026-11-07-scenario3-prefetch.md](2026-11-07-scenario3-prefetch.md):
+
+| Path | Write | Read | Read + prefetch |
+|------|-------|------|-----------------|
+| A.sfp0 -> B.sfp1 | 192.48 MB/s | 4.65 MB/s | 81.68 MB/s |
+| B.sfp0 -> A.sfp1 | 192.48 MB/s | 4.65 MB/s | 81.57 MB/s |
+| Both at the same time (aggregate) | 384.97 MB/s | 9.30 MB/s | 163.24 MB/s |
+
+Simulation (scenario 2, 2.5 Gbps, 100 MHz, burst 64): read 9.9 MB/s, read + prefetch 95.5 MB/s.
+Each block costs one round trip plus its transfer (64 words); requesting the next block before the
+current one is consumed (look-ahead) would overlap them.

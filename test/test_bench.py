@@ -28,11 +28,11 @@ from litex.gen import *
 
 from litex.soc.interconnect import wishbone
 
-from liteiclink.serwb.core import SERWBCore
 
 from soc2soc.link        import SerDesLinkPHY
 from soc2soc.serdes_link import RemoteWindow
 from soc2soc.bench       import WishboneBench, bench_pattern
+from soc2soc.serwb_prefetch import SERWBCorePrefetch
 
 from test.test_link import _Channel # Also applies the Migen compatibility fix.
 
@@ -81,7 +81,8 @@ class _Topology(LiteXModule):
             masters[s].append(bench.bus)
             slaves[s].append((_region(MAILBOX), sram.bus))
 
-        self.phys = []
+        self.phys    = []
+        self.windows = []
         for n, (init_soc, init_sfp, tgt_soc, tgt_sfp) in enumerate(links):
             # One DAC cable: initiator TX -> target RX (cd i2t), target TX -> initiator RX (cd t2i).
             cd_i2t, cd_t2i = f"l{n}_i2t", f"l{n}_t2i"
@@ -96,9 +97,10 @@ class _Topology(LiteXModule):
                 cd_tx=cd_i2t, cd_rx=cd_t2i, cdc_common_rst=False)
             phy_t = SerDesLinkPHY(t2i.sink, i2t.source, i2t.invalid, self.trx_ready,
                 cd_tx=cd_t2i, cd_rx=cd_i2t, cdc_common_rst=False)
-            core_i = SERWBCore(phy_i, sys_clk_freq, mode="slave",  with_crc=with_crc, burst_depth=burst_depth)
-            core_t = SERWBCore(phy_t, sys_clk_freq, mode="master", with_crc=with_crc, burst_depth=burst_depth)
-            window = RemoteWindow(core_i.bus, default_page=_page(MAILBOX))
+            core_i = SERWBCorePrefetch(phy_i, sys_clk_freq, mode="slave",  with_crc=with_crc, burst_depth=burst_depth)
+            core_t = SERWBCorePrefetch(phy_t, sys_clk_freq, mode="master", with_crc=with_crc, burst_depth=burst_depth)
+            window = RemoteWindow(core_i.bus, default_page=_page(MAILBOX), prefetch=core_i.mmap.prefetch)
+            self.windows.append(window)
             for name, m in [("phy_i", phy_i), ("phy_t", phy_t), ("core_i", core_i),
                             ("core_t", core_t), ("window", window)]:
                 self.add_module(f"l{n}_{name}", m)
@@ -166,10 +168,12 @@ def link_capacity(linerate=LINERATE):
     64 32-bit words (128 cycles)."""
     return linerate/20*2*128/129
 
+MODES = ["write", "read", "read+pf"] # read+pf: reads with prefetch.
+
 def run_scenario(scenario, length=512, concurrent=True, with_crc=False, burst_depth=64,
     sys_clk_freq=SYS_CLK_FREQ, linerate=LINERATE):
-    """Returns {"write"/"read": [result per run]}, result = dict(soc, base, mbps, latency_ns,
-    errors, done)."""
+    """Returns {mode: [result per run]} for each of MODES, result = dict(soc, base, mbps,
+    latency_ns, errors, done)."""
     top  = _Topology(scenario, with_crc=with_crc, burst_depth=burst_depth,
         sys_clk_freq=sys_clk_freq, linerate=linerate)
     wrap = MAILBOX_SIZE//4 - 1
@@ -177,7 +181,10 @@ def run_scenario(scenario, length=512, concurrent=True, with_crc=False, burst_de
 
     def generator():
         assert (yield from _wait_ready(top)), "Links not ready."
-        for mode in ["write", "read"]:
+        for mode in MODES:
+            # Read prefetch (SerWB slave of each initiator window) for the "read+pf" run only.
+            for window in top.windows:
+                yield window.prefetch.storage.eq(int(mode == "read+pf"))
             groups = [top.runs] if concurrent else [[r] for r in top.runs]
             out[mode] = []
             for group in groups:
@@ -201,13 +208,13 @@ def run_scenario(scenario, length=512, concurrent=True, with_crc=False, burst_de
 
 def _print(scenario, out):
     print(f"\nScenario {scenario} (link capacity {link_capacity()/1e6:.1f} MB/s per direction):")
-    for mode in ["write", "read"]:
+    for mode in MODES:
         for r in out[mode]:
-            print(f"  {r['soc'].upper()} -> window 0x{r['base']:08x} {mode:5s}: "
+            print(f"  {r['soc'].upper()} -> window 0x{r['base']:08x} {mode:7s}: "
                   f"{r['mbps']:7.2f} MB/s, worst-case access latency {r['latency_ns']:7.1f} ns, "
                   f"{r['errors']} errors")
         if len(out[mode]) > 1:
-            print(f"  aggregate {mode:5s}: {sum(r['mbps'] for r in out[mode]):7.2f} MB/s")
+            print(f"  aggregate {mode:7s}: {sum(r['mbps'] for r in out[mode]):7.2f} MB/s")
 
 # Tests --------------------------------------------------------------------------------------------
 
@@ -215,7 +222,7 @@ class TestBench(unittest.TestCase):
     def check(self, scenario, **kwargs):
         out = run_scenario(scenario, **kwargs)
         _print(scenario, out)
-        for mode in ["write", "read"]:
+        for mode in MODES:
             self.assertEqual(len(out[mode]), len(SCENARIOS[scenario]))
             for r in out[mode]:
                 self.assertTrue(r["done"], f"{mode} run not done.")

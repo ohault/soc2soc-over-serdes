@@ -298,20 +298,33 @@ class Bench:
             "errors"     : self.reg("errors").read(),
         }
 
+def has_prefetch(link):
+    return (link is not None) and hasattr(link.bus.regs, f"sfp{link.n}_window_prefetch")
+
 def run_bench(runs, length, log=print):
-    """Write then read (with check) runs = [(name, bench, link, page, base, wrap)], all at the same
-    time. Returns {name: {"write": result, "read": result}}."""
+    """Write, read (with check), then read with prefetch when the window supports it, for runs =
+    [(name, bench, link, page, base, wrap)], all at the same time.
+    Returns {name: {"write": result, "read": result[, "read+pf": result]}}."""
     results = {run[0]: {} for run in runs}
     for name, bench, link, page, base, wrap in runs:
         if link is not None:
             link.reg("window_page").write(page)
-    for mode in ["write", "read"]:
+    modes = ["write", "read"]
+    if all(has_prefetch(run[2]) for run in runs):
+        modes.append("read+pf")
+    for mode in modes:
         for name, bench, link, page, base, wrap in runs:
+            if has_prefetch(link):
+                link.reg("window_prefetch").write(int(mode == "read+pf"))
             bench.start(base, length, wrap, write=(mode == "write"))
         for name, bench, *_ in runs:
             results[name][mode] = r = bench.wait()
-            log(f"  {name:28s} {mode:5s}: {r['mbps']:8.2f} MB/s ({r['mbps']*8:7.1f} Mbit/s), "
+            log(f"  {name:28s} {mode:7s}: {r['mbps']:8.2f} MB/s ({r['mbps']*8:7.1f} Mbit/s), "
                 f"access {r['access_ns']:7.1f} ns avg / {r['latency_ns']:7.1f} ns max, {r['errors']} errors")
+    # Prefetch off by default (only safe on memories).
+    for name, bench, link, *_ in runs:
+        if has_prefetch(link):
+            link.reg("window_prefetch").write(0)
     return results
 
 # Tests (return results, used by the commands and by run) ------------------------------------------
@@ -485,9 +498,9 @@ def test_bandwidth(buses, paths, length, linerate, log=print):
     if len(boards) > 1 and len(set(boards)) == len(boards):
         log("All paths at the same time:")
         results["concurrent"] = run_bench(remote, length, log=log)
-        for mode in ["write", "read"]:
+        for mode in next(iter(results["concurrent"].values())).keys():
             total = sum(r[mode]["mbps"] for r in results["concurrent"].values())
-            log(f"  {'aggregate':28s} {mode:5s}: {total:8.2f} MB/s ({total*8:7.1f} Mbit/s)")
+            log(f"  {'aggregate':28s} {mode:7s}: {total:8.2f} MB/s ({total*8:7.1f} Mbit/s)")
     return results
 
 # Commands -----------------------------------------------------------------------------------------
@@ -599,9 +612,10 @@ def cmd_run(buses, args):
     if args.bench_length and wiring.paths:
         bandwidth = test_bandwidth(buses, wiring.paths, length=args.bench_length, linerate=args.linerate)
         all_runs  = list(bandwidth["alone"].values()) + list((bandwidth["concurrent"] or {}).values())
-        ok = all(r[m]["errors"] == 0 for r in all_runs for m in ["write", "read"])
+        ok = all(res["errors"] == 0 for r in all_runs for res in r.values())
         step("Bandwidth", ok, "; ".join(
-            f"{n}: {r['write']['mbps']:.1f}/{r['read']['mbps']:.2f} MB/s"
+            f"{n}: write {r['write']['mbps']:.1f}, read {r['read']['mbps']:.2f}"
+            + (f", read+prefetch {r['read+pf']['mbps']:.1f}" if "read+pf" in r else "") + " MB/s"
             for n, r in bandwidth["alone"].items() if "->" in n))
     else:
         step("Bandwidth", None, "disabled (--bench-length=0)" if not args.bench_length else "no initiator -> target cable")
@@ -651,14 +665,15 @@ def report(args, buses, idents, wiring, polarities, steps, bandwidth):
             "",
             f"Link layer payload capacity: {args.linerate/20*2*128/129/1e6:.1f} MB/s per direction.",
             "",
-            "| Path | Write | Read | Access avg / max (write) | Access avg / max (read) | Errors |",
-            "|------|-------|------|--------------------------|-------------------------|--------|",
+            "| Path | Write | Read | Read + prefetch | Access avg / max (write) | Access avg / max (read) | Errors |",
+            "|------|-------|------|-----------------|--------------------------|-------------------------|--------|",
         ]
         def row(name, r):
             w, rd = r["write"], r["read"]
-            return (f"| {name} | {w['mbps']:.2f} MB/s | {rd['mbps']:.2f} MB/s | "
+            pf = f"{r['read+pf']['mbps']:.2f} MB/s" if "read+pf" in r else "–"
+            return (f"| {name} | {w['mbps']:.2f} MB/s | {rd['mbps']:.2f} MB/s | {pf} | "
                     f"{w['access_ns']:.1f} / {w['latency_ns']:.0f} ns | {rd['access_ns']:.1f} / {rd['latency_ns']:.0f} ns | "
-                    f"{w['errors'] + rd['errors']} |")
+                    f"{sum(res['errors'] for res in r.values())} |")
         for name, r in bandwidth["alone"].items():
             lines.append(row(name, r))
         if bandwidth["concurrent"]:
@@ -666,7 +681,8 @@ def report(args, buses, idents, wiring, polarities, steps, bandwidth):
                 lines.append(row(f"{name} (all paths at once)", r))
             w = sum(r["write"]["mbps"] for r in bandwidth["concurrent"].values())
             rd = sum(r["read"]["mbps"] for r in bandwidth["concurrent"].values())
-            lines.append(f"| Aggregate (all paths at once) | {w:.2f} MB/s | {rd:.2f} MB/s | | | |")
+            pf = sum(r.get("read+pf", {}).get("mbps", 0) for r in bandwidth["concurrent"].values())
+            lines.append(f"| Aggregate (all paths at once) | {w:.2f} MB/s | {rd:.2f} MB/s | {pf:.2f} MB/s | | | |")
     return "\n".join(lines) + "\n"
 
 # Run ----------------------------------------------------------------------------------------------

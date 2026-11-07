@@ -26,9 +26,8 @@ from litex.soc.interconnect     import wishbone
 from litex.soc.interconnect.csr import *
 
 from liteiclink.serdes.gtp_7series import GTP
-from liteiclink.serwb.core         import SERWBCore
-
-from soc2soc.link import SerDesLinkPHY
+from soc2soc.link           import SerDesLinkPHY
+from soc2soc.serwb_prefetch import SERWBCorePrefetch
 
 # Remote Window ------------------------------------------------------------------------------------
 
@@ -36,8 +35,11 @@ class RemoteWindow(LiteXModule):
     """Maps a local window of ``window_size`` bytes onto a page of the remote 32-bit address space.
 
     remote_address = (page << log2(window_size)) | (local_address & (window_size - 1))
+
+    ``prefetch``: optional read prefetch enable signal of the SerWB slave, driven by a CSR (off by
+    default: only enable it on remote pages without read side effects, e.g. memories).
     """
-    def __init__(self, remote_bus, window_size=0x1000_0000, default_page=0xf):
+    def __init__(self, remote_bus, window_size=0x1000_0000, default_page=0xf, prefetch=None):
         assert window_size & (window_size - 1) == 0
         offset_bits = log2_int(window_size) - 2 # Word address.
         page_bits   = 30 - offset_bits
@@ -52,6 +54,12 @@ class RemoteWindow(LiteXModule):
             bus.connect(remote_bus, omit={"adr"}),
             remote_bus.adr.eq(Cat(bus.adr[:offset_bits], self.page.storage)),
         ]
+
+        if prefetch is not None:
+            self.prefetch = CSRStorage(description="Read prefetch: sequential reads are served from "
+                "blocks read ahead on the remote bus. Only enable on pages without read side effects "
+                "(memories).")
+            self.comb += prefetch.eq(self.prefetch.storage)
 
 # SerDes Link --------------------------------------------------------------------------------------
 
@@ -124,7 +132,7 @@ class GTPSoCLink(LiteXModule):
         # -----------
         # SerWB naming: "slave" core = Wishbone Slave on the initiator side, "master" core = Wishbone
         # Master on the target side.
-        self.core = core = SERWBCore(phy, sys_clk_freq,
+        self.core = core = SERWBCorePrefetch(phy, sys_clk_freq,
             mode        = {"initiator": "slave", "target": "master"}[role],
             with_crc    = with_crc,
             burst_depth = burst_depth, # SerWB write coalescing / read response size (both sides).
@@ -133,7 +141,8 @@ class GTPSoCLink(LiteXModule):
         # Remote Window (Initiator).
         # --------------------------
         if role == "initiator":
-            self.window = RemoteWindow(core.bus, window_size=window_size, default_page=default_page)
+            self.window = RemoteWindow(core.bus, window_size=window_size, default_page=default_page,
+                prefetch=core.mmap.prefetch)
 
     def add_polarity_control(self, tx_polarity, rx_polarity):
         # Same CSRs as LiteICLink's GTP.add_polarity_control but with board-specific reset values.

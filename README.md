@@ -44,6 +44,7 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | `acorn_soc2soc.py` | LiteX target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |
 | `soc2soc/link.py` | SerDes link layer: 32-bit stream over a 2-byte 8b/10b transceiver, link-up handshake, error detection. Can be used as a SerWB PHY. |
 | `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window. |
+| `soc2soc/serwb_prefetch.py` | SerWB native slave with read prefetch (same protocol, used on the initiator side). |
 | `soc2soc/bench.py` | `WishboneBench`: Wishbone traffic generator to measure bandwidth and latency from the FPGA. |
 | `test_soc2soc.py` | Host utility (through `litex_server`): `ident`, `status`, `autopolarity`, `wiring`, `prbs`, `remote`, `bandwidth`, `run` (full sequence with report). |
 | `test/test_link.py` | Simulation: two link layers back to back with SerWB on top (byte misalignment, CRC and error recovery cases, single-SoC bus deadlock). |
@@ -143,6 +144,12 @@ mem_write 0xf000xxxx 0x2    # sfp0_window_page = 2 (see csr.csv for the address)
 mem_read  0x80000000 64     # Remote mailbox.
 ```
 
+Sequential reads through the window can be accelerated with **read prefetch**: set the
+`sfpN_window_prefetch` CSR to 1 and blocks of up to `--burst-depth` words are read ahead on the
+remote bus (4.6 → 82 MB/s). Only enable it when the page holds memory: prefetched words are really
+read on the remote side, so registers with read side effects (FIFOs, clear-on-read) would be
+affected. The block is discarded on any write or non-sequential read. It is off by default.
+
 Accesses fail with a bus error while the link is down, so they never stall the bus. In loopback
 (scenario 1), don't map the window onto the window itself: that access would loop forever.
 
@@ -189,8 +196,8 @@ correction is needed.
 248 MB/s per direction at 2.5 Gbps. Measured on hardware with the bench (one access in flight at a
 time): writes, which SerWB posts and coalesces (`--burst-depth`, default 64), reach 192 MB/s at the
 default 100 MHz sys clock, 233 MB/s at `--sys-clk-freq=125e6` and 241 MB/s with `--linerate=5e9`.
-Reads wait for each response and reach 4.6 to 7.9 MB/s (one word per round trip of 500 to 870 ns).
-Each cable is independent. See the [reference figures](docs/test-procedure.md#reference-figures).
+Reads wait for each response and reach 4.6 to 7.9 MB/s (one word per round trip of 500 to 870 ns),
+or 82 MB/s with read prefetch. Each cable is independent. See the [reference figures](docs/test-procedure.md#reference-figures).
 
 **SFP sideband.** The SFP sideband is not used: the SFP I2C bus (`sfp_i2c`) is in the platform for
 reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.

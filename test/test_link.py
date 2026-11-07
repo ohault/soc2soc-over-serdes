@@ -16,10 +16,10 @@ from litex.gen import *
 
 from litex.soc.interconnect import wishbone
 
-from liteiclink.serwb.core import SERWBCore
 
 from soc2soc.link        import SerDesLinkPHY
 from soc2soc.serdes_link import RemoteWindow
+from soc2soc.serwb_prefetch import SERWBCorePrefetch
 
 # Migen simulation compatibility ------------------------------------------------------------------
 
@@ -103,7 +103,8 @@ class _DUT(LiteXModule):
     """
     WINDOW_BASE = 0x0800_0000 # Word address of the window (byte 0x2000_0000) in single-SoC mode.
 
-    def __init__(self, byte_shift=False, with_crc=False, interconnect=None, with_serwb=True, **phy_kwargs):
+    def __init__(self, byte_shift=False, with_crc=False, interconnect=None, with_serwb=True,
+        burst_depth=4, **phy_kwargs):
         self.cd_sys  = ClockDomain()
         self.cd_a_tx = ClockDomain()
         self.cd_b_tx = ClockDomain()
@@ -124,8 +125,8 @@ class _DUT(LiteXModule):
             return # Raw 32-bit streams over the PHYs.
 
         # SerWB: A initiator (Wishbone Slave), B target (Wishbone Master) -> SRAM.
-        self.core_a = core_a = SERWBCore(phy_a, 100e6, mode="slave",  with_crc=with_crc)
-        self.core_b = core_b = SERWBCore(phy_b, 100e6, mode="master", with_crc=with_crc)
+        self.core_a = core_a = SERWBCorePrefetch(phy_a, 100e6, mode="slave",  with_crc=with_crc, burst_depth=burst_depth)
+        self.core_b = core_b = SERWBCorePrefetch(phy_b, 100e6, mode="master", with_crc=with_crc, burst_depth=burst_depth)
         self.sram   = sram   = wishbone.SRAM(1024)
         if interconnect is None:
             self.host      = core_a.bus
@@ -134,7 +135,10 @@ class _DUT(LiteXModule):
         else:
             self.host      = wishbone.Interface(data_width=32, adr_width=30)
             self.host_base = self.WINDOW_BASE
-            self.window    = window = RemoteWindow(core_a.bus, default_page=0)
+            self.window    = window = RemoteWindow(core_a.bus, default_page=0, prefetch=core_a.mmap.prefetch)
+            # Remote addresses with word address bit 26 set: slave answering with a bus error.
+            self.err_bus = err_bus = wishbone.Interface(data_width=32, adr_width=30)
+            self.comb += err_bus.err.eq(err_bus.cyc & err_bus.stb)
             interconnect_cls = {
                 "shared"   : wishbone.InterconnectShared,
                 "crossbar" : wishbone.Crossbar,
@@ -142,8 +146,9 @@ class _DUT(LiteXModule):
             self.interconnect = interconnect_cls(
                 masters = [self.host, core_b.bus],
                 slaves  = [
-                    (lambda a: a[27] == 0, sram.bus),
-                    (lambda a: a[27] == 1, window.bus),
+                    (lambda a: (a[27] == 0) & (a[26] == 0), sram.bus),
+                    (lambda a: (a[27] == 0) & (a[26] == 1), err_bus),
+                    (lambda a:  a[27] == 1,                 window.bus),
                 ],
                 register       = True,
                 timeout_cycles = 4096,
@@ -159,6 +164,26 @@ def wait_ready(dut, timeout=1000):
             return True
         yield
     return False
+
+def wb_access(bus, adr, data=None, timeout=100000):
+    """Wishbone access returning (dat_r, err), also completes on errors."""
+    yield bus.adr.eq(adr)
+    yield bus.we.eq(data is not None)
+    yield bus.dat_w.eq(data or 0)
+    yield bus.sel.eq(0xf)
+    yield bus.cyc.eq(1)
+    yield bus.stb.eq(1)
+    yield
+    for _ in range(timeout):
+        ack, err = (yield bus.ack), (yield bus.err)
+        if ack or err:
+            dat = (yield bus.dat_r)
+            yield bus.cyc.eq(0)
+            yield bus.stb.eq(0)
+            yield
+            return dat, err
+        yield
+    raise TimeoutError("Wishbone access timeout.")
 
 def wb_test(dut, results, words=8, seed=0):
     rng  = random.Random(seed)
@@ -267,6 +292,58 @@ class TestLink(unittest.TestCase):
         received, state = self.run_flow_control(rx_buffer_depth=0)
         self.assertNotEqual(received, list(range(2000)))
         self.assertEqual(state["overflow"], 1)
+
+    # Read prefetch ---------------------------------------------------------------------------------
+
+    def run_prefetch(self, body, burst_depth=16):
+        """Single SoC (crossbar), prefetch enabled on the window, body(dut, results) generator."""
+        dut = _DUT(interconnect="crossbar", burst_depth=burst_depth)
+        results = {}
+        def generator():
+            assert (yield from wait_ready(dut))
+            yield dut.window.prefetch.storage.eq(1)
+            yield from body(dut, results)
+        run_simulation(dut, generator(), clocks=CLOCKS)
+        return results
+
+    def test_prefetch_random_reads(self):
+        # Sequential writes, then reads in random order (misses, hits, block boundaries).
+        def body(dut, results):
+            rng  = random.Random(1)
+            data = [rng.getrandbits(32) for _ in range(96)]
+            for i, d in enumerate(data):
+                yield from dut.host.write(dut.host_base + i, d)
+            order = list(range(96)) + rng.sample(range(96), 96) + list(range(40, 70))
+            errors = 0
+            for i in order:
+                dat, err = yield from wb_access(dut.host, dut.host_base + i)
+                errors += (err or dat != data[i])
+            results["errors"] = errors
+        self.assertEqual(self.run_prefetch(body)["errors"], 0)
+
+    def test_prefetch_no_stale_data(self):
+        # A write inside a prefetched block must not return the old value.
+        def body(dut, results):
+            for i in range(16):
+                yield from dut.host.write(dut.host_base + i, i)
+            dat0, _ = yield from wb_access(dut.host, dut.host_base + 0) # Prefetches words 0..15.
+            yield from dut.host.write(dut.host_base + 2, 0xcafe)
+            dat1, _ = yield from wb_access(dut.host, dut.host_base + 1)
+            dat2, _ = yield from wb_access(dut.host, dut.host_base + 2)
+            results["data"] = (dat0, dat1, dat2)
+        self.assertEqual(self.run_prefetch(body)["data"], (0, 1, 0xcafe))
+
+    def test_prefetch_bus_error(self):
+        # Reads from a remote region answering with bus errors: error reported (block error, then
+        # single-word retry), and the next reads work.
+        def body(dut, results):
+            yield from dut.host.write(dut.host_base + 0, 0x1234)
+            yield dut.window.page.storage.eq(1) # Remote word address bit 26: error slave.
+            dat0, err0 = yield from wb_access(dut.host, dut.host_base + 5)
+            yield dut.window.page.storage.eq(0)
+            dat1, err1 = yield from wb_access(dut.host, dut.host_base + 0)
+            results["err"] = (err0, err1, dat1)
+        self.assertEqual(self.run_prefetch(body)["err"], (1, 0, 0x1234))
 
     def test_reset_counters(self):
         dut = _DUT()
