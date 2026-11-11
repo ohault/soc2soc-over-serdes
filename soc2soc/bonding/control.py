@@ -40,6 +40,9 @@ class ControlConfig:
     initial_rx_packets: int = 64
     control_queue_depth: int = 4
     expected_peer_id: Optional[int] = None
+    negotiation_timeout_cycles: int = 10000
+    ping_interval_cycles: int = 1000
+    pong_timeout_cycles: int = 3000
 
     def __post_init__(self):
         limits = (
@@ -51,6 +54,9 @@ class ControlConfig:
             ("initial_rx_bytes", self.initial_rx_bytes, 64, False),
             ("initial_rx_packets", self.initial_rx_packets, 32, False),
             ("control_queue_depth", self.control_queue_depth, 16, True),
+            ("negotiation_timeout_cycles", self.negotiation_timeout_cycles, 64, True),
+            ("ping_interval_cycles", self.ping_interval_cycles, 64, True),
+            ("pong_timeout_cycles", self.pong_timeout_cycles, 64, True),
         )
         for name, value, bits, positive in limits:
             if not isinstance(value, int) or isinstance(value, bool):
@@ -88,6 +94,11 @@ class BondedControlPlane:
         self.remote_credit_bytes = 0
         self.remote_credit_packets = 0
         self.remote_max_payload: Optional[int] = None
+        self._started_at: Optional[int] = None
+        self._last_ping_at: Optional[int] = None
+        self._pending_ping: Optional[tuple[int, int]] = None
+        self._next_ping_nonce = 1
+        self._last_tick = 0
 
     @property
     def session_ready(self) -> bool:
@@ -116,8 +127,12 @@ class BondedControlPlane:
             # A lane joining after establishment requires a new all-lane epoch.
             self._fault(f"lane {lane} came up after control session start")
 
-    def start(self) -> None:
-        """Queue HELLO on every currently-up lane."""
+    def start(self, now_cycles: int = 0) -> None:
+        """Queue HELLO and start deterministic session supervision."""
+        self._check_cycle(now_cycles)
+        self._last_tick = now_cycles
+        self._started_at = now_cycles
+        self._last_ping_at = now_cycles
         if not all(self.lanes_up):
             raise ControlSessionDown("all configured lanes must be up before start")
         if any(self._hello_seen) or any(self._ready_seen):
@@ -170,7 +185,10 @@ class BondedControlPlane:
         elif opcode == ControlOpcode.PING:
             self._queue_control(ingress_lane, ControlOpcode.PONG, fields)
         elif opcode == ControlOpcode.PONG:
-            pass  # Liveness accounting is owned by the timer/supervision layer.
+            nonce = struct.unpack(">I", fields)[0]
+            if self._pending_ping is not None and nonce == self._pending_ping[0]:
+                self._pending_ping = None
+                self._last_ping_at = self._last_tick
         elif opcode in (ControlOpcode.RESET, ControlOpcode.ERROR):
             self._fault(f"peer sent {opcode.name}: {fields.hex()}")
         else:  # Defensive; wire decoder already rejects unknown values.
@@ -239,6 +257,39 @@ class BondedControlPlane:
         self.peer_lane_by_local[local_lane] = peer_lane
         self._ready_seen[local_lane] = True
 
+    def tick(self, now_cycles: int) -> None:
+        """Advance deterministic supervision in the bonding clock domain."""
+        self._check_cycle(now_cycles)
+        if now_cycles < self._last_tick:
+            raise ValueError("supervision time must be monotonic")
+        self._last_tick = now_cycles
+        if self.fault_reason is not None or self._started_at is None:
+            return
+        if not self.session_ready:
+            if now_cycles - self._started_at >= self.config.negotiation_timeout_cycles:
+                self._fault("HELLO/READY negotiation timeout")
+            return
+        if self._pending_ping is not None:
+            nonce, sent_at = self._pending_ping
+            if now_cycles - sent_at >= self.config.pong_timeout_cycles:
+                self._fault(f"PING nonce {nonce} timed out")
+            return
+        if self._last_ping_at is not None and now_cycles - self._last_ping_at >= self.config.ping_interval_cycles:
+            nonce = self._next_ping_nonce
+            self._next_ping_nonce = (nonce + 1) & 0xFFFFFFFF
+            if self._next_ping_nonce == 0:
+                self._next_ping_nonce = 1
+            lane = next((i for i, up in enumerate(self.lanes_up) if up), None)
+            if lane is None:
+                self._fault("no lane available for liveness PING")
+                return
+            self._queue_control(lane, ControlOpcode.PING, struct.pack(">I", nonce))
+            self._pending_ping = (nonce, now_cycles)
+
+    @staticmethod
+    def _check_cycle(value: int) -> None:
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError("supervision cycle must be a non-negative integer")
     def enqueue_credit(self, byte_limit: int, packet_limit: int, lane: Optional[int] = None) -> None:
         if not isinstance(byte_limit, int) or not isinstance(packet_limit, int) or byte_limit < 0 or packet_limit < 0:
             raise ValueError("credit limits must be non-negative integers")
@@ -310,4 +361,7 @@ class BondedControlPlane:
         self._hello_seen = [False] * self.config.lane_count
         self._ready_seen = [False] * self.config.lane_count
         self.peer_lane_by_local = [None] * self.config.lane_count
+        self._pending_ping = None
+        self._started_at = None
+        self._last_ping_at = None
 
