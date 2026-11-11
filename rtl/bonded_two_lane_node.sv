@@ -55,6 +55,12 @@ module bonded_two_lane_node #(
     output wire lane0_tx_frame_error,output wire lane1_tx_frame_error,
     output wire lane0_rx_frame_error,output wire lane1_rx_frame_error
 );
+    initial begin
+        if(SESSION_ID==0) $error("v0 SESSION_ID must be non-zero");
+        if(LOCAL_PEER_ID==EXPECTED_PEER_ID) $error("local and expected peer IDs must differ");
+        if(MAX_PAYLOAD!=MAX_PACKET_BYTES) $error("v0 peer payload limit must match MAX_PACKET_BYTES");
+    end
+
     wire [1:0] lane_up={lane1_up,lane0_up};
     wire ctrl_tx_valid,ctrl_tx_ready,ctrl_rx_valid,ctrl_rx_ready,ctrl_rx_lane;
     wire [207:0] ctrl_tx_body,ctrl_rx_body;
