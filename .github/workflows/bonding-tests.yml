@@ -229,5 +229,5 @@ jobs:
         run: |
           iverilog -g2012 -Wall -s tb_bonded_phy_word_gearbox -o /tmp/tb_phy_gearbox \
             rtl/bonded_byte_to_phy_word.sv rtl/bonded_phy_8b10b_word_adapter.sv \
-            rtl/bonded_phy_word_to_byte.sv rtl/tb_bonded_phy_word_gearbox.sv
+            rtl/bonded_phy_word_to_byte.sv rtl/bonded_async_fifo.sv rtl/tb_bonded_phy_word_gearbox.sv
           vvp /tmp/tb_phy_gearbox
