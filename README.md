@@ -177,9 +177,12 @@ reading its status. For data, `--with-stream` adds a **stream port** on each lin
   words), and the sender only sends what fits. A slow consumer slows the sender down, with no data
   loss. A stopped consumer stops the stream but **never blocks register access**, because received
   stream data never stalls the link.
-- **Packets.** Data is sent in packets of up to 64 words, plus a header word and the SerWB
-  framing, so about 95 % of the link payload carries stream data. A packet is sent as soon as it is
-  full, when `last` is seen, or after 64 idle cycles.
+- **Packets.** Data is sent in packets of up to 64 words, plus a header word and 2 words of SerWB
+  framing (67 words), and the receiver returns a 3-word credit packet every 64 words on the other
+  direction of the cable. Measured at 2.5 Gbps (248 MB/s link capacity): **237 MB/s** with one
+  direction streaming (64/67), **227 MB/s per direction** with both directions of a cable streaming,
+  since each direction then also carries the other's credits (64/70). A packet is sent as soon as it
+  is full, when `last` is seen, or after 64 idle cycles.
 - **Link loss.** Data not yet sent is dropped, and a frame in flight can be truncated. The sink is
   stalled until the link is back. Data already received stays in the RX buffer.
 

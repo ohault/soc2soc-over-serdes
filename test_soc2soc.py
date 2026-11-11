@@ -20,6 +20,7 @@
 #   ./test_soc2soc.py --boards=AB run --report=results.md   # Full test sequence on what is connected.
 #   ./test_soc2soc.py --boards=AB autopolarity | wiring | status | prbs | remote | bandwidth
 #   ./test_soc2soc.py --boards=AB stream                      # Stream ports (gateware built with --with-stream).
+#   ./test_soc2soc.py --boards=AB remote --no-wiring          # Remote access without dropping the links.
 
 import time
 import random
@@ -269,6 +270,36 @@ def get_wiring(buses, log=print):
     wiring.describe(log=log)
     return wiring
 
+def find_paths_passive(buses, log=print):
+    """Find the initiator -> target paths without disturbing the links (no TX inhibit, unlike
+    discover_wiring): a random tag is written to the remote mailbox through each ready initiator,
+    then read back directly on each board. The target link is the ready target of that board.
+    Assumes SFP0 <-> SFP1 cabling (as checked by wiring); returns the (initiator, target) pairs and
+    whether a target was found for every ready initiator."""
+    links = get_links(buses)
+    paths = []
+    found = True
+    for link in [l for l in links if l.role == "initiator"]:
+        if not link.ready():
+            log(f"{link.name}: link not ready, skipping.")
+            continue
+        bus     = link.bus
+        mailbox = bus.mems.mailbox.base # Same address on every board (same build).
+        window  = getattr(bus.mems, f"sfp{link.n}_remote").base
+        tag     = random.getrandbits(32)
+        link.reg("window_page").write(mailbox >> 28)
+        bus.write(window + (mailbox & (WINDOW_SIZE - 1)), tag)
+        bus.read(window + (mailbox & (WINDOW_SIZE - 1))) # Writes are posted: wait for this one.
+        boards  = [b for b, other in buses.items() if other.read(other.mems.mailbox.base) == tag]
+        targets = [l for l in links if l.board in boards and l.role == "target" and l.ready()]
+        if len(targets) == 1:
+            log(f"path: {link.name} -> {targets[0].name}")
+            paths.append((link, targets[0]))
+        else:
+            log(f"{link.name}: remote target not found ({', '.join(l.name for l in targets) or 'no board saw the tag'}): run wiring.")
+            found = False
+    return paths, found
+
 # Bench (bandwidth/latency, see soc2soc/bench.py) ---------------------------------------------------
 
 class Bench:
@@ -477,6 +508,9 @@ def test_remote(paths, length=256, log=print):
         log(f"{name}: direct check on board {target.board}: {r['direct_errors']} errors.")
     return results
 
+def remote_ok(r):
+    return bool(r["ready"] and r.get("ident_ok") and r.get("errors") == 0 and r.get("direct_errors") == 0)
+
 def test_bandwidth(buses, paths, length, linerate, log=print):
     """Bandwidth/latency: local mailbox of each board (reference), each path alone, then all paths
     at the same time (one per board). Returns {"alone": {...}, "concurrent": {...} or None}."""
@@ -583,6 +617,10 @@ def test_stream(directions, duration=10, frame_words=256, throttle=0, log=print)
         log(f"{name}: stream RX overflows: {o}")
     return results, overflows
 
+def stream_ok(results, overflows):
+    return (all(r["words"] > 0 and r["errors"] == 0 and r["frame_errors"] == 0 for r in results.values())
+        and all(o == 0 for o in overflows.values()))
+
 # Commands -----------------------------------------------------------------------------------------
 
 def cmd_ident(buses, args):
@@ -609,20 +647,27 @@ def cmd_prbs(buses, args):
         test_prbs(wiring.directions, mode=args.mode, duration=args.duration, linerate=args.linerate)
 
 def cmd_remote(buses, args):
-    wiring = get_wiring(buses)
-    if not wiring.paths:
+    if args.no_wiring:
+        paths, found = find_paths_passive(buses)
+    else:
+        paths, found = get_wiring(buses).paths, True
+    if not paths:
         print("No initiator -> target cable detected.")
-        return
-    test_remote(wiring.paths, length=args.length)
+        return False
+    results = test_remote(paths, length=args.length)
+    return found and all(remote_ok(r) for r in results.values())
 
 def cmd_stream(buses, args):
     wiring = get_wiring(buses)
     directions = [(tx, rx) for tx, rx in wiring.directions if tx.has_stream and rx.has_stream]
     if not directions:
         print("No stream port on both ends of a cable (build with --with-stream).")
-        return
-    test_stream(directions, duration=args.stream_duration, frame_words=args.frame_words,
-        throttle=args.throttle)
+        return False
+    res, overflows = test_stream(directions, duration=args.stream_duration,
+        frame_words=args.frame_words, throttle=args.throttle)
+    ok = stream_ok(res, overflows)
+    print(f"=> {'PASS' if ok else 'FAIL'} (criteria: 0 errors, 0 frame errors, 0 RX overflows, data received)")
+    return ok
 
 def cmd_bandwidth(buses, args):
     wiring = get_wiring(buses)
@@ -687,8 +732,7 @@ def cmd_run(buses, args):
     section("Remote")
     if wiring.paths:
         remote = test_remote(wiring.paths, length=args.length)
-        ok = all(r["ready"] and r.get("ident_ok") and r.get("errors") == 0 and r.get("direct_errors") == 0
-            for r in remote.values())
+        ok = all(remote_ok(r) for r in remote.values())
         step("Remote", ok, "; ".join(
             f"{n}: " + ("link not ready" if not r["ready"] else
                 f"ident {'OK' if r['ident_ok'] else 'MISMATCH'}, {r['errors']} errors, direct {r['direct_errors']} errors")
@@ -717,8 +761,7 @@ def cmd_run(buses, args):
         for throttle in [0, 3]:
             res, overflows = test_stream(stream_directions, duration=args.stream_duration,
                 frame_words=args.frame_words, throttle=throttle)
-            ok &= all(r["words"] > 0 and r["errors"] == 0 and r["frame_errors"] == 0 for r in res.values())
-            ok &= all(o == 0 for o in overflows.values())
+            ok &= stream_ok(res, overflows)
             notes.append(f"throttle {throttle}: " + ", ".join(
                 f"{n}: {r['mbps']:.1f} MB/s, {r['errors']}/{r['frame_errors']} errors" for n, r in res.items()))
         step("Stream", ok, "; ".join(notes))
@@ -804,6 +847,7 @@ def main():
     parser.add_argument("--duration",     default=10, type=int,    help="PRBS test duration (s).")
     parser.add_argument("--linerate",     default=2.5e9, type=float, help="Linerate (for clocks, BER and capacity).")
     parser.add_argument("--length",       default=256, type=int,   help="Remote mailbox test length (words).")
+    parser.add_argument("--no-wiring",    action="store_true",     help="remote: skip the wiring detection (it drops the links), find the targets through the mailbox instead. Use while a stream runs.")
     parser.add_argument("--bench-length", default=2**22, type=int, help="Bandwidth test length (32-bit accesses per run, 0: skip in run).")
     parser.add_argument("--report",       default=None,            help="run: write a Markdown results report to this file.")
     parser.add_argument("--stream-duration", default=10, type=int, help="Stream test duration (s, 0: skip in run).")
@@ -828,7 +872,7 @@ def main():
     finally:
         for bus in buses.values():
             bus.close()
-    if args.command == "run" and result is False:
+    if args.command in ["run", "remote", "stream"] and result is False:
         raise SystemExit(1)
 
 if __name__ == "__main__":

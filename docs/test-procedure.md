@@ -323,7 +323,19 @@ These tests need gateware built with `--with-stream`, on all boards:
 ./acorn_soc2soc.py --with-stream --build
 ```
 
-Load it as in 2.2. With such gateware, `run` also includes a **Stream** step, so the tests below
+Load it as in 2.2, **with the same options**:
+
+```sh
+./acorn_soc2soc.py --with-stream --load --usb-port=1-3   # Board A
+./acorn_soc2soc.py --with-stream --load --usb-port=1-5   # Board B
+```
+
+Every call of `acorn_soc2soc.py` regenerates the SoC, including `build/sqrl_acorn/csr.csv` used by
+`test_soc2soc.py`: `--load` without `--with-stream` loads the right bitstream but writes a CSR map
+without the stream registers (`status` then shows no stream lines). To fix it, run
+`./acorn_soc2soc.py --with-stream` (no build, no load).
+
+With such gateware, `run` also includes a **Stream** step, so the tests below
 are only needed to look at one point in detail. They work on whatever is cabled, in any scenario:
 each cable carries a stream in both directions.
 
@@ -340,10 +352,12 @@ All stream directions run at the same time.
 
 **Pass:**
 - **Errors:** `0 errors, 0 frame errors` on every direction, every second.
-- **Throughput:** close to the link payload. At 2.5 Gbps that is about 235 MB/s per direction
-  (about 95 % of the 248 MB/s link capacity). This figure is expected, not yet measured on
-  hardware.
-- **At the end:** `stream RX overflows: 0` for every SFP.
+- **Throughput:** at 2.5 Gbps about 227 MB/s per direction (measured, see
+  [results/2026-11-11-stream.md](results/2026-11-11-stream.md)). Both directions of each cable
+  stream, so each direction also carries the other's credit packets: 64/70 of the 248 MB/s link
+  capacity. A single direction alone reaches 237 MB/s (64/67).
+- **At the end:** `stream RX overflows: 0` for every SFP, and `=> PASS`. The command returns a
+  non-zero exit code on failure.
 
 ### 7.2 Flow control with a slow consumer
 
@@ -363,9 +377,16 @@ The receivers now accept one word every 4 sys cycles: 100 MB/s at 100 MHz.
    ```sh
    ./test_soc2soc.py --boards=AB stream --stream-duration=60 --throttle=60000
    ```
-2. While it runs, run `./test_soc2soc.py --boards=AB remote` from a second terminal.
+2. While it runs, run `./test_soc2soc.py --boards=AB remote --no-wiring` from a second terminal.
 
-**Pass:** `remote` still passes. The stream is almost stopped, but register access is not blocked.
+**Pass:** `remote` still passes, and the stream still reports `0 errors, 0 frame errors`. The stream
+is almost stopped, but register access is not blocked.
+
+`--no-wiring` is needed here: without it, `remote` first runs the wiring detection, which silences
+each TX in turn and so drops every link. A link loss truncates the stream frames in flight, which
+the stream checkers report as errors and frame errors. With `--no-wiring`, `remote` finds each
+initiator's target by writing a tag to the remote mailbox and reading it back directly on each
+board, without touching the links.
 
 ## Reference figures
 
@@ -414,7 +435,8 @@ read with prefetch, measured).
 | `remote`: reads return `0xffffffff` but writes work (scenario 1) | Bus deadlock: the gateware was built with `--bus-interconnect=shared`. Rebuild with the default (`crossbar`). |
 | `remote`: wrong data or a bus error | Check `SerWB overflows` / `RX errors` in `status`. |
 | `stream`: "No stream port on both ends of a cable" | The gateware was built without `--with-stream` on one of the boards. Build all boards with it. |
-| `stream`: errors or frame errors | Check `RX errors` / `Link drops` in `status` (a link loss truncates frames). |
+| `stream`: errors or frame errors | Check `RX errors` / `Link drops` in `status` (a link loss truncates frames). Commands that detect the wiring (`wiring`, `prbs`, `remote`, `bandwidth`, `run`) drop the links: do not run them during a stream test (use `remote --no-wiring`). |
+| `status`: no stream lines, or `stream`: "No stream port" right after loading `--with-stream` gateware | `csr.csv` was regenerated without `--with-stream` (e.g. by `--load` without it): run `./acorn_soc2soc.py --with-stream`. |
 | `litex_server` gets no response | Wrong UART (use `/dev/serial/by-path`, interface `1.1`), or the board is not loaded. Check that LED0 blinks. |
 | `--usb-port`: `No USB device on port` | The board is not on that host port: list the ports as in 2.2. |
 | Simulation fails with `AttributeError: 'NoneType' object has no attribute 'eq'` in your own designs | Stale GitHub Migen: install the official one (see [Migen version](../README.md#migen-version)). |
