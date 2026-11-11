@@ -50,8 +50,8 @@ module tb_bonded_two_lane_node;
   .LOCAL_PEER_ID(64'd1),.EXPECTED_PEER_ID(64'd2),.MAX_PAYLOAD(16'd64),
   .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)) node_a(
   .bond_clk(bond_a),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
-  .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(a0txv),.lane0_tx_ready(a0txr),.lane0_tx_data(a0txd),.lane0_tx_sop(a0txs),.lane0_tx_eop(a0txe),
-  .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(a1txv),.lane1_tx_ready(a1txr),.lane1_tx_data(a1txd),.lane1_tx_sop(a1txs),.lane1_tx_eop(a1txe),
+  .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(a0txv),.lane0_tx_ready(a0txr),.lane0_tx_data(a0txd),
+  .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(a1txv),.lane1_tx_ready(a1txr),.lane1_tx_data(a1txd),
   .lane0_rx_clk(b_tx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a0rxv),.lane0_rx_ready(a0rxr),.lane0_rx_data(a0rxd),
   .lane1_rx_clk(b_tx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a1rxv),.lane1_rx_ready(a1rxr),.lane1_rx_data(a1rxd),
   .tx_valid(atxv),.tx_ready(atxr),.tx_data(atxd),.tx_keep(atk),.tx_sop(ats),.tx_eop(ate),
@@ -64,8 +64,8 @@ module tb_bonded_two_lane_node;
   .LOCAL_PEER_ID(64'd2),.EXPECTED_PEER_ID(64'd1),.MAX_PAYLOAD(16'd64),
   .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)) node_b(
   .bond_clk(bond_b),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
-  .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(b0txv),.lane0_tx_ready(b0txr),.lane0_tx_data(b0txd),.lane0_tx_sop(b0txs),.lane0_tx_eop(b0txe),
-  .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(b1txv),.lane1_tx_ready(b1txr),.lane1_tx_data(b1txd),.lane1_tx_sop(b1txs),.lane1_tx_eop(b1txe),
+  .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(b0txv),.lane0_tx_ready(b0txr),.lane0_tx_data(b0txd),
+  .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(b1txv),.lane1_tx_ready(b1txr),.lane1_tx_data(b1txd),
   .lane0_rx_clk(a_tx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(b0rxv),.lane0_rx_ready(b0rxr),.lane0_rx_data(b0rxd),
   .lane1_rx_clk(a_tx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(b1rxv),.lane1_rx_ready(b1rxr),.lane1_rx_data(b1rxd),
   .tx_valid(1'b0),.tx_ready(btxr),.tx_data(32'd0),.tx_keep(4'd0),.tx_sop(1'b0),.tx_eop(1'b0),
