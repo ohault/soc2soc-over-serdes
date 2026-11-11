@@ -102,10 +102,6 @@ module bonded_wire_rx_lane #(
             end
 
             if(state==ST_CHECK) begin
-                $display("RXCHECK lane=%0d count=%0d len=%0d hcrc=%04x/%04x fcrc=%08x/%08x fseq=%0d expected=%0d",
-                         LANE_ID,rx_count,{frame_mem[20],frame_mem[21]},header_crc,
-                         {frame_mem[22],frame_mem[23]},~frame_crc,{tail3,tail2,tail1,tail0},
-                         {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]},expected_frame_sequence);
                 if(frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 ||
                    frame_mem[4]!=8'h00 || frame_mem[5]!=LANE_ID[7:0] ||
