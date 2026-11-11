@@ -50,6 +50,11 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_stream_width -o /tmp/tb_stream_width \
             rtl/bonded_stream_tx.sv rtl/tb_bonded_stream_width.sv
           vvp /tmp/tb_stream_width
+      - name: Compile and run elastic width adapter testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_width_adapter -o /tmp/tb_width_adapter \
+            rtl/bonded_width_adapter.sv rtl/tb_bonded_width_adapter.sv
+          vvp /tmp/tb_width_adapter
       - name: Compile configurable-width RX module
         run: |
           iverilog -g2012 -Wall -tnull rtl/bonded_stream_rx.sv
