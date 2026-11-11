@@ -48,6 +48,7 @@ module bonded_lane_tx_mux #(
     wire arbiter_idle;
     reg [31:0] shared_frame_sequence;
     reg sequence_error;
+    wire arbiter_error;
     wire control_start_enable = arbiter_idle && !data_frame_valid;
     wire data_start_enable = arbiter_idle && !ctrl_queue_valid && !ctrl_frame_valid;
 
@@ -88,7 +89,6 @@ module bonded_lane_tx_mux #(
     assign data_frame_sequence = shared_frame_sequence;
     assign control_frame_sequence = shared_frame_sequence;
     assign arbiter_protocol_error = arbiter_error | sequence_error;
-    wire arbiter_error;
 
     always @(posedge clk) begin
         if (rst) begin
