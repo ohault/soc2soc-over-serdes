@@ -54,6 +54,12 @@ module tb_bonded_phy_8b10b_adapter;
   txv2=0;#1;
   if(txpd2!==16'h1cbc || txpc2!==2'b11)
    $fatal(1,"two-symbol TX idle insertion failed");
+  txpr2=0;txv2=1;txd2=8'h33;#1;
+  if(txpv2 || txr2) $fatal(1,"TX valid/ready did not stall with full PHY FIFO");
+  txpr2=1;#1;
+  if(!txpv2 || !txr2 || txpd2!==16'h33bc)
+   $fatal(1,"TX did not resume with held application byte");
+  txv2=0;
 
   txv4=1;txd4=8'h5a;#1;
   if(!txpv4 || !txr4 || txpd4!==32'h00005abc || txpc4!==4'b0001)
