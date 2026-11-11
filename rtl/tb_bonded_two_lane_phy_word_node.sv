@@ -212,6 +212,21 @@ module tb_bonded_two_lane_phy_word_node;
             @(posedge bond_b);cycles=cycles+1;
         end
         repeat(12) @(posedge bond_b);
+        $display("PHY stress diagnostics got=%0d expected=%0d active=%b/%b fault=%b/%b credit=%b/%b txerr=%b rxerr=%b",
+                 got,expected_count,active_a,active_b,fault_a,fault_b,credit_a,credit_b,txerr_a,rxerr_b);
+        $display("credits B local bytes/packets=%0d/%0d consumed=%0d/%0d accepted=%0d/%0d; A remote=%0d/%0d reserved=%0d/%0d",
+                 node_b.node.local_byte_limit,node_b.node.local_packet_limit,
+                 node_b.node.endpoint.rx_path.credit_accounting.rx_consumed_bytes,
+                 node_b.node.endpoint.rx_path.credit_accounting.rx_consumed_packets,
+                 node_b.node.endpoint.rx_path.credit_accounting.rx_accepted_bytes,
+                 node_b.node.endpoint.rx_path.credit_accounting.rx_accepted_packets,
+                 node_a.node.remote_byte_limit,node_a.node.remote_packet_limit,
+                 node_a.node.endpoint.tx_path.credit_accounting.tx_reserved_bytes,
+                 node_a.node.endpoint.tx_path.credit_accounting.tx_reserved_packets);
+        $display("packet reorder expected=%0d error=%b; B lane frame errors=%b/%b PHY RX errors=%b/%b",
+                 node_b.node.endpoint.rx_path.packet_reorder.expected_packet_sequence,
+                 node_b.node.endpoint.rx_path.packet_reorder.packet_error,
+                 b0rf,b1rf,b0rxerr,b1rxerr);
         if(got!=expected_count || fault_a || fault_b || credit_a || credit_b ||
            txerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
            a0rxerr || a1rxerr || b0rxerr || b1rxerr ||
