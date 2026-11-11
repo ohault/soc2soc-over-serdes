@@ -117,6 +117,46 @@ class ControlPlaneTests(unittest.TestCase):
         self.assertEqual(pong.body[0], ControlOpcode.PONG)
         self.assertEqual(pong.body[1:], ping.body[1:])
 
+    def test_negotiation_timeout_faults_incomplete_session(self):
+        a, b = make_pair()
+        a.tick(a.config.negotiation_timeout_cycles - 1)
+        self.assertIsNone(a.fault_reason)
+        a.tick(a.config.negotiation_timeout_cycles)
+        self.assertIn("negotiation timeout", a.fault_reason)
+        self.assertFalse(a.session_ready)
+
+    def test_ping_pong_clears_pending_probe(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b)
+        a.tick(a.config.ping_interval_cycles)
+        ping = a.next_frame(0)
+        self.assertEqual(ping.body[0], ControlOpcode.PING)
+        b.receive(0, ping)
+        pong = b.next_frame(0)
+        self.assertEqual(pong.body[0], ControlOpcode.PONG)
+        a.receive(0, pong)
+        self.assertIsNone(a._pending_ping)
+        a.tick(a.config.ping_interval_cycles + 1)
+        self.assertIsNone(a.fault_reason)
+
+    def test_missing_pong_faults_session(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b)
+        a.tick(a.config.ping_interval_cycles)
+        self.assertIsNotNone(a._pending_ping)
+        a.tick(a.config.ping_interval_cycles + a.config.pong_timeout_cycles)
+        self.assertIn("timed out", a.fault_reason)
+        self.assertFalse(a.session_ready)
+
+    def test_wrong_pong_nonce_does_not_clear_pending_probe(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b)
+        a.tick(a.config.ping_interval_cycles)
+        pending = a._pending_ping
+        wrong = Frame(FrameType.CONTROL, 0, 0x1234, 2,
+                      bytes([ControlOpcode.PONG]) + (pending[0] + 1).to_bytes(4, "big"))
+        a.receive(0, wrong)
+        self.assertEqual(a._pending_ping, pending)
     def test_wrong_profile_faults_negotiation(self):
         a, b = make_pair()
         bad_fields = (
