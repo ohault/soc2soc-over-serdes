@@ -14,11 +14,11 @@ module tb_bonded_control_manager;
  wire [63:0] remote_bytes;
  wire [31:0] remote_packets;
  bonded_control_manager #(.LOCAL_PEER_ID(64'd1),.EXPECTED_PEER_ID(64'd2),
-  .PROFILE_ID(16'd1),.MAX_PAYLOAD(16'd64),
+  .PROFILE_ID(16'd1),.MAX_PAYLOAD(16'd64),.INITIAL_SESSION_ID(64'd1),.RESTART_BACKOFF_CYCLES(32'd100000),
   .PING_INTERVAL_CYCLES(32'd1000),.PONG_TIMEOUT_CYCLES(32'd5000)) dut(
   .clk(clk),.rst(rst),.lane_up(lane_up),
   .ctrl_rx_valid(rx_valid),.ctrl_rx_ready(rx_ready),.ctrl_rx_body(rx_body),
-  .ctrl_rx_body_length(rx_len),.ctrl_rx_lane(rx_lane),
+  .ctrl_rx_body_length(rx_len),.ctrl_rx_lane(rx_lane),.ctrl_rx_session_id(64'd1),
   .ctrl_tx_valid(tx_valid),.ctrl_tx_ready(1'b1),.ctrl_tx_body(tx_body),.ctrl_tx_body_length(tx_len),
   .local_byte_limit(local_bytes),.local_packet_limit(local_packets),
   .remote_byte_limit(remote_bytes),.remote_packet_limit(remote_packets),
