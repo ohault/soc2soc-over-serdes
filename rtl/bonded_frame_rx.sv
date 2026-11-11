@@ -60,6 +60,7 @@ module bonded_frame_rx #(
                 // Reject sparse KEEP and malformed frame boundaries.
                 if (in_keep == 0 ||
                     (in_keep & (in_keep + 1'b1)) != 0 ||
+                    (!in_eop && in_keep != {WORD_BYTES{1'b1}}) ||
                     (in_sop && frame_open) ||
                     (!in_sop && !frame_open)) begin
                     beat_valid <= 0;
