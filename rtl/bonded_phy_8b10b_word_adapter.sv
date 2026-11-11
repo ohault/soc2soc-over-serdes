@@ -10,8 +10,10 @@ module bonded_phy_8b10b_word_adapter #(
     parameter [7:0] EMPTY_K=8'h1c,
     parameter integer PTR_WIDTH=(RX_FIFO_DEPTH<=2)?1:$clog2(RX_FIFO_DEPTH)
 ) (
-    input wire clk,
-    input wire rst,
+    input wire tx_clk,
+    input wire tx_rst,
+    input wire rx_clk,
+    input wire rx_rst,
 
     input wire tx_valid,
     output wire tx_ready,
@@ -51,8 +53,8 @@ module bonded_phy_8b10b_word_adapter #(
     // PHY VALID describes the continuously produced word stream (including
     // idle words) and must not be gated by READY. The application-side READY
     // is the actual transfer condition and backpressures the source.
-    assign tx_phy_valid=!rst && !tx_keep_bad;
-    assign tx_ready=!rst && tx_phy_ready && !tx_keep_bad;
+    assign tx_phy_valid=!tx_rst && !tx_keep_bad;
+    assign tx_ready=!tx_rst && tx_phy_ready && !tx_keep_bad;
 
     genvar g;
     generate for(g=0;g<SYMBOLS_PER_WORD;g=g+1) begin: tx_symbol_map
@@ -123,12 +125,12 @@ module bonded_phy_8b10b_word_adapter #(
     reg [PTR_WIDTH:0] count;
     wire rx_pop=rx_valid && rx_ready;
     wire rx_space=(count<RX_FIFO_DEPTH) || rx_pop;
-    assign rx_phy_ready=!rst && (!RX_PHY_STALLABLE || rx_space);
+    assign rx_phy_ready=!rx_rst && (!RX_PHY_STALLABLE || rx_space);
     wire rx_accept=rx_phy_valid && rx_phy_ready;
     wire decoded_has_data=(decoded_keep!=0);
     wire rx_push=rx_accept && decoded_has_data && !decoded_malformed && rx_space;
 
-    assign rx_valid=!rst && (count!=0);
+    assign rx_valid=!rx_rst && (count!=0);
     assign {rx_sop,rx_keep,rx_data}=rx_mem[rd_ptr];
 
     initial begin
@@ -140,12 +142,24 @@ module bonded_phy_8b10b_word_adapter #(
             $error("IDLE_K comma and EMPTY_K marker must be different");
     end
 
-    always @(posedge clk) begin
-        if(rst) begin
-            wr_ptr<=0;rd_ptr<=0;count<=0;
-            tx_error<=1'b0;rx_overflow<=1'b0;rx_symbol_error<=1'b0;
+    // TX and recovered-RX are independent clock domains. The physical PHY
+    // wrapper supplies its native TX user clock and recovered RX user clock;
+    // no READY/VALID signal is allowed to cross between these domains.
+    always @(posedge tx_clk) begin
+        if(tx_rst)
+            tx_error<=1'b0;
+        else if(tx_keep_bad)
+            tx_error<=1'b1;
+    end
+
+    always @(posedge rx_clk) begin
+        if(rx_rst) begin
+            wr_ptr<=0;
+            rd_ptr<=0;
+            count<=0;
+            rx_overflow<=1'b0;
+            rx_symbol_error<=1'b0;
         end else begin
-            if(tx_keep_bad) tx_error<=1'b1;
             if(rx_accept && decoded_malformed)
                 rx_symbol_error<=1'b1;
             if(rx_phy_valid && rx_phy_ready && decoded_has_data &&
