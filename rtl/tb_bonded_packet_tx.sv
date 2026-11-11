@@ -13,6 +13,7 @@ module tb_bonded_packet_tx;
     wire [LANES*W-1:0] lane_data;
     wire [LANES*K-1:0] lane_keep;
     wire [LANES*32-1:0] lane_packet_sequence;
+    wire [LANES*16-1:0] lane_packet_length;
     wire packet_error;
 
     bonded_packet_tx #(.DATA_WIDTH(W),.LANE_COUNT(LANES),.MAX_PACKET_BYTES(64)) dut (
@@ -22,7 +23,7 @@ module tb_bonded_packet_tx;
         .lane_valid(lane_valid),.lane_ready(lane_ready),
         .lane_data(lane_data),.lane_keep(lane_keep),
         .lane_sop(lane_sop),.lane_eop(lane_eop),
-        .lane_packet_sequence(lane_packet_sequence),.packet_error(packet_error)
+        .lane_packet_sequence(lane_packet_sequence),.lane_packet_length(lane_packet_length),.packet_error(packet_error)
     );
 
     integer got=0, cycles=0;
