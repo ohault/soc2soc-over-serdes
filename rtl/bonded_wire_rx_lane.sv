@@ -94,7 +94,7 @@ module bonded_wire_rx_lane #(
                             header_crc<=crc16_byte(header_crc,in_data);
                         if(rx_count>=4)
                             frame_crc<=crc32c_byte(frame_crc,tail3);
-                        tail0<=tail1; tail1<=tail2; tail2<=tail3; tail3<=in_data;
+                        tail3<=tail2; tail2<=tail1; tail1<=tail0; tail0<=in_data;
                         rx_count<=rx_count+1'b1;
                         if(in_eop) state<=ST_CHECK;
                     end
@@ -102,7 +102,6 @@ module bonded_wire_rx_lane #(
             end
 
             if(state==ST_CHECK) begin
-                $display("RXDBG count=%0d hdr=%04x exp_hdr=%02x%02x crc=%08x tail=%02x%02x%02x%02x body=%0d",rx_count,header_crc,frame_mem[22],frame_mem[23],frame_crc,tail3,tail2,tail1,tail0,{frame_mem[20],frame_mem[21]});
                 if(frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 ||
                    frame_mem[4]!=8'h00 || frame_mem[5]!=LANE_ID[7:0] ||
