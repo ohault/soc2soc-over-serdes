@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
-// Single-clock byte elastic FIFO between a non-stallable PHY receiver and
-// the backpressured frame parser.
+// Single-clock byte elastic FIFO between the PHY adapter and frame parser.
 module bonded_sync_byte_fifo #(
     parameter integer DEPTH=64,
     parameter integer PTR_WIDTH=(DEPTH<=2)?1:$clog2(DEPTH)
