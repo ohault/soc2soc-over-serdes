@@ -120,7 +120,8 @@ module bonded_two_lane_endpoint #(
     bonded_two_lane_rx #(
         .FIFO_DEPTH(RX_FIFO_DEPTH), .REORDER_WINDOW(REORDER_WINDOW),
         .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
-        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
+        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID),
+        .DYNAMIC_LANE_MAP(DYNAMIC_LANE_MAP)
     ) rx_path (
         .bond_rst_n(datapath_rst_n), .control_rst_n(bond_rst_n), .expected_session_id(rx_expected_session_id),
         .lane0_clk(lane0_rx_clk), .lane0_rst_n(lane0_rx_rst_n),
