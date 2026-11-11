@@ -168,6 +168,9 @@ class BondedControlPlane:
 
     def _receive_hello(self, local_lane: int, peer_lane: int, fields: bytes) -> None:
         peer_id, lane_count, profile_id, max_payload, rx_bytes, rx_packets = struct.unpack(">QBH H Q I".replace(" ", ""), fields)
+        if peer_id == self.config.peer_id:
+            self._fault("peer identity equals local identity")
+            raise ControlNegotiationError(self.fault_reason)
         if self.config.expected_peer_id is not None and peer_id != self.config.expected_peer_id:
             self._fault("unexpected peer identity")
             raise ControlNegotiationError(self.fault_reason)
@@ -197,9 +200,14 @@ class BondedControlPlane:
 
     def _receive_ready(self, local_lane: int, peer_lane: int, fields: bytes) -> None:
         peer_id, lane_count, profile_id = struct.unpack(">QBH", fields)
+        if peer_id == self.config.peer_id:
+            self._fault("READY peer identity equals local identity")
+            raise ControlNegotiationError(self.fault_reason)
         if self.config.expected_peer_id is not None and peer_id != self.config.expected_peer_id:
             self._fault("READY contains unexpected peer identity")
             raise ControlNegotiationError(self.fault_reason)
+        if not self._hello_seen[local_lane]:
+            raise ControlPlaneError("READY received before HELLO on this lane")
         if lane_count != self.config.lane_count or profile_id != self.config.profile_id:
             self._fault("READY lane-count/profile mismatch")
             raise ControlNegotiationError(self.fault_reason)
