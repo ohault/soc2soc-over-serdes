@@ -26,9 +26,10 @@ For each lane, the node accepts only:
 - `laneN_rx_valid`
 - `laneN_rx_ready`
 - `laneN_rx_data[7:0]`
+- `laneN_rx_overflow` (adapter error indication)
 
 There are no physical SOP/EOP inputs. A per-lane synchronous elastic FIFO
-(`bonded_sync_byte_fifo`, configurable depth) absorbs parser stalls. Its
+(`bonded_sync_byte_fifo`, configurable depth) absorbs parser stalls and uses
 standard ready/valid semantics. A continuous serial receiver cannot pause
 the cable, so the board adapter must buffer recovered bytes until the node
 accepts them. If the adapter's own receive buffer overruns or a byte is lost,
@@ -56,8 +57,8 @@ parts, while preserving the byte-stream contract:
 - TX serialization and any required line coding.
 - A reliable `lane_up` indication based on PLL/CDR lock, byte alignment and
   the chosen physical error policy.
-- Error/overflow handling: a PHY error, adapter RX-buffer overflow (`laneN_rx_overflow`) or
-  byte-alignment loss must drop the lane/session or reset the framer so the
+- Error/overflow handling: a PHY error, adapter RX-buffer overflow
+  (`laneN_rx_overflow`) or byte-alignment loss must drop the lane/session or reset the framer so the
   receiver does not continue parsing a corrupted byte count.
 
 The core currently assumes an error-free byte stream between such reset/error
