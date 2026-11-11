@@ -4,6 +4,7 @@
 module bonded_wire_rx_demux (
     input wire clk,
     input wire rst,
+    input wire data_enable,
     input wire in_valid,
     output wire in_ready,
     input wire [7:0] in_data,
@@ -30,7 +31,7 @@ module bonded_wire_rx_demux (
     reg [7:0] header_mem[0:3];
     reg [1:0] header_count,replay_index;
     reg selected_control;
-    wire selected_ready = selected_control ? ctrl_ready : data_ready;
+    wire selected_ready = selected_control ? ctrl_ready : (data_enable ? data_ready : 1'b1);
     wire replay_valid = (state==ST_REPLAY);
     wire body_valid = (state==ST_BODY) && in_valid;
     wire output_valid = replay_valid || body_valid;
@@ -41,7 +42,7 @@ module bonded_wire_rx_demux (
 
     assign in_ready = !rst && ((state==ST_HEADER) || (state==ST_DROP) ||
                        ((state==ST_BODY) && selected_ready));
-    assign data_valid = !rst && output_valid && !selected_control;
+    assign data_valid = !rst && data_enable && output_valid && !selected_control;
     assign ctrl_valid = !rst && output_valid && selected_control;
     assign data_data = output_data;
     assign ctrl_data = output_data;
@@ -68,7 +69,7 @@ module bonded_wire_rx_demux (
                     if(header_count==3) begin
                         if(header_mem[0]==8'h53 && header_mem[1]==8'h42 &&
                            header_mem[2]==8'h01 && in_data==8'h01) begin
-                            selected_control<=0;replay_index<=0;state<=ST_REPLAY;
+                            selected_control<=0;replay_index<=0;state<=data_enable ? ST_REPLAY : ST_DROP;
                         end else if(header_mem[0]==8'h53 && header_mem[1]==8'h42 &&
                                     header_mem[2]==8'h01 && in_data==8'h02) begin
                             selected_control<=1;replay_index<=0;state<=ST_REPLAY;
