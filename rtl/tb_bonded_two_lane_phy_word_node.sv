@@ -46,8 +46,11 @@ module tb_bonded_two_lane_phy_word_node;
     reg [31:0] app_data=0;
     reg [3:0] app_keep=0;
     wire app_ready,b_app_ready;
-    reg b_app_rx_ready=0;
-    reg [15:0] consumer_lfsr=16'h1ace;
+    reg b_app_valid=0,b_app_sop=0,b_app_eop=0;
+    reg [31:0] b_app_data=0;
+    reg [3:0] b_app_keep=0;
+    reg a_app_rx_ready=0,b_app_rx_ready=0;
+    reg [15:0] consumer_lfsr=16'h1ace,consumer_lfsr_a=16'hace1;
     wire a_rx_valid,b_rx_valid;
     wire [7:0] a_rx_data,b_rx_data;
     wire a_rx_sop,a_rx_eop,b_rx_sop,b_rx_eop;
@@ -79,7 +82,7 @@ module tb_bonded_two_lane_phy_word_node;
         .lane1_phy_rx_data(a1_rxd),.lane1_phy_rx_ctrl(a1_rxc),
         .tx_valid(app_valid),.tx_ready(app_ready),.tx_data(app_data),
         .tx_keep(app_keep),.tx_sop(app_sop),.tx_eop(app_eop),
-        .rx_valid(a_rx_valid),.rx_ready(1'b1),.rx_data(a_rx_data),
+        .rx_valid(a_rx_valid),.rx_ready(a_app_rx_ready),.rx_data(a_rx_data),
         .rx_sop(a_rx_sop),.rx_eop(a_rx_eop),.rx_packet_sequence(a_rx_seq),
         .session_active(active_a),.control_fault(fault_a),
         .rx_credit_error(credit_a),.tx_packet_error(txerr_a),.rx_packet_error(rxerr_a),
@@ -109,8 +112,8 @@ module tb_bonded_two_lane_phy_word_node;
         .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),
         .lane1_phy_rx_valid(b1_rxv),.lane1_phy_rx_ready(b1_rxr),
         .lane1_phy_rx_data(b1_rxd),.lane1_phy_rx_ctrl(b1_rxc),
-        .tx_valid(1'b0),.tx_ready(b_app_ready),.tx_data(32'd0),
-        .tx_keep(4'd0),.tx_sop(1'b0),.tx_eop(1'b0),
+        .tx_valid(b_app_valid),.tx_ready(b_app_ready),.tx_data(b_app_data),
+        .tx_keep(b_app_keep),.tx_sop(b_app_sop),.tx_eop(b_app_eop),
         .rx_valid(b_rx_valid),.rx_ready(b_app_rx_ready),.rx_data(b_rx_data),
         .rx_sop(b_rx_sop),.rx_eop(b_rx_eop),.rx_packet_sequence(b_rx_seq),
         .session_active(active_b),.control_fault(fault_b),
@@ -120,6 +123,11 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_tx_frame_error(b0tf),.lane1_tx_frame_error(b1tf),
         .lane0_rx_frame_error(b0rf),.lane1_rx_frame_error(b1rf)
     );
+
+    reg [7:0] reverse_expected_data[0:63];
+    reg [31:0] reverse_expected_sequence[0:63];
+    reg reverse_expected_sop[0:63],reverse_expected_eop[0:63];
+    integer reverse_expected_count=0,reverse_got=0,reverse_packet_number=0;
 
     reg [7:0] expected_data[0:127];
     reg [31:0] expected_sequence[0:127];
@@ -151,6 +159,27 @@ module tb_bonded_two_lane_phy_word_node;
                     $fatal(1,"parallel RX mismatch at byte %0d data=%02x seq=%0d sop/eop=%b/%b",
                            got,b_rx_data,b_rx_seq,b_rx_sop,b_rx_eop);
                 got=got+1;
+            end
+        end
+    end
+
+    always @(posedge bond_a) begin
+        if(!rst_n) begin
+            consumer_lfsr_a<=16'hace1;
+            a_app_rx_ready<=0;
+        end else begin
+            consumer_lfsr_a<={consumer_lfsr_a[14:0],
+                consumer_lfsr_a[15]^consumer_lfsr_a[13]^consumer_lfsr_a[12]^consumer_lfsr_a[10]};
+            a_app_rx_ready<=(consumer_lfsr_a[2:0]!=0);
+            if(a_rx_valid && a_app_rx_ready) begin
+                if(reverse_got>=reverse_expected_count ||
+                   a_rx_data!==reverse_expected_data[reverse_got] ||
+                   a_rx_seq!==reverse_expected_sequence[reverse_got] ||
+                   a_rx_sop!==reverse_expected_sop[reverse_got] ||
+                   a_rx_eop!==reverse_expected_eop[reverse_got])
+                    $fatal(1,"reverse parallel RX mismatch at byte %0d data=%02x seq=%0d sop/eop=%b/%b",
+                           reverse_got,a_rx_data,a_rx_seq,a_rx_sop,a_rx_eop);
+                reverse_got=reverse_got+1;
             end
         end
     end
@@ -194,6 +223,44 @@ module tb_bonded_two_lane_phy_word_node;
     end
     endtask
 
+    task send_packet_b(input [127:0] payload,input integer length);
+        integer offset,n,j;
+        reg [31:0] beat;
+        reg [3:0] keep;
+    begin
+        if(length<1 || length>16) $fatal(1,"bad reverse test packet length");
+        for(j=0;j<length;j=j+1) begin
+            reverse_expected_data[reverse_expected_count+j]=payload[j*8 +: 8];
+            reverse_expected_sequence[reverse_expected_count+j]=reverse_packet_number;
+            reverse_expected_sop[reverse_expected_count+j]=(j==0);
+            reverse_expected_eop[reverse_expected_count+j]=(j==length-1);
+        end
+        reverse_expected_count=reverse_expected_count+length;
+        offset=0;
+        while(offset<length) begin
+            n=length-offset;
+            if(n>4) n=4;
+            beat=0;
+            for(j=0;j<n;j=j+1) beat[j*8 +: 8]=payload[(offset+j)*8 +: 8];
+            keep=(1<<n)-1;
+            @(negedge bond_b);
+            b_app_valid=1;
+            b_app_sop=(offset==0);
+            b_app_eop=(offset+n==length);
+            b_app_keep=keep;
+            b_app_data=beat;
+            #1;
+            while(b_app_ready !== 1'b1) @(negedge bond_b);
+            @(posedge bond_b);
+            offset=offset+n;
+        end
+        @(negedge bond_b);
+        b_app_valid=0;b_app_sop=0;b_app_eop=0;b_app_keep=0;
+        if(txerr_b) $fatal(1,"reverse TX packet scheduler rejected packet %0d",reverse_packet_number);
+        reverse_packet_number=reverse_packet_number+1;
+    end
+    endtask
+
     initial begin
         reg [127:0] payload;
         integer p,i;
@@ -209,17 +276,28 @@ module tb_bonded_two_lane_phy_word_node;
 
         // Exercise SOP/EOP positions on short and multiword packets, including
         // partial final words and payload bytes equal to K28.5/K28.0 values.
-        for(p=0;p<8;p=p+1) begin
-            payload=0;
-            for(i=0;i<16;i=i+1)
-                payload[i*8 +: 8]=(p*8'h31)+(i*8'h17)+8'h5a;
-            if(p==0) payload[7:0]=8'hbc;
-            if(p==1) payload[7:0]=8'h1c;
-            send_packet(payload,(p==0)?1:(p==1)?2:(p==2)?3:(p==3)?4:
-                        (p==4)?5:(p==5)?7:(p==6)?11:16);
-        end
+        fork
+            begin : forward_traffic
+                for(p=0;p<8;p=p+1) begin
+                    payload=0;
+                    for(i=0;i<16;i=i+1)
+                        payload[i*8 +: 8]=(p*8'h31)+(i*8'h17)+8'h5a;
+                    if(p==0) payload[7:0]=8'hbc;
+                    if(p==1) payload[7:0]=8'h1c;
+                    send_packet(payload,(p==0)?1:(p==1)?2:(p==2)?3:(p==3)?4:
+                                (p==4)?5:(p==5)?7:(p==6)?11:16);
+                end
+            end
+            begin : reverse_traffic
+                reg [127:0] reverse_payload;
+                reverse_payload=0;
+                for(i=0;i<16;i=i+1)
+                    reverse_payload[i*8 +: 8]=8'he3-(i*8'h0d);
+                send_packet_b(reverse_payload,13);
+            end
+        join
         cycles=0;
-        while(got<expected_count && cycles<50000) begin
+        while((got<expected_count || reverse_got<reverse_expected_count) && cycles<50000) begin
             @(posedge bond_b);cycles=cycles+1;
         end
         repeat(12) @(posedge bond_b);
@@ -238,9 +316,9 @@ module tb_bonded_two_lane_phy_word_node;
                  node_b.node.endpoint.rx_path.packet_reorder.expected_packet_sequence,
                  node_b.node.endpoint.rx_path.packet_reorder.packet_error,
                  b0rf,b1rf,b0rxerr,b1rxerr);
-        if(got!=expected_count || lane0_data_frames!=4 || lane1_data_frames!=4 ||
+        if(got!=expected_count || reverse_got!=reverse_expected_count || lane0_data_frames!=4 || lane1_data_frames!=4 ||
            fault_a || fault_b || credit_a || credit_b ||
-           txerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
+           txerr_a || txerr_b || rxerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
            a0rxerr || a1rxerr || b0rxerr || b1rxerr ||
            a0tf || a1tf || b0tf || b1tf || a0rf || a1rf || b0rf || b1rf)
             begin
@@ -263,7 +341,7 @@ module tb_bonded_two_lane_phy_word_node;
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        $display("PASS: two-node parallel PHY, 8 variable-length packets, both lanes, partial words and RX backpressure");
+        $display("PASS: full-duplex two-node parallel PHY, variable packets, both lanes and RX backpressure");
         $finish;
     end
     initial begin #2000000;$fatal(1,"timeout active=%b/%b got=%0d expected=%0d",
