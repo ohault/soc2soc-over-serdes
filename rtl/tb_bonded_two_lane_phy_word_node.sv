@@ -125,6 +125,14 @@ module tb_bonded_two_lane_phy_word_node;
     reg [31:0] expected_sequence[0:127];
     reg expected_sop[0:127],expected_eop[0:127];
     integer expected_count=0,got=0,cycles=0,packet_number=0;
+    integer lane0_data_frames=0,lane1_data_frames=0;
+
+    always @(posedge b_rx0)
+        if(node_b.node.endpoint.rx_path.lane0_decoder.frame_valid_pulse)
+            lane0_data_frames<=lane0_data_frames+1;
+    always @(posedge b_rx1)
+        if(node_b.node.endpoint.rx_path.lane1_decoder.frame_valid_pulse)
+            lane1_data_frames<=lane1_data_frames+1;
 
     always @(posedge bond_b) begin
         if(!rst_n) begin
@@ -230,7 +238,8 @@ module tb_bonded_two_lane_phy_word_node;
                  node_b.node.endpoint.rx_path.packet_reorder.expected_packet_sequence,
                  node_b.node.endpoint.rx_path.packet_reorder.packet_error,
                  b0rf,b1rf,b0rxerr,b1rxerr);
-        if(got!=expected_count || fault_a || fault_b || credit_a || credit_b ||
+        if(got!=expected_count || lane0_data_frames!=4 || lane1_data_frames!=4 ||
+           fault_a || fault_b || credit_a || credit_b ||
            txerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
            a0rxerr || a1rxerr || b0rxerr || b1rxerr ||
            a0tf || a1tf || b0tf || b1tf || a0rf || a1rf || b0rf || b1rf)
@@ -254,7 +263,7 @@ module tb_bonded_two_lane_phy_word_node;
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        $display("PASS: two-node parallel PHY, 8 packet lengths, partial words and RX backpressure");
+        $display("PASS: two-node parallel PHY, 8 variable-length packets, both lanes, partial words and RX backpressure");
         $finish;
     end
     initial begin #2000000;$fatal(1,"timeout active=%b/%b got=%0d expected=%0d",
