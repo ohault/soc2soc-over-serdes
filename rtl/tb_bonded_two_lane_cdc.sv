@@ -38,14 +38,16 @@ module tb_bonded_two_lane_cdc;
         if (!lane0_rst_n || !bond_rst_n) begin
             v0 <= 0;
             d0 <= 0;
-        end else if (!v0 || r0) begin
-            if (sent0 < COUNT) begin
-                v0 <= 1;
-                d0 <= 32'h10000000 + sent0;
-            end else v0 <= 0;
+        end else begin
             if (v0 && r0) begin
                 exp0[sent0] = d0;
                 sent0 = sent0 + 1;
+            end
+            if (!v0 || r0) begin
+                if (sent0 < COUNT) begin
+                    v0 <= 1;
+                    d0 <= 32'h10000000 + sent0;
+                end else v0 <= 0;
             end
         end
     end
@@ -54,14 +56,16 @@ module tb_bonded_two_lane_cdc;
         if (!lane1_rst_n || !bond_rst_n) begin
             v1 <= 0;
             d1 <= 0;
-        end else if (!v1 || r1) begin
-            if (sent1 < COUNT) begin
-                v1 <= 1;
-                d1 <= 32'h20000000 + sent1;
-            end else v1 <= 0;
+        end else begin
             if (v1 && r1) begin
                 exp1[sent1] = d1;
                 sent1 = sent1 + 1;
+            end
+            if (!v1 || r1) begin
+                if (sent1 < COUNT) begin
+                    v1 <= 1;
+                    d1 <= 32'h20000000 + sent1;
+                end else v1 <= 0;
             end
         end
     end
