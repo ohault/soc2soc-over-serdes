@@ -92,6 +92,8 @@ module bonded_phy_8b10b_adapter #(
             $error("SYMBOLS_PER_WORD must be 2 or 4");
         if(DATA_SYMBOL_INDEX<1 || DATA_SYMBOL_INDEX>=SYMBOLS_PER_WORD)
             $error("DATA_SYMBOL_INDEX must be in [1, SYMBOLS_PER_WORD-1]");
+        if(IDLE_K==EMPTY_K)
+            $error("IDLE_K comma and EMPTY_K marker must be different");
         if(RX_FIFO_DEPTH<2 || (RX_FIFO_DEPTH & (RX_FIFO_DEPTH-1))!=0)
             $error("RX_FIFO_DEPTH must be a power of two >= 2");
     end
