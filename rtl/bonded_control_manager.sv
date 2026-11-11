@@ -152,7 +152,11 @@ module bonded_control_manager #(
                         last_advertised_bytes<=ctrl_tx_body[95:32];
                         last_advertised_packets<=ctrl_tx_body[31:0];
                     end
-                    8'h02: begin ready_sent<=1; ready_queued<=0; end
+                    8'h02: begin
+                        ready_sent<=1; ready_queued<=0;
+                        if(ready_seen==2'b11 && hello_seen==2'b11 && hello_sent)
+                            session_established<=1;
+                    end
                     8'h03: begin
                         last_advertised_bytes<=ctrl_tx_body[199:136];
                         last_advertised_packets<=ctrl_tx_body[135:104];
