@@ -71,31 +71,30 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43116574703](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43116574703)
+[43116824746](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43116824746)
 completed successfully for commit
-`5ca86cad5baf1eea3a66095357068eb78f79f417`. Both the Python reference-model
+`2a5c4a2483bbbc7881bee1784289bf2d281a3a63`. Both the Python reference-model
 and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
 16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
-direction, checks round-robin use of both forward lanes, applies application
-RX backpressure, and injects malformed 8b/10b control symbols to verify that
-PHY errors invalidate both bonded sessions. It also drops a lane, verifies the
-sticky session fault, performs a coordinated physical-lane/bonding reset, and
-re-establishes the full-duplex session. The per-lane bridge regression exercises
-session-drop flushing and stale continuation-word discard without relying on a
-physical FIFO reset. The end-to-end topology is intentionally cross-wired:
-local RX0 receives remote TX1 and local RX1 receives remote TX0. Dynamic remote
-lane-ID discovery and local ingress-lane tagging allow HELLO/READY and DATA to
-work with that cable arrangement.
+direction, checks both physical lanes, applies application RX backpressure,
+and injects malformed 8b/10b control symbols to verify PHY-fault supervision.
+The test topology is deliberately crossed: local RX0 receives remote TX1 and
+local RX1 receives remote TX0. Dynamic remote lane-ID discovery allows the
+HELLO/READY and DATA paths to operate with that cable arrangement. A separate
+regression verifies duplicate remote lane IDs are rejected. The node-level
+test also covers lane-down supervision, coordinated FIFO/bond reset and
+session re-arm; the per-lane bridge test covers stale continuation discard
+without resetting the physical channel FIFO.
 
-This remains digital simulation evidence. It does not model analogue SERDES
+This is digital simulation evidence only. It does not model analogue SERDES
 behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Extend lane-map validation to reject duplicate remote lane IDs and test
-   asymmetric one-sided lane loss followed by remote heartbeat-timeout recovery.
+1. Test asymmetric one-sided lane loss followed by remote heartbeat-timeout
+   recovery; current tests cover symmetric lane loss and sticky-fault behavior.
 2. Add a fresh per-session epoch so stale complete frames cannot be accepted
    after a coordinated reset; the current bridge flush only discards stale
    continuation words until the next SOP.
