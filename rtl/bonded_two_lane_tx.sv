@@ -15,6 +15,8 @@ module bonded_two_lane_tx #(
     // Latest cumulative grants received from the peer's CONTROL/CREDIT frames.
     input wire [63:0] remote_byte_limit,
     input wire [31:0] remote_packet_limit,
+    input wire ctrl_valid, output wire ctrl_ready,
+    input wire [207:0] ctrl_body, input wire [5:0] ctrl_body_length,
 
     input wire tx_valid, output wire tx_ready,
     input wire [DATA_WIDTH-1:0] tx_data,
@@ -44,6 +46,12 @@ module bonded_two_lane_tx #(
     wire fifo0_wr_ready, fifo1_wr_ready;
     wire fifo0_rd_valid, fifo1_rd_valid;
     wire enc0_in_ready, enc1_in_ready;
+    wire ctrl0_wr_ready,ctrl1_wr_ready,ctrl0_rd_valid,ctrl1_rd_valid;
+    wire [213:0] ctrl_fifo_in={ctrl_body_length,ctrl_body};
+    wire [213:0] ctrl0_fifo_out,ctrl1_fifo_out;
+    wire ctrl_broadcast_ready = ctrl0_wr_ready && ctrl1_wr_ready;
+    wire ctrl_broadcast_valid = ctrl_valid && ctrl_broadcast_ready;
+    assign ctrl_ready = ctrl_broadcast_ready;
     wire credit_reserve_ready, credit_reserve_valid;
     wire [15:0] credit_reserve_bytes;
     wire [63:0] tx_reserved_bytes;
@@ -104,32 +112,55 @@ module bonded_two_lane_tx #(
         .rd_valid(fifo1_rd_valid),.rd_ready(enc1_in_ready),.rd_data(fifo1_out)
     );
 
-    bonded_wire_tx_lane #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
+    bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane0_control_fifo (
+        .wr_clk(bond_clk),.wr_rst_n(bond_rst_n && lane0_rst_n),
+        .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl0_wr_ready),.wr_data(ctrl_fifo_in),
+        .rd_clk(lane0_clk),.rd_rst_n(bond_rst_n && lane0_rst_n),
+        .rd_valid(ctrl0_rd_valid),.rd_ready(ctrl0_encoder_ready),.rd_data(ctrl0_fifo_out)
+    );
+    bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane1_control_fifo (
+        .wr_clk(bond_clk),.wr_rst_n(bond_rst_n && lane1_rst_n),
+        .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl1_wr_ready),.wr_data(ctrl_fifo_in),
+        .rd_clk(lane1_clk),.rd_rst_n(bond_rst_n && lane1_rst_n),
+        .rd_valid(ctrl1_rd_valid),.rd_ready(ctrl1_encoder_ready),.rd_data(ctrl1_fifo_out)
+    );
+    wire ctrl0_encoder_ready,ctrl1_encoder_ready;
+    wire ctrl0_error,ctrl1_error,arb0_error,arb1_error;
+    bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
         .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.session_id(session_id),
-        .frame_start_enable(1'b1),.frame_sequence_override(lane0_frame_sequence),
-        .in_valid(fifo0_rd_valid),.in_ready(enc0_in_ready),
-        .in_data(fifo0_out[DATA_WIDTH-1:0]),
-        .in_keep(fifo0_out[DATA_WIDTH +: KEEP_WIDTH]),
-        .in_sop(fifo0_out[DATA_WIDTH+KEEP_WIDTH]),
-        .in_eop(fifo0_out[DATA_WIDTH+KEEP_WIDTH+1]),
-        .in_packet_sequence(fifo0_out[DATA_WIDTH+KEEP_WIDTH+2 +: 32]),
-        .in_packet_length(fifo0_out[DATA_WIDTH+KEEP_WIDTH+34 +: 16]),
+        .ctrl_valid(ctrl0_rd_valid),.ctrl_ready(ctrl0_encoder_ready),
+        .ctrl_body(ctrl0_fifo_out[207:0]),.ctrl_body_length(ctrl0_fifo_out[213:208]),
+        .data_valid(fifo0_rd_valid),.data_ready(enc0_in_ready),
+        .data_data(fifo0_out[DATA_WIDTH-1:0]),
+        .data_keep(fifo0_out[DATA_WIDTH +: KEEP_WIDTH]),
+        .data_sop(fifo0_out[DATA_WIDTH+KEEP_WIDTH]),
+        .data_eop(fifo0_out[DATA_WIDTH+KEEP_WIDTH+1]),
+        .data_packet_sequence(fifo0_out[DATA_WIDTH+KEEP_WIDTH+2 +: 32]),
+        .data_packet_length(fifo0_out[DATA_WIDTH+KEEP_WIDTH+34 +: 16]),
         .out_valid(lane0_valid),.out_ready(lane0_ready),.out_data(lane0_data),
         .out_sop(lane0_sop),.out_eop(lane0_eop),
-        .next_frame_sequence(lane0_frame_sequence),.frame_error(lane0_frame_error)
+        .data_frame_sequence(lane0_frame_sequence),.control_frame_sequence(),
+        .data_frame_error(lane0_data_error),.control_frame_error(ctrl0_error),
+        .arbiter_protocol_error(arb0_error)
     );
-    bonded_wire_tx_lane #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE1_ID)) encoder1 (
+    bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE1_ID)) encoder1 (
         .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.session_id(session_id),
-        .frame_start_enable(1'b1),.frame_sequence_override(lane1_frame_sequence),
-        .in_valid(fifo1_rd_valid),.in_ready(enc1_in_ready),
-        .in_data(fifo1_out[DATA_WIDTH-1:0]),
-        .in_keep(fifo1_out[DATA_WIDTH +: KEEP_WIDTH]),
-        .in_sop(fifo1_out[DATA_WIDTH+KEEP_WIDTH]),
-        .in_eop(fifo1_out[DATA_WIDTH+KEEP_WIDTH+1]),
-        .in_packet_sequence(fifo1_out[DATA_WIDTH+KEEP_WIDTH+2 +: 32]),
-        .in_packet_length(fifo1_out[DATA_WIDTH+KEEP_WIDTH+34 +: 16]),
+        .ctrl_valid(ctrl1_rd_valid),.ctrl_ready(ctrl1_encoder_ready),
+        .ctrl_body(ctrl1_fifo_out[207:0]),.ctrl_body_length(ctrl1_fifo_out[213:208]),
+        .data_valid(fifo1_rd_valid),.data_ready(enc1_in_ready),
+        .data_data(fifo1_out[DATA_WIDTH-1:0]),
+        .data_keep(fifo1_out[DATA_WIDTH +: KEEP_WIDTH]),
+        .data_sop(fifo1_out[DATA_WIDTH+KEEP_WIDTH]),
+        .data_eop(fifo1_out[DATA_WIDTH+KEEP_WIDTH+1]),
+        .data_packet_sequence(fifo1_out[DATA_WIDTH+KEEP_WIDTH+2 +: 32]),
+        .data_packet_length(fifo1_out[DATA_WIDTH+KEEP_WIDTH+34 +: 16]),
         .out_valid(lane1_valid),.out_ready(lane1_ready),.out_data(lane1_data),
         .out_sop(lane1_sop),.out_eop(lane1_eop),
-        .next_frame_sequence(lane1_frame_sequence),.frame_error(lane1_frame_error)
+        .data_frame_sequence(lane1_frame_sequence),.control_frame_sequence(),
+        .data_frame_error(lane1_data_error),.control_frame_error(ctrl1_error),
+        .arbiter_protocol_error(arb1_error)
     );
+    wire lane0_data_error,lane1_data_error;
+    assign lane0_frame_error = lane0_data_error | ctrl0_error | arb0_error;
+    assign lane1_frame_error = lane1_data_error | ctrl1_error | arb1_error;
 endmodule
