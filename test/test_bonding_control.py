@@ -157,6 +157,43 @@ class ControlPlaneTests(unittest.TestCase):
                       bytes([ControlOpcode.PONG]) + (pending[0] + 1).to_bytes(4, "big"))
         a.receive(0, wrong)
         self.assertEqual(a._pending_ping, pending)
+    def test_restart_uses_fresh_session_and_discards_old_frames(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b, crossed=True)
+        stale = Frame(FrameType.CONTROL, 0, 0x1234, 99,
+                      bytes([ControlOpcode.PING]) + (0xCAFE).to_bytes(4, "big"))
+        for endpoint in (a, b):
+            endpoint.set_lane_up(0, False)
+            endpoint.set_lane_up(0, True)
+            endpoint.restart(0x5678)
+        exchange_hello_and_ready(a, b, crossed=True)
+        self.assertTrue(a.session_ready)
+        self.assertTrue(b.session_ready)
+        self.assertEqual(a.session_id, 0x5678)
+        self.assertEqual(b.session_id, 0x5678)
+        a.receive(0, stale)
+        self.assertTrue(a.session_ready)
+        self.assertEqual(a.control_queue_depths, (0, 0))
+
+    def test_restart_rejects_reuse_of_previous_session_identifier(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b)
+        a.set_lane_up(0, False)
+        a.set_lane_up(0, True)
+        with self.assertRaises(ControlPlaneError):
+            a.restart(0x1234)
+
+    def test_restart_requires_faulted_session_and_all_lanes_up(self):
+        a, b = make_pair()
+        with self.assertRaises(ControlPlaneError):
+            a.restart(0x5678)
+        a.set_lane_up(0, False)
+        with self.assertRaises(ControlSessionDown):
+            a.restart(0x5678)
+        a.set_lane_up(0, True)
+        a.restart(0x5678)
+        self.assertFalse(a.session_ready)
+        self.assertEqual(a.session_id, 0x5678)
     def test_wrong_profile_faults_negotiation(self):
         a, b = make_pair()
         bad_fields = (
