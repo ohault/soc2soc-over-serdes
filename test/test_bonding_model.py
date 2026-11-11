@@ -61,6 +61,56 @@ class BondedSenderTests(unittest.TestCase):
         )
         self.assertTrue(sender.session_ready)
 
+    def test_skips_a_stalled_lane_and_uses_the_other_lane(self):
+        sender = BondedSender(
+            BondConfig(lane_count=2, tx_queue_depth=1)
+        )
+        bring_up(sender, 2)
+
+        lane0 = sender.send(b"lane0")
+        lane1 = sender.send(b"lane1")
+        self.assertEqual(lane0[0], 0)
+        self.assertEqual(lane1[0], 1)
+        self.assertEqual(sender.queued_packets, (1, 1))
+
+        # Lane 0 remains stalled/full. Draining lane 1 must allow further
+        # traffic to progress on lane 1 instead of blocking the aggregate.
+        self.assertIsNone(sender.send(b"blocked"))
+        self.assertEqual(sender.next_sequence, 2)
+        self.assertEqual(sender.take_tx(1), lane1[1])
+        lane1_again = sender.send(b"lane1-again")
+        self.assertEqual(lane1_again[0], 1)
+        self.assertEqual(lane1_again[1].sequence, 2)
+        self.assertEqual(sender.queued_packets, (1, 1))
+
+        # Once lane 0 becomes available, round-robin selection can use it.
+        self.assertEqual(sender.take_tx(0), lane0[1])
+        lane0_again = sender.send(b"lane0-again")
+        self.assertEqual(lane0_again[0], 0)
+        self.assertEqual(lane0_again[1].sequence, 3)
+
+    def test_aggregate_backpressure_does_not_consume_sequence(self):
+        sender = BondedSender(
+            BondConfig(lane_count=2, tx_queue_depth=1)
+        )
+        bring_up(sender, 2)
+        sender.send(b"first")
+        sender.send(b"second")
+        self.assertIsNone(sender.send(b"not-accepted"))
+        self.assertEqual(sender.next_sequence, 2)
+        self.assertEqual(sender.queued_packets, (1, 1))
+
+    def test_lane_loss_flushes_all_transmit_queues(self):
+        sender = BondedSender(
+            BondConfig(lane_count=2, tx_queue_depth=2)
+        )
+        bring_up(sender, 2)
+        sender.send(b"first")
+        sender.send(b"second")
+        sender.set_lane_up(0, False)
+        self.assertFalse(sender.session_ready)
+        self.assertEqual(sender.queued_packets, (0, 0))
+
     def test_packet_size_is_enforced(self):
         sender = BondedSender(BondConfig(lane_count=1, max_packet_bytes=3))
         bring_up(sender, 1)
