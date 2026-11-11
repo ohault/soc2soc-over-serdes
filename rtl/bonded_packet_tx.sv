@@ -21,6 +21,12 @@ module bonded_packet_tx #(
     input  wire                  tx_sop,
     input  wire                  tx_eop,
 
+    // Credit reservation handshake for the complete packet. The final input
+    // beat is stalled until both byte and packet credits are available.
+    input  wire                  credit_reserve_ready,
+    output wire                  credit_reserve_valid,
+    output wire [15:0]           credit_reserve_bytes,
+
     output reg  [LANE_COUNT-1:0] lane_valid,
     input  wire [LANE_COUNT-1:0] lane_ready,
     output reg  [LANE_COUNT*DATA_WIDTH-1:0] lane_data,
@@ -59,7 +65,14 @@ module bonded_packet_tx #(
     integer i;
 
     // Never accept a beat when the packet RAM is full, even while collecting.
-    assign tx_ready = !sending && (stored_beats < MAX_PACKET_BEATS);
+    wire [15:0] prospective_packet_bytes = collecting_packet_bytes + keep_count(tx_keep);
+    wire packet_credit_ok = !tx_eop || credit_reserve_ready;
+    assign tx_ready = !sending && (stored_beats < MAX_PACKET_BEATS) && packet_credit_ok;
+    assign credit_reserve_valid = tx_valid && tx_ready && tx_eop &&
+        collecting && tx_keep != 0 &&
+        ((tx_keep & (tx_keep + 1'b1)) == 0) &&
+        prospective_packet_bytes <= MAX_PACKET_BYTES;
+    assign credit_reserve_bytes = prospective_packet_bytes;
 
     initial begin
         if (DATA_WIDTH < 8 || (DATA_WIDTH % 8) != 0)
