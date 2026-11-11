@@ -179,6 +179,10 @@ module tb_bonded_two_lane_phy_word_node;
         end
         @(negedge bond_a);
         app_valid=0;app_sop=0;app_eop=0;app_keep=0;
+        $display("submitted packet %0d length=%0d tx_ready=%b tx_packet_error=%b",
+                 packet_number,length,app_ready,txerr_a);
+        if(txerr_a) $fatal(1,"TX packet scheduler rejected packet %0d length=%0d",
+                           packet_number,length);
         packet_number=packet_number+1;
     end
     endtask
