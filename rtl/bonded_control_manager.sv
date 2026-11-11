@@ -39,7 +39,7 @@ module bonded_control_manager #(
     reg [31:0] last_advertised_packets;
     reg pong_pending,pong_queued;
     reg [31:0] pong_nonce;
-    reg ping_pending;
+    reg ping_pending,ping_queued;
     reg [31:0] ping_nonce,next_ping_nonce;
     reg [31:0] ping_age,ping_interval_age;
     reg [31:0] ping_sent_nonce;
@@ -132,7 +132,7 @@ module bonded_control_manager #(
             remote_byte_limit<=0;remote_packet_limit<=0;
             last_advertised_bytes<=0;last_advertised_packets<=0;
             pong_pending<=0;pong_queued<=0;pong_nonce<=0;
-            ping_pending<=0;ping_nonce<=0;next_ping_nonce<=1;
+            ping_pending<=0;ping_queued<=0;ping_nonce<=0;next_ping_nonce<=1;
             ping_age<=0;ping_interval_age<=0;ping_sent_nonce<=0;
             session_established<=0;fault<=0;
         end else begin
@@ -154,7 +154,7 @@ module bonded_control_manager #(
                         last_advertised_bytes<=ctrl_tx_body[199:136];
                         last_advertised_packets<=ctrl_tx_body[135:104];
                     end
-                    8'h04: begin ping_interval_age<=0; end
+                    8'h04: begin ping_interval_age<=0;ping_pending<=1;ping_queued<=0;ping_age<=0; end
                     8'h05: begin pong_pending<=0;pong_queued<=0; end
                     default: begin end
                 endcase
@@ -176,12 +176,12 @@ module bonded_control_manager #(
                     8'h02: begin
                         if(ctrl_rx_body_length!=12 || rx_peer_id!=EXPECTED_PEER_ID ||
                            rx_lane_count!=2 || rx_profile!=PROFILE_ID ||
-                           !(hello_seen[ctrl_rx_lane] || hello_sent)) begin
+                           !hello_seen[ctrl_rx_lane]) begin
                             fault<=1;session_established<=0;
                         end else begin
                             ready_seen<=ready_seen | rx_lane_mask;
                             if((ready_seen | rx_lane_mask)==2'b11 && ready_sent &&
-                               hello_sent && hello_seen==2'b11)
+                               hello_sent && (hello_seen | rx_lane_mask)==2'b11)
                                 session_established<=1;
                         end
                     end
@@ -221,7 +221,7 @@ module bonded_control_manager #(
                 else if(session_established &&
                         (local_byte_limit!=last_advertised_bytes ||
                          local_packet_limit!=last_advertised_packets)) queue_credit();
-                else if(session_established && !ping_pending &&
+                else if(session_established && !ping_pending && !ping_queued &&
                         ping_interval_age>=PING_INTERVAL_CYCLES) queue_ping();
             end
         end
