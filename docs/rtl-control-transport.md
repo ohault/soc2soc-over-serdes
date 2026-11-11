@@ -48,6 +48,19 @@ header CRC-16, frame CRC-32C, opcode and exact body length. It holds a decoded
 body and length until the control-plane consumer accepts the ready/valid
 handshake.
 
+The two-lane RX integration demultiplexes DATA and CONTROL frames after the
+recovered-clock input. Each lane has its own CONTROL decoder. Validated
+messages cross into the bonding clock through a dedicated asynchronous FIFO;
+a round-robin merger preserves the physical ingress-lane index for the
+control-plane consumer. DATA and CONTROL decoders share one expected frame
+sequence counter per physical lane.
+
+The full-duplex endpoint exposes a CONTROL transmit ready/valid interface
+(`ctrl_tx_valid/ready/body/body_length`) and a CONTROL receive ready/valid
+interface (`ctrl_rx_valid/ready/body/body_length/lane`). TX broadcasts each
+message atomically to both lane-specific asynchronous queues. The per-lane
+frame mux then gives CONTROL priority at frame boundaries.
+
 The v0 body lengths match the Python reference model:
 
 | Opcode | Message | Body bytes |
@@ -80,7 +93,8 @@ CI result has not yet been observed for the current branch revision.
 - Generate HELLO/READY, CREDIT and heartbeat messages automatically.
 - Add CREDIT coalescing before queue insertion.
 - Define reset/error propagation and timeout policy in RTL.
-- Integrate the per-lane mux and decoder into the complete multi-lane endpoint.
+- Connect decoded CONTROL messages to the RTL session manager and credit manager.
+- Add two-endpoint tests that exchange HELLO/READY and CREDIT over the physical stream.
 - Test two complete endpoints with no out-of-band credit wiring.
 - Run all Python and RTL regressions and close any failures before board work.
 
