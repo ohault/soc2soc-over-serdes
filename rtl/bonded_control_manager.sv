@@ -191,7 +191,40 @@ module bonded_control_manager #(
                 endcase
             end
 
-            if(rx_handshake && !fault) begin
+            if(rx_handshake && ctrl_rx_session_id!=active_session_id) begin
+                // The higher peer adopts only a strictly newer HELLO from
+                // the configured lower peer. Delayed older epochs are ignored.
+                if(rx_opcode==8'h01 && ctrl_rx_session_id!=0 &&
+                   ctrl_rx_session_id>highest_peer_session_id &&
+                   LOCAL_PEER_ID>EXPECTED_PEER_ID && all_lanes_up &&
+                   ctrl_rx_body_length==26 && rx_peer_id==EXPECTED_PEER_ID &&
+                   rx_lane_count==2 && rx_profile==PROFILE_ID &&
+                   rx_max_payload==MAX_PAYLOAD) begin
+                    active_session_id<=ctrl_rx_session_id;
+                    highest_peer_session_id<=ctrl_rx_session_id;
+                    session_changed<=1'b1;
+                    session_established<=1'b0;
+                    fault<=1'b0;
+                    hello_seen<=rx_lane_mask;
+                    ready_seen<=0;
+                    hello_sent<=0;ready_sent<=0;ready_queued<=0;
+                    tx_pending<=0;
+                    remote_byte_limit<=rx_hello_bytes;
+                    remote_packet_limit<=rx_hello_packets;
+                    last_advertised_bytes<=0;last_advertised_packets<=0;
+                    pong_pending<=0;pong_queued<=0;
+                    ping_pending<=0;ping_queued<=0;ping_age<=0;
+                    ping_interval_age<=0;next_ping_nonce<=1;ping_sent_nonce<=0;
+                    restart_pending<=0;restart_age<=0;
+                    was_all_lanes_up<=1'b1;
+                end else if(LOCAL_PEER_ID<EXPECTED_PEER_ID &&
+                            rx_opcode==8'h01 && ctrl_rx_session_id<active_session_id &&
+                            rx_peer_id==EXPECTED_PEER_ID && all_lanes_up && !tx_pending) begin
+                    // The higher peer may have rebooted and lost its volatile
+                    // epoch. Re-advertise the authoritative current epoch.
+                    queue_hello();
+                end
+            end else if(rx_handshake && !fault) begin
                 case(rx_opcode)
                     8'h01: begin
                         if(ctrl_rx_body_length!=26 || rx_peer_id!=EXPECTED_PEER_ID ||
