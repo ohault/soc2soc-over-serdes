@@ -15,6 +15,7 @@ module bonded_two_lane_endpoint #(
 ) (
     input wire bond_clk,
     input wire bond_rst_n,
+    input wire control_tx_rst_n,
     input wire [63:0] tx_session_id,
     input wire [63:0] rx_expected_session_id,
     input wire [63:0] remote_byte_limit,
@@ -98,7 +99,7 @@ module bonded_two_lane_endpoint #(
         .FIFO_DEPTH(TX_FIFO_DEPTH), .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
         .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
     ) tx_path (
-        .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n), .control_rst_n(bond_rst_n),
+        .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n), .control_rst_n(control_tx_rst_n),
         .session_id(tx_session_id),
         .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
         .ctrl_valid(ctrl_tx_valid),.ctrl_ready(ctrl_tx_ready),
