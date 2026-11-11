@@ -87,7 +87,7 @@ module bonded_two_lane_endpoint #(
         .FIFO_DEPTH(TX_FIFO_DEPTH), .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
         .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
     ) tx_path (
-        .bond_clk(bond_clk), .bond_rst_n(bond_rst_n),
+        .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n),
         .session_id(tx_session_id),
         .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
         .tx_valid(tx_valid && session_active), .tx_ready(tx_path_ready), .tx_data(tx_data),
