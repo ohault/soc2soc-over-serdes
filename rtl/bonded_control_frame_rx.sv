@@ -108,7 +108,7 @@ module bonded_control_frame_rx #(
                    rx_count!=(24+frame_mem[21]+4) ||
                    {tail3,tail2,tail1,tail0}!=~frame_crc ||
                    !body_valid(frame_mem[24],frame_mem[21][5:0]) ||
-                   expected_frame_sequence==32'hffffffff) begin
+                   expected_frame_sequence_override==32'hffffffff) begin
                     frame_error<=1;state<=ST_IDLE;rx_count<=0;
                 end else begin
                     ctrl_body<=0;
