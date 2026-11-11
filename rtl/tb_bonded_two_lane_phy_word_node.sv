@@ -15,6 +15,15 @@ module tb_bonded_two_lane_phy_word_node;
     always #8.2 b_rx0=~b_rx0;
     always #12.4 b_rx1=~b_rx1;
     reg rst_n=0;
+    reg inject_a0_bad=0,inject_b0_bad=0;
+    wire a0_phy_rx_valid=a0_rxv || inject_a0_bad;
+    wire b0_phy_rx_valid=b0_rxv || inject_b0_bad;
+    wire [31:0] a0_phy_rx_data=inject_a0_bad ? 32'h0000bc00 : a0_rxd;
+    wire [31:0] b0_phy_rx_data=inject_b0_bad ? 32'h0000bc00 : b0_rxd;
+    wire [3:0] a0_phy_rx_ctrl=inject_a0_bad ? 4'b0010 : a0_rxc;
+    wire [3:0] b0_phy_rx_ctrl=inject_b0_bad ? 4'b0010 : b0_rxc;
+    wire a0_fifo_rx_ready=a0_rxr && !inject_a0_bad;
+    wire b0_fifo_rx_ready=b0_rxr && !inject_b0_bad;
 
     wire a0_txv,a1_txv,b0_txv,b1_txv;
     wire a0_txr,a1_txr,b0_txr,b1_txr;
@@ -28,7 +37,7 @@ module tb_bonded_two_lane_phy_word_node;
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab0(
         .wr_clk(a_tx0),.wr_rst_n(rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
         .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx0),.rd_rst_n(rst_n),
-        .rd_valid(b0_rxv),.rd_ready(b0_rxr),.rd_data({b0_rxc,b0_rxd}));
+        .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab1(
         .wr_clk(a_tx1),.wr_rst_n(rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
         .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx1),.rd_rst_n(rst_n),
@@ -36,7 +45,7 @@ module tb_bonded_two_lane_phy_word_node;
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba0(
         .wr_clk(b_tx0),.wr_rst_n(rst_n),.wr_valid(b0_txv),.wr_ready(b0_txr),
         .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx0),.rd_rst_n(rst_n),
-        .rd_valid(a0_rxv),.rd_ready(a0_rxr),.rd_data({a0_rxc,a0_rxd}));
+        .rd_valid(a0_rxv),.rd_ready(a0_fifo_rx_ready),.rd_data({a0_rxc,a0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba1(
         .wr_clk(b_tx1),.wr_rst_n(rst_n),.wr_valid(b1_txv),.wr_ready(b1_txr),
         .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx1),.rd_rst_n(rst_n),
@@ -72,8 +81,8 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_phy_tx_valid(a0_txv),.lane0_phy_tx_ready(a0_txr),
         .lane0_phy_tx_data(a0_txd),.lane0_phy_tx_ctrl(a0_txc),
         .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),
-        .lane0_phy_rx_valid(a0_rxv),.lane0_phy_rx_ready(a0_rxr),
-        .lane0_phy_rx_data(a0_rxd),.lane0_phy_rx_ctrl(a0_rxc),
+        .lane0_phy_rx_valid(a0_phy_rx_valid),.lane0_phy_rx_ready(a0_rxr),
+        .lane0_phy_rx_data(a0_phy_rx_data),.lane0_phy_rx_ctrl(a0_phy_rx_ctrl),
         .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),
         .lane1_phy_tx_valid(a1_txv),.lane1_phy_tx_ready(a1_txr),
         .lane1_phy_tx_data(a1_txd),.lane1_phy_tx_ctrl(a1_txc),
@@ -104,8 +113,8 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_phy_tx_valid(b0_txv),.lane0_phy_tx_ready(b0_txr),
         .lane0_phy_tx_data(b0_txd),.lane0_phy_tx_ctrl(b0_txc),
         .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),
-        .lane0_phy_rx_valid(b0_rxv),.lane0_phy_rx_ready(b0_rxr),
-        .lane0_phy_rx_data(b0_rxd),.lane0_phy_rx_ctrl(b0_rxc),
+        .lane0_phy_rx_valid(b0_phy_rx_valid),.lane0_phy_rx_ready(b0_rxr),
+        .lane0_phy_rx_data(b0_phy_rx_data),.lane0_phy_rx_ctrl(b0_phy_rx_ctrl),
         .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),
         .lane1_phy_tx_valid(b1_txv),.lane1_phy_tx_ready(b1_txr),
         .lane1_phy_tx_data(b1_txd),.lane1_phy_tx_ctrl(b1_txc),
@@ -342,7 +351,19 @@ module tb_bonded_two_lane_phy_word_node;
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        $display("PASS: full-duplex two-node parallel PHY, variable packets, both lanes and RX backpressure");
+        // Inject an illegal K28.5 control character in symbol slot 1 at
+        // both receivers. It must be reported as a sticky PHY fault and
+        // invalidate each endpoint's bonded session.
+        @(negedge a_rx0);inject_a0_bad=1;
+        @(negedge b_rx0);inject_b0_bad=1;
+        @(posedge a_rx0);@(negedge a_rx0);inject_a0_bad=0;
+        @(posedge b_rx0);@(negedge b_rx0);inject_b0_bad=0;
+        repeat(8) @(posedge bond_a);
+        repeat(8) @(posedge bond_b);
+        if(!a0rxerr || !b0rxerr || active_a || active_b || !fault_a || !fault_b)
+            $fatal(1,"malformed PHY symbols did not invalidate both bonded sessions");
+
+        $display("PASS: full-duplex two-node parallel PHY, both lanes, backpressure and PHY-fault supervision");
         $finish;
     end
     initial begin #2000000;$fatal(1,"timeout active=%b/%b got=%0d expected=%0d",
