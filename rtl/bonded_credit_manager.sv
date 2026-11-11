@@ -69,21 +69,16 @@ module bonded_credit_manager #(
             rx_consumed_packets <= 0;
             credit_error <= 0;
         end else begin
-            if (tx_reserve_valid) begin
-                if (tx_reserve_ready) begin
-                    tx_reserved_bytes <= tx_bytes_sum[63:0];
-                    tx_reserved_packets <= tx_packets_sum[31:0];
-                end else begin
-                    credit_error <= 1'b1;
-                end
+            // READY/VALID backpressure is not a protocol violation. Account
+            // only accepted handshakes; upstream must hold VALID and payload
+            // stable until READY is observed.
+            if (tx_reserve_valid && tx_reserve_ready) begin
+                tx_reserved_bytes <= tx_bytes_sum[63:0];
+                tx_reserved_packets <= tx_packets_sum[31:0];
             end
-            if (rx_accept_valid) begin
-                if (rx_accept_ready) begin
-                    rx_accepted_bytes <= rx_bytes_sum[63:0];
-                    rx_accepted_packets <= rx_packets_sum[31:0];
-                end else begin
-                    credit_error <= 1'b1;
-                end
+            if (rx_accept_valid && rx_accept_ready) begin
+                rx_accepted_bytes <= rx_bytes_sum[63:0];
+                rx_accepted_packets <= rx_packets_sum[31:0];
             end
             if (rx_consume_valid) begin
                 if ((consume_bytes_sum[64] == 1'b0) &&
