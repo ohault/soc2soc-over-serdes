@@ -51,13 +51,20 @@ The downstream demultiplexer routes DATA and CONTROL to independent decoders.
 
 ## What the board-specific adapter must provide
 
-The adapter around the FPGA transceiver must implement the vendor-specific
-parts, while preserving the byte-stream contract:
+The generic `rtl/bonded_phy_8b10b_adapter.sv` can sit between the node and a
+PHY that exposes decoded 8b/10b symbols. It maps the node's byte stream to a
+2- or 4-symbol word, inserts K28.5 idles in unused symbol positions, strips
+those idles on RX, and reports malformed symbol words and RX FIFO overflow.
+It intentionally carries only one application byte per PHY word, so it is a
+bring-up adapter rather than a full-bandwidth gearbox. The board-specific
+adapter around the FPGA transceiver must implement the vendor-specific parts,
+while preserving the byte-stream contract:
 
 - CDR / recovered clock and transceiver reset sequencing.
 - Byte alignment and any required 8b/10b or other line-code decoding.
 - A stable 8-bit byte order and no silent byte loss or duplication.
-- TX serialization and any required line coding.
+- TX serialization and any required line coding. For 8b/10b mode, map the
+'transceiver's data and K-character indicators to the generic symbol adapter.
 - A reliable `lane_up` indication based on PLL/CDR lock, byte alignment and
   the chosen physical error policy. The node synchronizes this status into
   its bonding clock domain.
