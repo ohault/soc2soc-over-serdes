@@ -7,7 +7,8 @@ module bonded_two_lane_rx #(
     parameter integer REORDER_WINDOW = 4,
     parameter integer MAX_PACKET_BYTES = 4096,
     parameter integer LANE0_ID = 0,
-    parameter integer LANE1_ID = 1
+    parameter integer LANE1_ID = 1,
+    parameter integer DYNAMIC_LANE_MAP = 0
 ) (
     input wire bond_rst_n,
     input wire control_rst_n,
@@ -44,8 +45,20 @@ module bonded_two_lane_rx #(
     wire [207:0] ctrl0_message_body;
     wire [5:0] ctrl0_message_length;
     wire [31:0] ctrl0_frame_seq,ctrl0_expected_seq;
+    wire [7:0] ctrl0_received_lane_id,rx0_lane_id;
     wire ctrl0_demux_error,ctrl0_frame_error,lane0_data_frame_error,ctrl0_frame_pulse;
     reg [31:0] lane0_expected_wire_sequence;
+    reg [7:0] lane0_remote_lane_id,lane1_remote_lane_id;
+    reg lane0_mapping_valid,lane1_mapping_valid;
+    reg lane0_map_error,lane1_map_error;
+    wire [7:0] lane0_expected_lane_id = DYNAMIC_LANE_MAP ?
+        (lane0_mapping_valid ? lane0_remote_lane_id : 8'hff) : LANE0_ID[7:0];
+    wire [7:0] lane1_expected_lane_id = DYNAMIC_LANE_MAP ?
+        (lane1_mapping_valid ? lane1_remote_lane_id : 8'hff) : LANE1_ID[7:0];
+    wire lane0_data_enable = bond_rst_n && lane0_rst_n &&
+        (!DYNAMIC_LANE_MAP || lane0_mapping_valid);
+    wire lane1_data_enable = bond_rst_n && lane1_rst_n &&
+        (!DYNAMIC_LANE_MAP || lane1_mapping_valid);
     wire lane0_rx_reset_n = control_rst_n && lane0_rst_n;
     wire rx0_valid, rx0_ready, rx0_sop, rx0_eop;
     wire [7:0] rx0_data;
@@ -59,6 +72,7 @@ module bonded_two_lane_rx #(
     wire [207:0] ctrl1_message_body;
     wire [5:0] ctrl1_message_length;
     wire [31:0] ctrl1_frame_seq,ctrl1_expected_seq;
+    wire [7:0] ctrl1_received_lane_id,rx1_lane_id;
     wire ctrl1_demux_error,ctrl1_frame_error,lane1_data_frame_error,ctrl1_frame_pulse;
     reg [31:0] lane1_expected_wire_sequence;
     wire lane1_rx_reset_n = control_rst_n && lane1_rst_n;
@@ -68,7 +82,7 @@ module bonded_two_lane_rx #(
     wire rx1_frame_pulse;
 
     bonded_wire_rx_demux demux0 (
-        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.data_enable(bond_rst_n && lane0_rst_n),
+        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.data_enable(lane0_data_enable),
         .in_valid(lane0_valid),.in_ready(lane0_ready),.in_data(lane0_data),
         .in_sop(lane0_sop),.in_eop(lane0_eop),
         .data_valid(data0_valid),.data_ready(data0_ready),.data_data(data0_data),
@@ -77,7 +91,7 @@ module bonded_two_lane_rx #(
         .ctrl_sop(ctrl0_stream_sop),.ctrl_eop(ctrl0_stream_eop),.frame_error(ctrl0_demux_error)
     );
     bonded_wire_rx_demux demux1 (
-        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.data_enable(bond_rst_n && lane1_rst_n),
+        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.data_enable(lane1_data_enable),
         .in_valid(lane1_valid),.in_ready(lane1_ready),.in_data(lane1_data),
         .in_sop(lane1_sop),.in_eop(lane1_eop),
         .data_valid(data1_valid),.data_ready(data1_ready),.data_data(data1_data),
@@ -86,47 +100,53 @@ module bonded_two_lane_rx #(
         .ctrl_sop(ctrl1_stream_sop),.ctrl_eop(ctrl1_stream_eop),.frame_error(ctrl1_demux_error)
     );
 
-    bonded_wire_rx_lane #(.LANE_ID(LANE0_ID),.MAX_PAYLOAD(MAX_PACKET_BYTES)) lane0_decoder (
+    bonded_wire_rx_lane #(.LANE_ID(LANE0_ID),.MAX_PAYLOAD(MAX_PACKET_BYTES),.DYNAMIC_LANE_ID(1)) lane0_decoder (
         .clk(lane0_clk), .rst(!bond_rst_n || !lane0_rst_n),
         .expected_session_id(expected_session_id),.expected_frame_sequence_override(lane0_expected_wire_sequence),
+        .expected_lane_id(lane0_expected_lane_id),
         .in_valid(data0_valid), .in_ready(data0_ready), .in_data(data0_data),
         .in_sop(data0_sop), .in_eop(data0_eop),
         .out_valid(rx0_valid), .out_ready(rx0_ready), .out_data(rx0_data),
         .out_sop(rx0_sop), .out_eop(rx0_eop),
-        .out_packet_sequence(rx0_packet_seq), .out_frame_sequence(rx0_frame_seq),
+        .out_packet_sequence(rx0_packet_seq), .out_frame_sequence(rx0_frame_seq),.out_lane_id(rx0_lane_id),
         .expected_frame_sequence(rx0_expected_frame),
         .frame_error(lane0_data_frame_error), .frame_valid_pulse(rx0_frame_pulse)
     );
-    bonded_control_frame_rx #(.LANE_ID(LANE0_ID)) control_decoder0 (
+    bonded_control_frame_rx #(.LANE_ID(LANE0_ID),.DYNAMIC_LANE_ID(1)) control_decoder0 (
         .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.expected_session_id(expected_session_id),
         .expected_frame_sequence_override(lane0_expected_wire_sequence),
+        .expected_lane_id(lane0_expected_lane_id),
         .in_valid(ctrl0_stream_valid),.in_ready(ctrl0_stream_ready),.in_data(ctrl0_stream_data),
         .in_sop(ctrl0_stream_sop),.in_eop(ctrl0_stream_eop),
         .ctrl_valid(ctrl0_message_valid),.ctrl_ready(ctrl0_message_ready),
         .ctrl_body(ctrl0_message_body),.ctrl_body_length(ctrl0_message_length),
-        .received_frame_sequence(ctrl0_frame_seq),.expected_frame_sequence(ctrl0_expected_seq),
+        .received_frame_sequence(ctrl0_frame_seq),.received_lane_id(ctrl0_received_lane_id),
+        .expected_frame_sequence(ctrl0_expected_seq),
         .frame_valid_pulse(ctrl0_frame_pulse),.frame_error(ctrl0_frame_error)
     );
 
-    bonded_wire_rx_lane #(.LANE_ID(LANE1_ID),.MAX_PAYLOAD(MAX_PACKET_BYTES)) lane1_decoder (
+    bonded_wire_rx_lane #(.LANE_ID(LANE1_ID),.MAX_PAYLOAD(MAX_PACKET_BYTES),.DYNAMIC_LANE_ID(1)) lane1_decoder (
         .clk(lane1_clk), .rst(!bond_rst_n || !lane1_rst_n),
         .expected_session_id(expected_session_id),.expected_frame_sequence_override(lane1_expected_wire_sequence),
+        .expected_lane_id(lane1_expected_lane_id),
         .in_valid(data1_valid), .in_ready(data1_ready), .in_data(data1_data),
         .in_sop(data1_sop), .in_eop(data1_eop),
         .out_valid(rx1_valid), .out_ready(rx1_ready), .out_data(rx1_data),
         .out_sop(rx1_sop), .out_eop(rx1_eop),
-        .out_packet_sequence(rx1_packet_seq), .out_frame_sequence(rx1_frame_seq),
+        .out_packet_sequence(rx1_packet_seq), .out_frame_sequence(rx1_frame_seq),.out_lane_id(rx1_lane_id),
         .expected_frame_sequence(rx1_expected_frame),
         .frame_error(lane1_data_frame_error), .frame_valid_pulse(rx1_frame_pulse)
     );
-    bonded_control_frame_rx #(.LANE_ID(LANE1_ID)) control_decoder1 (
+    bonded_control_frame_rx #(.LANE_ID(LANE1_ID),.DYNAMIC_LANE_ID(1)) control_decoder1 (
         .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.expected_session_id(expected_session_id),
         .expected_frame_sequence_override(lane1_expected_wire_sequence),
+        .expected_lane_id(lane1_expected_lane_id),
         .in_valid(ctrl1_stream_valid),.in_ready(ctrl1_stream_ready),.in_data(ctrl1_stream_data),
         .in_sop(ctrl1_stream_sop),.in_eop(ctrl1_stream_eop),
         .ctrl_valid(ctrl1_message_valid),.ctrl_ready(ctrl1_message_ready),
         .ctrl_body(ctrl1_message_body),.ctrl_body_length(ctrl1_message_length),
-        .received_frame_sequence(ctrl1_frame_seq),.expected_frame_sequence(ctrl1_expected_seq),
+        .received_frame_sequence(ctrl1_frame_seq),.received_lane_id(ctrl1_received_lane_id),
+        .expected_frame_sequence(ctrl1_expected_seq),
         .frame_valid_pulse(ctrl1_frame_pulse),.frame_error(ctrl1_frame_error)
     );
 
@@ -135,14 +155,14 @@ module bonded_two_lane_rx #(
     bonded_async_fifo #(.DATA_WIDTH(215),.DEPTH(FIFO_DEPTH)) control_cdc0 (
         .wr_clk(lane0_clk),.wr_rst_n(control_rst_n && lane0_rst_n),
         .wr_valid(ctrl0_message_valid),.wr_ready(ctrl0_message_ready),
-        .wr_data({1'b0,ctrl0_message_length,ctrl0_message_body}),
+        .wr_data({ctrl0_received_lane_id[0],ctrl0_message_length,ctrl0_message_body}),
         .rd_clk(bond_clk),.rd_rst_n(control_rst_n && lane0_rst_n),
         .rd_valid(ctrl0_cdc_valid),.rd_ready(ctrl0_cdc_ready),.rd_data(ctrl0_cdc_data)
     );
     bonded_async_fifo #(.DATA_WIDTH(215),.DEPTH(FIFO_DEPTH)) control_cdc1 (
         .wr_clk(lane1_clk),.wr_rst_n(control_rst_n && lane1_rst_n),
         .wr_valid(ctrl1_message_valid),.wr_ready(ctrl1_message_ready),
-        .wr_data({1'b1,ctrl1_message_length,ctrl1_message_body}),
+        .wr_data({ctrl1_received_lane_id[0],ctrl1_message_length,ctrl1_message_body}),
         .rd_clk(bond_clk),.rd_rst_n(control_rst_n && lane1_rst_n),
         .rd_valid(ctrl1_cdc_valid),.rd_ready(ctrl1_cdc_ready),.rd_data(ctrl1_cdc_data)
     );
@@ -151,7 +171,7 @@ module bonded_two_lane_rx #(
     assign ctrl_rx_valid = ctrl0_cdc_valid || ctrl1_cdc_valid;
     assign ctrl_rx_body = select_ctrl1 ? ctrl1_cdc_data[207:0] : ctrl0_cdc_data[207:0];
     assign ctrl_rx_body_length = select_ctrl1 ? ctrl1_cdc_data[213:208] : ctrl0_cdc_data[213:208];
-    assign ctrl_rx_lane = select_ctrl1;
+    assign ctrl_rx_lane = select_ctrl1 ? ctrl1_cdc_data[214] : ctrl0_cdc_data[214];
     assign ctrl0_cdc_ready = ctrl_rx_valid && !select_ctrl1 && ctrl_rx_ready;
     assign ctrl1_cdc_ready = ctrl_rx_valid && select_ctrl1 && ctrl_rx_ready;
     always @(posedge bond_clk) begin
@@ -160,18 +180,44 @@ module bonded_two_lane_rx #(
     end
 
     always @(posedge lane0_clk or negedge lane0_rx_reset_n) begin
-        if(!lane0_rx_reset_n) lane0_expected_wire_sequence<=0;
-        else if(rx0_frame_pulse || ctrl0_frame_pulse)
-            lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
+        if(!lane0_rx_reset_n) begin
+            lane0_expected_wire_sequence<=0;
+            lane0_remote_lane_id<=LANE0_ID[7:0];
+            lane0_mapping_valid<=!DYNAMIC_LANE_MAP;
+            lane0_map_error<=1'b0;
+        end else begin
+            if(rx0_frame_pulse || ctrl0_frame_pulse)
+                lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
+            if(DYNAMIC_LANE_MAP && ctrl0_message_valid && ctrl0_message_ready) begin
+                if(!lane0_mapping_valid) begin
+                    lane0_remote_lane_id<=ctrl0_received_lane_id;
+                    lane0_mapping_valid<=1'b1;
+                end else if(ctrl0_received_lane_id!=lane0_remote_lane_id)
+                    lane0_map_error<=1'b1;
+            end
+        end
     end
     always @(posedge lane1_clk or negedge lane1_rx_reset_n) begin
-        if(!lane1_rx_reset_n) lane1_expected_wire_sequence<=0;
-        else if(rx1_frame_pulse || ctrl1_frame_pulse)
-            lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
+        if(!lane1_rx_reset_n) begin
+            lane1_expected_wire_sequence<=0;
+            lane1_remote_lane_id<=LANE1_ID[7:0];
+            lane1_mapping_valid<=!DYNAMIC_LANE_MAP;
+            lane1_map_error<=1'b0;
+        end else begin
+            if(rx1_frame_pulse || ctrl1_frame_pulse)
+                lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
+            if(DYNAMIC_LANE_MAP && ctrl1_message_valid && ctrl1_message_ready) begin
+                if(!lane1_mapping_valid) begin
+                    lane1_remote_lane_id<=ctrl1_received_lane_id;
+                    lane1_mapping_valid<=1'b1;
+                end else if(ctrl1_received_lane_id!=lane1_remote_lane_id)
+                    lane1_map_error<=1'b1;
+            end
+        end
     end
 
-    assign lane0_frame_error = lane0_data_frame_error | ctrl0_demux_error | ctrl0_frame_error;
-    assign lane1_frame_error = lane1_data_frame_error | ctrl1_demux_error | ctrl1_frame_error;
+    assign lane0_frame_error = lane0_data_frame_error | ctrl0_demux_error | ctrl0_frame_error | lane0_map_error;
+    assign lane1_frame_error = lane1_data_frame_error | ctrl1_demux_error | ctrl1_frame_error | lane1_map_error;
 
     wire cdc0_valid, cdc0_ready, cdc1_valid, cdc1_ready;
     wire [CDC_WIDTH-1:0] cdc0_data, cdc1_data;
