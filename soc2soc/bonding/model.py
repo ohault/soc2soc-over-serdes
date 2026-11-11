@@ -40,6 +40,7 @@ class BondConfig:
     max_packet_bytes: int = 4096
     reorder_window: int = 32
     gap_timeout_cycles: int = 1024
+    tx_queue_depth: int = 4
     protocol_version: int = PROTOCOL_VERSION
 
     def __post_init__(self):
@@ -51,6 +52,8 @@ class BondConfig:
             raise ValueError("reorder_window must be at least 1")
         if self.gap_timeout_cycles < 1:
             raise ValueError("gap_timeout_cycles must be at least 1")
+        if self.tx_queue_depth < 1:
+            raise ValueError("tx_queue_depth must be at least 1")
         if self.protocol_version < 1:
             raise ValueError("protocol_version must be at least 1")
 
@@ -148,14 +151,28 @@ class _Session:
 
 
 class BondedSender(_Session):
-    """Round-robin packet scheduler for a single bonded session."""
+    """Round-robin scheduler with bounded, independent per-lane TX queues.
+
+    send() enqueues a complete packet for the selected lane. The lane adapter
+    models downstream readiness by calling take_tx() when it can accept the
+    next packet. A full lane is skipped; if every lane queue is full, send()
+    returns None and does not consume a sequence number.
+    """
 
     def __init__(self, config: BondConfig):
         super().__init__(config)
         self.next_sequence = 0
         self._next_lane = 0
+        self._tx_queues: list[list[BondPacket]] = [
+            [] for _ in range(config.lane_count)
+        ]
 
-    def send(self, payload: bytes) -> tuple[int, BondPacket]:
+    @property
+    def queued_packets(self) -> tuple[int, ...]:
+        """Number of packets waiting in each lane's adapter-facing queue."""
+        return tuple(len(queue) for queue in self._tx_queues)
+
+    def send(self, payload: bytes) -> Optional[tuple[int, BondPacket]]:
         self._require_ready()
         if not isinstance(payload, bytes):
             raise TypeError("payload must be bytes")
@@ -165,19 +182,48 @@ class BondedSender(_Session):
                 f"maximum {self.config.max_packet_bytes}"
             )
 
-        lane = self._next_lane
-        self._next_lane = (self._next_lane + 1) % self.config.lane_count
-        packet = BondPacket(
-            session_id=self.session_id,
-            sequence=self.next_sequence,
-            payload=payload,
-        )
-        self.next_sequence += 1
-        return lane, packet
+        # Scan from the round-robin cursor, skipping lanes whose bounded
+        # adapter-facing queues are full or whose physical link is unavailable.
+        for offset in range(self.config.lane_count):
+            lane = (self._next_lane + offset) % self.config.lane_count
+            if not self.lanes_up[lane]:
+                continue
+            if len(self._tx_queues[lane]) >= self.config.tx_queue_depth:
+                continue
+
+            packet = BondPacket(
+                session_id=self.session_id,
+                sequence=self.next_sequence,
+                payload=payload,
+            )
+            self._tx_queues[lane].append(packet)
+            self.next_sequence += 1
+            self._next_lane = (lane + 1) % self.config.lane_count
+            return lane, packet
+
+        # Aggregate backpressure: caller must retain/retry this logical packet.
+        return None
+
+    def take_tx(self, lane: int) -> Optional[BondPacket]:
+        """Transfer the next queued packet to a ready physical-lane adapter.
+
+        Returning None means that lane has no queued packet. This operation
+        models the adapter accepting a packet; it does not model wire delivery
+        or a remote acknowledgement.
+        """
+        self._require_ready()
+        self._check_lane(lane)
+        if not self._tx_queues[lane]:
+            return None
+        return self._tx_queues[lane].pop(0)
 
     def _on_session_established(self) -> None:
         self.next_sequence = 0
         self._next_lane = 0
+        self._tx_queues = [[] for _ in range(self.config.lane_count)]
+
+    def _on_session_dropped(self) -> None:
+        self._tx_queues = [[] for _ in range(self.config.lane_count)]
 
 
 class BondedReceiver(_Session):
