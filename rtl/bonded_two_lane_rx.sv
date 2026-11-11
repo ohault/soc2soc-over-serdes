@@ -155,14 +155,14 @@ module bonded_two_lane_rx #(
     bonded_async_fifo #(.DATA_WIDTH(215),.DEPTH(FIFO_DEPTH)) control_cdc0 (
         .wr_clk(lane0_clk),.wr_rst_n(control_rst_n && lane0_rst_n),
         .wr_valid(ctrl0_message_valid),.wr_ready(ctrl0_message_ready),
-        .wr_data({ctrl0_received_lane_id[0],ctrl0_message_length,ctrl0_message_body}),
+        .wr_data({1'b0,ctrl0_message_length,ctrl0_message_body}),
         .rd_clk(bond_clk),.rd_rst_n(control_rst_n && lane0_rst_n),
         .rd_valid(ctrl0_cdc_valid),.rd_ready(ctrl0_cdc_ready),.rd_data(ctrl0_cdc_data)
     );
     bonded_async_fifo #(.DATA_WIDTH(215),.DEPTH(FIFO_DEPTH)) control_cdc1 (
         .wr_clk(lane1_clk),.wr_rst_n(control_rst_n && lane1_rst_n),
         .wr_valid(ctrl1_message_valid),.wr_ready(ctrl1_message_ready),
-        .wr_data({ctrl1_received_lane_id[0],ctrl1_message_length,ctrl1_message_body}),
+        .wr_data({1'b1,ctrl1_message_length,ctrl1_message_body}),
         .rd_clk(bond_clk),.rd_rst_n(control_rst_n && lane1_rst_n),
         .rd_valid(ctrl1_cdc_valid),.rd_ready(ctrl1_cdc_ready),.rd_data(ctrl1_cdc_data)
     );
