@@ -45,7 +45,14 @@ module tb_bonded_packet_rx;
             lane_data[lane*8 +: 8]=data;
             lane_packet_sequence[lane*32 +: 32]=seq;
             lane_sop[lane]=sop; lane_eop[lane]=eop;
-            do @(posedge clk); while(!lane_ready[lane]);
+            // Sample READY before the active edge; the transfer occurs on
+            // the following rising edge. Avoid post-NBA READY sampling.
+            #1;
+            while(!lane_ready[lane]) begin
+                @(negedge clk);
+                #1;
+            end
+            @(posedge clk);
             @(negedge clk);
             lane_valid[lane]=0; lane_sop[lane]=0; lane_eop[lane]=0;
         end
