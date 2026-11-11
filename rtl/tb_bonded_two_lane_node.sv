@@ -4,10 +4,16 @@ module tb_bonded_two_lane_node;
  always #4 bond_a=~bond_a;
  always #4.5 bond_b=~bond_b;
  reg a_tx0=0,a_tx1=0,b_tx0=0,b_tx1=0;
+ reg a_rx0=0,a_rx1=0,b_rx0=0,b_rx1=0;
  always #5 a_tx0=~a_tx0;
  always #9 a_tx1=~a_tx1;
  always #7 b_tx0=~b_tx0;
  always #11 b_tx1=~b_tx1;
+ // Recovered RX clocks are intentionally independent from the remote TX clocks.
+ always #6.1 a_rx0=~a_rx0;
+ always #10.3 a_rx1=~a_rx1;
+ always #8.2 b_rx0=~b_rx0;
+ always #12.4 b_rx1=~b_rx1;
  reg rst_n=0;
  wire a0txv,a0txs,a0txe,a1txv,a1txs,a1txe,b0txv,b0txs,b0txe,b1txv,b1txs,b1txe;
  wire [7:0] a0txd,a1txd,b0txd,b1txd;
@@ -19,16 +25,16 @@ module tb_bonded_two_lane_node;
  wire ab0v,ab1v,ba0v,ba1v,ab0ready,ab1ready,ba0ready,ba1ready;
  bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ab0(
   .wr_clk(a_tx0),.wr_rst_n(rst_n),.wr_valid(a0txv),.wr_ready(ab0ready),.wr_data(a0txd),
-  .rd_clk(a_tx0),.rd_rst_n(rst_n),.rd_valid(ab0v),.rd_ready(b0rxr),.rd_data(ab0data));
+  .rd_clk(b_rx0),.rd_rst_n(rst_n),.rd_valid(ab0v),.rd_ready(b0rxr),.rd_data(ab0data));
  bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ab1(
   .wr_clk(a_tx1),.wr_rst_n(rst_n),.wr_valid(a1txv),.wr_ready(ab1ready),.wr_data(a1txd),
-  .rd_clk(a_tx1),.rd_rst_n(rst_n),.rd_valid(ab1v),.rd_ready(b1rxr),.rd_data(ab1data));
+  .rd_clk(b_rx1),.rd_rst_n(rst_n),.rd_valid(ab1v),.rd_ready(b1rxr),.rd_data(ab1data));
  bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ba0(
   .wr_clk(b_tx0),.wr_rst_n(rst_n),.wr_valid(b0txv),.wr_ready(ba0ready),.wr_data(b0txd),
-  .rd_clk(b_tx0),.rd_rst_n(rst_n),.rd_valid(ba0v),.rd_ready(a0rxr),.rd_data(ba0data));
+  .rd_clk(a_rx0),.rd_rst_n(rst_n),.rd_valid(ba0v),.rd_ready(a0rxr),.rd_data(ba0data));
  bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ba1(
   .wr_clk(b_tx1),.wr_rst_n(rst_n),.wr_valid(b1txv),.wr_ready(ba1ready),.wr_data(b1txd),
-  .rd_clk(b_tx1),.rd_rst_n(rst_n),.rd_valid(ba1v),.rd_ready(a1rxr),.rd_data(ba1data));
+  .rd_clk(a_rx1),.rd_rst_n(rst_n),.rd_valid(ba1v),.rd_ready(a1rxr),.rd_data(ba1data));
  assign a0txr=ab0ready; assign a1txr=ab1ready; assign b0txr=ba0ready; assign b1txr=ba1ready;
  assign b0rxv=ab0v; assign b0rxd=ab0data;
  assign b1rxv=ab1v; assign b1rxd=ab1data;
@@ -52,8 +58,8 @@ module tb_bonded_two_lane_node;
   .bond_clk(bond_a),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
   .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(a0txv),.lane0_tx_ready(a0txr),.lane0_tx_data(a0txd),
   .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(a1txv),.lane1_tx_ready(a1txr),.lane1_tx_data(a1txd),
-  .lane0_rx_clk(b_tx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a0rxv),.lane0_rx_ready(a0rxr),.lane0_rx_data(a0rxd),
-  .lane1_rx_clk(b_tx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a1rxv),.lane1_rx_ready(a1rxr),.lane1_rx_data(a1rxd),
+  .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a0rxv),.lane0_rx_ready(a0rxr),.lane0_rx_data(a0rxd),
+  .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a1rxv),.lane1_rx_ready(a1rxr),.lane1_rx_data(a1rxd),
   .tx_valid(atxv),.tx_ready(atxr),.tx_data(atxd),.tx_keep(atk),.tx_sop(ats),.tx_eop(ate),
   .rx_valid(arxv),.rx_ready(1'b1),.rx_data(arxd),.rx_sop(ars),.rx_eop(are),.rx_packet_sequence(arseq),
   .session_active(active_a),.control_fault(fault_a),.rx_credit_error(credit_a),
@@ -66,8 +72,8 @@ module tb_bonded_two_lane_node;
   .bond_clk(bond_b),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
   .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(b0txv),.lane0_tx_ready(b0txr),.lane0_tx_data(b0txd),
   .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(b1txv),.lane1_tx_ready(b1txr),.lane1_tx_data(b1txd),
-  .lane0_rx_clk(a_tx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(b0rxv),.lane0_rx_ready(b0rxr),.lane0_rx_data(b0rxd),
-  .lane1_rx_clk(a_tx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(b1rxv),.lane1_rx_ready(b1rxr),.lane1_rx_data(b1rxd),
+  .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(b0rxv),.lane0_rx_ready(b0rxr),.lane0_rx_data(b0rxd),
+  .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(b1rxv),.lane1_rx_ready(b1rxr),.lane1_rx_data(b1rxd),
   .tx_valid(1'b0),.tx_ready(btxr),.tx_data(32'd0),.tx_keep(4'd0),.tx_sop(1'b0),.tx_eop(1'b0),
   .rx_valid(brxv),.rx_ready(1'b1),.rx_data(brxd),.rx_sop(brs),.rx_eop(bre),.rx_packet_sequence(brseq),
   .session_active(active_b),.control_fault(fault_b),.rx_credit_error(credit_b),
