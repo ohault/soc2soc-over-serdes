@@ -120,3 +120,9 @@ jobs:
             rtl/bonded_packet_rx.sv rtl/bonded_two_lane_rx.sv \
             rtl/bonded_session_gate.sv rtl/bonded_two_lane_endpoint.sv rtl/tb_bonded_two_lane_endpoint.sv
           vvp /tmp/tb_two_lane_endpoint
+
+      - name: Compile and run cumulative byte/packet credit RTL testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_credit_manager -o /tmp/tb_credit \
+            rtl/bonded_credit_manager.sv rtl/tb_bonded_credit_manager.sv
+          vvp /tmp/tb_credit
