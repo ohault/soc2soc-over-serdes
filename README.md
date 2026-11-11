@@ -29,8 +29,9 @@ negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
 reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
 parallel 8b/10b wrapper (`bonded_two_lane_phy_word_node`) with independent TX
 and recovered-RX clock domains. Its end-to-end two-node regression passes in
-CI with eight variable-length packets, both lanes and application RX
-backpressure. Board-specific SERDES primitives and clocks remain outside the
+CI with simultaneous bidirectional traffic, eight variable-length packets,
+both lanes, application RX backpressure and malformed-PHY-symbol fault
+propagation. Board-specific SERDES primitives and clocks remain outside the
 bonding core.
 
 - [Project roadmap](docs/project-roadmap.md)
