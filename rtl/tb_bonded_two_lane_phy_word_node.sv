@@ -121,6 +121,22 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_rx_frame_error(b0rf),.lane1_rx_frame_error(b1rf)
     );
 
+    always @(posedge bond_a) begin
+        if(app_valid && app_ready)
+            $display("APP beat: data=%08x keep=%b sop=%b eop=%b collecting=%b sending=%b stored=%0d reserve_ready=%b",
+                     app_data,app_keep,app_sop,app_eop,
+                     node_a.node.endpoint.tx_path.scheduler.collecting,
+                     node_a.node.endpoint.tx_path.scheduler.sending,
+                     node_a.node.endpoint.tx_path.scheduler.stored_beats,
+                     node_a.node.endpoint.tx_path.credit_accounting.tx_reserve_ready);
+        if(txerr_a)
+            $display("TXERR high: collecting=%b sending=%b stored=%0d input valid/ready=%b/%b sop/eop=%b/%b keep=%b",
+                     node_a.node.endpoint.tx_path.scheduler.collecting,
+                     node_a.node.endpoint.tx_path.scheduler.sending,
+                     node_a.node.endpoint.tx_path.scheduler.stored_beats,
+                     app_valid,app_ready,app_sop,app_eop,app_keep);
+    end
+
     reg [7:0] expected_data[0:127];
     reg [31:0] expected_sequence[0:127];
     reg expected_sop[0:127],expected_eop[0:127];
