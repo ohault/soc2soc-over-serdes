@@ -20,7 +20,9 @@ module tb_bonded_two_lane_rx;
     reg out_ready=0;
     wire [7:0] out_data;
     wire [31:0] out_packet_sequence;
-    wire lane0_frame_error,lane1_frame_error,packet_error;
+    wire lane0_frame_error,lane1_frame_error,packet_error,credit_error;
+    wire [63:0] local_byte_limit;
+    wire [31:0] local_packet_limit;
 
     bonded_two_lane_rx #(.FIFO_DEPTH(64),.REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) dut(
         .bond_rst_n(bond_rst_n),.expected_session_id(expected_session_id),
@@ -30,7 +32,9 @@ module tb_bonded_two_lane_rx;
         .lane1_clk(lane1_clk),.lane1_rst_n(lane1_rst_n),
         .lane1_valid(lane1_valid),.lane1_ready(lane1_ready),.lane1_data(lane1_data),
         .lane1_sop(lane1_sop),.lane1_eop(lane1_eop),
-        .bond_clk(bond_clk),.out_valid(out_valid),.out_ready(out_ready),
+        .bond_clk(bond_clk),.local_byte_limit(local_byte_limit),
+        .local_packet_limit(local_packet_limit),.credit_error(credit_error),
+        .out_valid(out_valid),.out_ready(out_ready),
         .out_data(out_data),.out_sop(out_sop),.out_eop(out_eop),
         .out_packet_sequence(out_packet_sequence),
         .lane0_frame_error(lane0_frame_error),.lane1_frame_error(lane1_frame_error),
@@ -121,10 +125,13 @@ module tb_bonded_two_lane_rx;
         cycles=0;
         while(got<4 && cycles<300) begin @(posedge bond_clk); cycles=cycles+1; end
         @(posedge bond_clk);
-        if(got!=4 || lane0_frame_error || lane1_frame_error || packet_error)
+        if(got!=4 || lane0_frame_error || lane1_frame_error || packet_error || credit_error)
             $fatal(1,"end-to-end RX failed got=%0d frame_err=%b/%b packet_err=%b",
                    got,lane0_frame_error,lane1_frame_error,packet_error);
-        $display("PASS: two-lane wire RX -> async CDC -> ordered logical packet stream");
+        if(local_byte_limit != (4*64+4) || local_packet_limit != 6)
+            $fatal(1,"cumulative credits not returned after application consumption: bytes=%0d packets=%0d",
+                   local_byte_limit,local_packet_limit);
+        $display("PASS: two-lane RX, ordered delivery and cumulative credits returned on application consumption");
         $finish;
     end
 endmodule
