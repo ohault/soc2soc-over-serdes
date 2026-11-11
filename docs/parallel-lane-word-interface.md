@@ -56,6 +56,25 @@ mask and SOP indication. An idle comma word has no data bytes and is not
 reported as an SOP. The v0 header length and CRC determine the logical EOP. The wire parser still validates the v0 header CRC,
 length and frame CRC; the PHY comma does not replace protocol-level checks.
 
+## Clock-domain boundary
+
+The PHY adapter has distinct `tx_clk/tx_rst` and `rx_clk/rx_rst` ports.
+TX packing and the PHY transmit interface stay in the transceiver's TX user
+clock domain; RX symbol decoding and its output FIFO stay in that lane's
+recovered RX clock domain. The two directions must never share a clock merely
+because they belong to the same SFP cage.
+
+The board-specific transceiver wrapper is responsible for presenting the
+native TX user clock and recovered RX user clock, and for implementing any
+vendor-specific TX FIFO / RX FIFO handshake. The adapter's RX FIFO is only a
+small elasticity buffer; it does not replace the transceiver's clock-domain
+crossing or rate-matching logic.
+
+The standalone gearbox regression models the physical link boundary with a
+dual-clock FIFO between TX and RX, using unrelated clock phases and periods.
+That test is a digital CDC/ordering regression, not a simulation of serial
+encoding, CDR behavior, clock tolerance or actual transceiver timing.
+
 ## RTL prototype
 
 `rtl/bonded_phy_8b10b_word_adapter.sv` implements the parallel symbol-word
