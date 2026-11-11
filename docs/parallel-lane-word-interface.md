@@ -86,9 +86,13 @@ byte-framed TX stream into N-1-byte SOP words and N-byte continuation words;
 `rtl/bonded_phy_word_to_byte.sv` restores the byte stream on RX. This keeps the
 v0 frame encoder, CRCs and frame parser byte-oriented while allowing the PHY
 boundary to carry multiple bytes per clock. The integrated loopback regression
-is `rtl/tb_bonded_phy_word_gearbox.sv` and is included in CI. This is still a
-standalone pipeline prototype: it is not yet connected to the autonomous node
-or a board-specific transceiver.
+is `rtl/tb_bonded_phy_word_gearbox.sv` and is included in CI. The per-lane
+wrapper `rtl/bonded_lane_phy_word_bridge.sv` now combines the packer, symbol
+adapter and unpacker with separate TX and recovered-RX clocks and session-drop
+flushing. `rtl/bonded_two_lane_phy_word_node.sv` connects two such bridges to
+the unchanged byte-oriented autonomous node. Its end-to-end two-node regression
+is `rtl/tb_bonded_two_lane_phy_word_node.sv`; this new regression has been added
+to CI but its result is still pending.
 
 ## TX/RX adapter requirements
 
@@ -109,10 +113,11 @@ or a board-specific transceiver.
 ## Integration strategy
 
 Keep the current byte-wide node and `bonded_phy_8b10b_adapter` as the simple
-reference/bring-up path. Implement the parallel adapter and parallel wire
-framing as a separate path first, with standalone regressions. Do not silently
-change the existing byte-wide modules or claim full-rate support until the
-parallel two-node simulation passes.
+reference/bring-up path. The parallel path is integrated through the separate
+`bonded_two_lane_phy_word_node` wrapper; it does not alter the existing byte-
+wide node or its protocol framing. Do not claim validated full-rate support
+until the new parallel two-node simulation passes and a board-specific PHY
+wrapper has been synthesized and tested.
 
 The target configurations are:
 
