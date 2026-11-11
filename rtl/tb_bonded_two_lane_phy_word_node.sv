@@ -77,7 +77,7 @@ module tb_bonded_two_lane_phy_word_node;
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(4),
         .SESSION_ID(64'h123456789abcdef0),.LOCAL_PEER_ID(64'd1),
         .EXPECTED_PEER_ID(64'd2),.MAX_PAYLOAD(16'd64),
-        .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
+        .PING_INTERVAL_CYCLES(32'd5000),.PONG_TIMEOUT_CYCLES(32'd15000)
     ) node_a (
         .bond_clk(bond_a),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_a),.lane1_up(lane1_up_a),
         .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(phy_rst_n),
@@ -367,21 +367,24 @@ module tb_bonded_two_lane_phy_word_node;
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        // A physical lane-down event invalidates the session. Restoring the
-        // lane alone must not clear the sticky control fault; a coordinated
-        // bonding-domain reset is required to negotiate a fresh session.
+        // A loses one local lane. A must fault immediately; B still has
+        // both local lanes up and can only discover the remote failure through
+        // its PING/PONG timeout.
         @(negedge bond_a);lane0_up_a=0;
-        @(negedge bond_b);lane0_up_b=0;
         repeat(8) @(posedge bond_a);
-        repeat(8) @(posedge bond_b);
-        if(active_a || active_b || !fault_a || !fault_b)
-            $fatal(1,"asymmetric lane-down did not invalidate both sessions");
+        if(active_a || !fault_a || !active_b || fault_b)
+            $fatal(1,"one-sided lane loss was not initially asymmetric");
+        cycles=0;
+        while(!fault_b && cycles<25000) begin
+            @(posedge bond_b);cycles=cycles+1;
+        end
+        if(active_b || !fault_b)
+            $fatal(1,"remote peer did not fault after PONG timeout");
         @(negedge bond_a);lane0_up_a=1;
-        @(negedge bond_b);lane0_up_b=1;
         repeat(8) @(posedge bond_a);
         repeat(8) @(posedge bond_b);
         if(active_a || active_b || !fault_a || !fault_b)
-            $fatal(1,"sticky lane fault cleared without a coordinated reset");
+            $fatal(1,"sticky lane/heartbeat fault cleared without coordinated reset");
 
         // A coordinated recovery resets both the physical lane FIFOs and
         // the bonding/control domains. The separate bridge session-flush
