@@ -26,10 +26,10 @@ module bonded_two_lane_node #(
 
     input wire lane0_tx_clk,input wire lane0_tx_rst_n,
     output wire lane0_tx_valid,input wire lane0_tx_ready,
-    output wire [7:0] lane0_tx_data,output wire lane0_tx_sop,output wire lane0_tx_eop,
+    output wire [7:0] lane0_tx_data,
     input wire lane1_tx_clk,input wire lane1_tx_rst_n,
     output wire lane1_tx_valid,input wire lane1_tx_ready,
-    output wire [7:0] lane1_tx_data,output wire lane1_tx_sop,output wire lane1_tx_eop,
+    output wire [7:0] lane1_tx_data,
 
     input wire lane0_rx_clk,input wire lane0_rx_rst_n,
     input wire lane0_rx_valid,output wire lane0_rx_ready,
@@ -63,6 +63,7 @@ module bonded_two_lane_node #(
     wire [31:0] local_packet_limit,remote_packet_limit;
     wire session_established;
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
+    wire lane0_tx_sop_internal,lane0_tx_eop_internal,lane1_tx_sop_internal,lane1_tx_eop_internal;
     wire lane0_framed_valid,lane0_framed_ready,lane0_framed_sop,lane0_framed_eop;
     wire lane1_framed_valid,lane1_framed_ready,lane1_framed_sop,lane1_framed_eop;
     wire [7:0] lane0_framed_data,lane1_framed_data;
@@ -137,10 +138,10 @@ module bonded_two_lane_node #(
         .rx_sop(rx_sop),.rx_eop(rx_eop),.rx_packet_sequence(rx_packet_sequence),
         .lane0_tx_clk(lane0_tx_clk),.lane0_tx_rst_n(lane0_tx_rst_n),
         .lane0_tx_valid(lane0_tx_valid),.lane0_tx_ready(lane0_tx_ready),
-        .lane0_tx_data(lane0_tx_data),.lane0_tx_sop(lane0_tx_sop),.lane0_tx_eop(lane0_tx_eop),
+        .lane0_tx_data(lane0_tx_data),.lane0_tx_sop(lane0_tx_sop_internal),.lane0_tx_eop(lane0_tx_eop_internal),
         .lane1_tx_clk(lane1_tx_clk),.lane1_tx_rst_n(lane1_tx_rst_n),
         .lane1_tx_valid(lane1_tx_valid),.lane1_tx_ready(lane1_tx_ready),
-        .lane1_tx_data(lane1_tx_data),.lane1_tx_sop(lane1_tx_sop),.lane1_tx_eop(lane1_tx_eop),
+        .lane1_tx_data(lane1_tx_data),.lane1_tx_sop(lane1_tx_sop_internal),.lane1_tx_eop(lane1_tx_eop_internal),
         .lane0_rx_clk(lane0_rx_clk),.lane0_rx_rst_n(lane0_rx_rst_n),
         .lane0_rx_valid(lane0_framed_valid),.lane0_rx_ready(lane0_framed_ready),
         .lane0_rx_data(lane0_framed_data),.lane0_rx_sop(lane0_framed_sop),.lane0_rx_eop(lane0_framed_eop),
