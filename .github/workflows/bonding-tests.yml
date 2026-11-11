@@ -279,3 +279,19 @@ jobs:
             rtl/bonded_phy_word_to_byte.sv rtl/bonded_lane_phy_word_bridge.sv \
             rtl/bonded_two_lane_phy_word_node.sv rtl/tb_bonded_duplicate_remote_lane_id.sv
           vvp /tmp/tb_duplicate_lane_id
+
+      - name: Compile and run asymmetric lane-loss heartbeat regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_asymmetric_lane_loss -o /tmp/tb_asymmetric_lane_loss \
+            rtl/bonded_control_manager.sv rtl/bonded_two_lane_node.sv \
+            rtl/bonded_two_lane_endpoint.sv rtl/bonded_two_lane_tx.sv rtl/bonded_two_lane_rx.sv \
+            rtl/bonded_packet_tx.sv rtl/bonded_credit_manager.sv rtl/bonded_async_fifo.sv \
+            rtl/bonded_wire_tx_lane.sv rtl/bonded_wire_rx_lane.sv \
+            rtl/bonded_control_frame_tx.sv rtl/bonded_control_frame_rx.sv \
+            rtl/bonded_control_queue.sv rtl/bonded_lane_frame_arbiter.sv rtl/bonded_lane_tx_mux.sv \
+            rtl/bonded_wire_rx_demux.sv rtl/bonded_wire_rx_framer.sv rtl/bonded_sync_byte_fifo.sv \
+            rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv rtl/bonded_session_gate.sv \
+            rtl/bonded_byte_to_phy_word.sv rtl/bonded_phy_8b10b_word_adapter.sv \
+            rtl/bonded_phy_word_to_byte.sv rtl/bonded_lane_phy_word_bridge.sv \
+            rtl/bonded_two_lane_phy_word_node.sv rtl/tb_bonded_asymmetric_lane_loss.sv
+          vvp /tmp/tb_asymmetric_lane_loss
