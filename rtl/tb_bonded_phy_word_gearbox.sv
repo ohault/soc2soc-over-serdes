@@ -36,7 +36,7 @@ module tb_bonded_phy_word_gearbox;
 
  bonded_phy_8b10b_word_adapter #(.SYMBOLS_PER_WORD(4),.RX_FIFO_DEPTH(4),
   .RX_PHY_STALLABLE(1)) phy(
-  .clk(clk),.rst(rst),
+  .tx_clk(clk),.tx_rst(rst),.rx_clk(clk),.rx_rst(rst),
   .tx_valid(packed_valid),.tx_ready(packed_ready),.tx_data(packed_data),
   .tx_keep(packed_keep),.tx_sop(packed_sop),
   .tx_phy_valid(tx_phy_valid),.tx_phy_ready(tx_phy_ready),
