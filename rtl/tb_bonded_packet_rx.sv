@@ -65,8 +65,21 @@ module tb_bonded_packet_rx;
         send_byte(1,1,8'h21,0,1);
         repeat(3) @(posedge clk);
         if(out_valid) $fatal(1,"later packet escaped before sequence 0");
+        // Exercise application-side backpressure while the expected packet
+        // becomes available. Its first byte and SOP must remain stable.
+        @(negedge clk); out_ready=0;
         send_byte(0,0,8'h10,1,0);
         send_byte(0,0,8'h11,0,1);
+        cycles=0;
+        while(!out_valid && cycles<20) begin @(posedge clk); cycles=cycles+1; end
+        if(!out_valid || out_data!==8'h10 || !out_sop)
+            $fatal(1,"expected packet did not become visible under backpressure");
+        repeat(4) begin
+            @(posedge clk);
+            if(!out_valid || out_data!==8'h10 || !out_sop)
+                $fatal(1,"output changed while application was stalled");
+        end
+        @(negedge clk); out_ready=1;
         cycles=0;
         while(got<4 && cycles<100) begin @(posedge clk); cycles=cycles+1; end
         @(posedge clk); // allow nonblocking expected-sequence update after final EOP
