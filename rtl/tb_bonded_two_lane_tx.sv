@@ -57,6 +57,13 @@ module tb_bonded_two_lane_tx;
         .expected_frame_sequence(d1expected),.frame_error(d1err),.frame_valid_pulse(d1pulse)
     );
 
+    integer raw0=0,raw1=0;
+    always @(posedge lane0_clk) if(l0v && l0r) begin
+        $display("RAW0[%0d]=%02x sop=%b eop=%b",raw0,l0d,l0s,l0e); raw0=raw0+1;
+    end
+    always @(posedge lane1_clk) if(l1v && l1r) begin
+        $display("RAW1[%0d]=%02x sop=%b eop=%b",raw1,l1d,l1s,l1e); raw1=raw1+1;
+    end
     always @(posedge lane0_clk) if(d0v) begin
         case(got0)
           0: if(d0seq!==0 || !d0s || d0d!==8'h11 || d0e) $fatal(1,"lane0 byte0 mismatch");
