@@ -265,8 +265,9 @@ class BondedSender(_Session):
         self._tx_queues = [[] for _ in range(self.config.lane_count)]
         self._reserved_tx_bytes = 0
         self._reserved_tx_packets = 0
-        self.remote_credit_bytes = self.config.rx_buffer_bytes
-        self.remote_credit_packets = self.config.rx_buffer_packets
+        # No data is admitted until the peer's initial credit grant arrives.
+        self.remote_credit_bytes = 0
+        self.remote_credit_packets = 0
 
     def _on_session_dropped(self) -> None:
         self._tx_queues = [[] for _ in range(self.config.lane_count)]
