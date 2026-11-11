@@ -20,6 +20,10 @@ module bonded_two_lane_endpoint #(
     input wire [31:0] remote_packet_limit,
     input wire session_established,
     output wire session_active,
+    // Cumulative receive grants to advertise to the peer in CREDIT frames.
+    output wire [63:0] local_byte_limit,
+    output wire [31:0] local_packet_limit,
+    output wire rx_credit_error,
 
     // Logical application transmit interface (packet stream).
     input wire tx_valid, output wire tx_ready,
@@ -118,6 +122,8 @@ module bonded_two_lane_endpoint #(
         .lane1_valid(lane1_rx_valid), .lane1_ready(lane1_rx_ready),
         .lane1_data(lane1_rx_data), .lane1_sop(lane1_rx_sop), .lane1_eop(lane1_rx_eop),
         .bond_clk(bond_clk),
+        .local_byte_limit(local_byte_limit), .local_packet_limit(local_packet_limit),
+        .credit_error(rx_credit_error),
         .out_valid(rx_path_valid), .out_ready(rx_ready && session_active), .out_data(rx_data),
         .out_sop(rx_sop), .out_eop(rx_eop),
         .out_packet_sequence(rx_packet_sequence),
