@@ -63,6 +63,7 @@ module tb_bonded_packet_rx;
         cycles=0;
         while(got<4 && cycles<100) begin @(posedge clk); cycles=cycles+1; end
         @(posedge clk); // allow nonblocking expected-sequence update after final EOP
+        $display("FINAL got=%0d error=%b expected=%0d active=%b drop=%b fill=%b valid=%b count0=%0d count1=%0d",got,packet_error,expected_packet_sequence,dut.lane_active,dut.lane_drop,dut.slot_filling,dut.slot_valid,dut.lane_count[0],dut.lane_count[1]);
         if(got!=4 || packet_error || expected_packet_sequence!=2)
             $fatal(1,"reorder test failed got=%0d error=%b expected=%0d",
                    got,packet_error,expected_packet_sequence);
