@@ -95,8 +95,7 @@ module bonded_two_lane_endpoint #(
     bonded_two_lane_tx #(
         .DATA_WIDTH(DATA_WIDTH), .KEEP_WIDTH(KEEP_WIDTH),
         .FIFO_DEPTH(TX_FIFO_DEPTH), .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
-        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID),
-        .DYNAMIC_LANE_MAP(DYNAMIC_LANE_MAP)
+        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
     ) tx_path (
         .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n), .control_rst_n(bond_rst_n),
         .session_id(tx_session_id),
