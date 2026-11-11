@@ -35,6 +35,7 @@ bonding core.
 - [RTL control transport](docs/rtl-control-transport.md)
 - [Physical byte-stream contract](docs/physical-byte-stream-interface.md)
 - [SERDES adapter research and throughput limits](docs/serdes-adapter-research.md)
+- [Parallel lane-word interface proposal](docs/parallel-lane-word-interface.md)
 
 The initial 8b/10b adapter carries one data byte per PHY word for conservative
 bring-up; it is not the full-rate multi-byte datapath required for maximum
