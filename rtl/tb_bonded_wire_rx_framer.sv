@@ -83,7 +83,7 @@ module tb_bonded_wire_rx_framer;
   @(negedge clk);rst=0;ctrl_valid=1;
   wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
   wait(sent==30);
-  @(negedge clk);allow_tx=0;rst=1;
+  @(negedge clk);allow_tx=0;rst=1;got=0;
   repeat(2) @(posedge clk);
   @(negedge clk);rst=0;allow_tx=1;sent=0;ctrl_valid=1;
   wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
