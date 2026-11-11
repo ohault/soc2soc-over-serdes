@@ -126,3 +126,9 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_credit_manager -o /tmp/tb_credit \
             rtl/bonded_credit_manager.sv rtl/tb_bonded_credit_manager.sv
           vvp /tmp/tb_credit
+
+      - name: Compile and run v0 CONTROL frame encoder testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_control_frame_tx -o /tmp/tb_control_tx \
+            rtl/bonded_control_frame_tx.sv rtl/tb_bonded_control_frame_tx.sv
+          vvp /tmp/tb_control_tx
