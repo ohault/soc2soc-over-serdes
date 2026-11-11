@@ -27,8 +27,8 @@ regressions and hardware tests pass.
 
 The generic RTL includes an autonomous two-lane node, HELLO/READY session
 negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
-reordering, raw-byte frame reconstruction and a generic 8b/10b PHY symbol
-adapter. Board-specific SERDES primitives and clocks remain outside the
+reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
+standalone parallel 8b/10b word-adapter prototype. Board-specific SERDES primitives and clocks remain outside the
 bonding core.
 
 - [Project roadmap](docs/project-roadmap.md)
