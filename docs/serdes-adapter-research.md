@@ -128,7 +128,11 @@ full-line-rate solution.
 - RX validates that symbol pattern, strips the comma/empty/filler symbols and
   places the one data byte into a ready/valid FIFO.
 - A non-stallable PHY source can use the internal RX FIFO and reports overflow
-  if it cannot keep up. A stallable PHY FIFO can use the ready output.
+  if it cannot keep up. A synchronous stallable source can use the ready output.
+  A vendor FIFO with delayed read-valid (such as the Gowin RX FIFO) needs its
+  board wrapper to reserve space for all outstanding read-latency cycles before
+  issuing another read; the ready output alone is not a credit for in-flight
+  reads.
 - Unexpected control characters or data in unused symbol positions set a
   sticky symbol-error indication. The board adapter should combine this with
   its PHY error/lock status and drive the node's sticky `laneN_rx_overflow`
