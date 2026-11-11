@@ -32,7 +32,7 @@ module tb_bonded_two_lane_rx;
         .lane1_clk(lane1_clk),.lane1_rst_n(lane1_rst_n),
         .lane1_valid(lane1_valid),.lane1_ready(lane1_ready),.lane1_data(lane1_data),
         .lane1_sop(lane1_sop),.lane1_eop(lane1_eop),
-        .bond_clk(bond_clk),.local_byte_limit(local_byte_limit),
+        .bond_clk(bond_clk),.ctrl_rx_valid(),.ctrl_rx_ready(1'b1),.ctrl_rx_body(),.ctrl_rx_body_length(),.ctrl_rx_lane(),.local_byte_limit(local_byte_limit),
         .local_packet_limit(local_packet_limit),.credit_error(credit_error),
         .out_valid(out_valid),.out_ready(out_ready),
         .out_data(out_data),.out_sop(out_sop),.out_eop(out_eop),
