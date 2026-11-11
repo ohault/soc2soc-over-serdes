@@ -109,7 +109,7 @@ module tb_bonded_two_lane_phy_word_node;
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(4),
         .SESSION_ID(64'h123456789abcdef0),.LOCAL_PEER_ID(64'd2),
         .EXPECTED_PEER_ID(64'd1),.MAX_PAYLOAD(16'd64),
-        .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
+        .PING_INTERVAL_CYCLES(32'd5000),.PONG_TIMEOUT_CYCLES(32'd15000)
     ) node_b (
         .bond_clk(bond_b),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_b),.lane1_up(lane1_up_b),
         .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(phy_rst_n),
