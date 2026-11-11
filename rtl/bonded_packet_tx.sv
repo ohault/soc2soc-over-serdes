@@ -28,6 +28,7 @@ module bonded_packet_tx #(
     output reg  [LANE_COUNT-1:0] lane_sop,
     output reg  [LANE_COUNT-1:0] lane_eop,
     output reg  [LANE_COUNT*32-1:0] lane_packet_sequence,
+    output reg  [LANE_COUNT*16-1:0] lane_packet_length,
 
     output reg packet_error
 );
@@ -44,9 +45,21 @@ module bonded_packet_tx #(
     reg [31:0] next_packet_sequence;
     reg [31:0] active_packet_sequence;
     reg [KEEP_WIDTH-1:0] final_keep;
+    reg [15:0] collecting_packet_bytes;
+    reg [15:0] active_packet_length;
+    localparam integer KEEP_COUNT_WIDTH = (KEEP_WIDTH < 1) ? 1 : $clog2(KEEP_WIDTH+1);
+    function [KEEP_COUNT_WIDTH-1:0] keep_count(input [KEEP_WIDTH-1:0] keep);
+        integer n;
+        begin
+            keep_count=0;
+            for(n=0;n<KEEP_WIDTH;n=n+1)
+                keep_count=keep_count+keep[n];
+        end
+    endfunction
     integer i;
 
-    assign tx_ready = !sending && ((stored_beats < MAX_PACKET_BEATS) || collecting);
+    // Never accept a beat when the packet RAM is full, even while collecting.
+    assign tx_ready = !sending && (stored_beats < MAX_PACKET_BEATS);
 
     initial begin
         if (DATA_WIDTH < 8 || (DATA_WIDTH % 8) != 0)
@@ -64,6 +77,7 @@ module bonded_packet_tx #(
         lane_sop = {LANE_COUNT{1'b0}};
         lane_eop = {LANE_COUNT{1'b0}};
         lane_packet_sequence = {(LANE_COUNT*32){1'b0}};
+        lane_packet_length = {(LANE_COUNT*16){1'b0}};
         if (sending) begin
             lane_valid[selected_lane] = 1'b1;
             lane_data[selected_lane*DATA_WIDTH +: DATA_WIDTH] = packet_data[send_index];
@@ -71,6 +85,7 @@ module bonded_packet_tx #(
             lane_sop[selected_lane] = (send_index == 0);
             lane_eop[selected_lane] = (send_index == stored_beats-1);
             lane_packet_sequence[selected_lane*32 +: 32] = active_packet_sequence;
+            lane_packet_length[selected_lane*16 +: 16] = active_packet_length;
         end
     end
 
@@ -86,6 +101,8 @@ module bonded_packet_tx #(
             active_packet_sequence <= 0;
             packet_error <= 1'b0;
             final_keep <= 0;
+            collecting_packet_bytes <= 0;
+            active_packet_length <= 0;
         end else begin
             if (tx_valid && tx_ready) begin
                 if (stored_beats >= MAX_PACKET_BEATS ||
@@ -96,10 +113,12 @@ module bonded_packet_tx #(
                     collecting <= 1'b0;
                     stored_beats <= 0;
                     packet_error <= 1'b1;
+                    collecting_packet_bytes <= 0;
                 end else begin
                     packet_data[stored_beats] <= tx_data;
                     packet_keep[stored_beats] <= tx_keep;
                     stored_beats <= stored_beats + 1'b1;
+                    collecting_packet_bytes <= collecting_packet_bytes + keep_count(tx_keep);
                     collecting <= !tx_eop;
                     if (tx_eop) begin
                         // Complete packets are scheduled only after their final
@@ -108,7 +127,9 @@ module bonded_packet_tx #(
                         send_index <= 0;
                         selected_lane <= next_lane;
                         active_packet_sequence <= next_packet_sequence;
+                        active_packet_length <= collecting_packet_bytes + keep_count(tx_keep);
                         next_packet_sequence <= next_packet_sequence + 1'b1;
+                        collecting_packet_bytes <= 0;
                     end
                 end
             end
