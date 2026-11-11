@@ -13,7 +13,7 @@ module tb_bonded_lane_frame_arbiter;
  wire [7:0] data_data=(di==0)?8'hD1:(di==1)?8'hD2:8'hD3;
  wire data_sop=(di==0), data_eop=(di==2);
  bonded_lane_frame_arbiter dut(
-  .clk(clk),.rst(rst),
+  .clk(clk),.rst(rst),.data_abort(1'b0),
   .ctrl_valid(ctrl_valid),.ctrl_ready(ctrl_ready),.ctrl_data(ctrl_data),.ctrl_sop(ctrl_sop),.ctrl_eop(ctrl_eop),
   .data_valid(data_valid),.data_ready(data_ready),.data_data(data_data),.data_sop(data_sop),.data_eop(data_eop),
   .out_valid(out_valid),.out_ready(out_ready),.frame_idle(),.out_data(out_data),.out_sop(out_sop),.out_eop(out_eop),
