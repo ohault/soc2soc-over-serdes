@@ -142,7 +142,7 @@ module bonded_two_lane_rx #(
         .wr_clk(lane1_clk),.wr_rst_n(control_rst_n && lane1_rst_n),
         .wr_valid(ctrl1_message_valid),.wr_ready(ctrl1_message_ready),
         .wr_data({1'b1,ctrl1_message_length,ctrl1_message_body}),
-        .rd_clk(bond_clk),.rd_rst_n(bond_rst_n),
+        .rd_clk(bond_clk),.rd_rst_n(control_rst_n),
         .rd_valid(ctrl1_cdc_valid),.rd_ready(ctrl1_cdc_ready),.rd_data(ctrl1_cdc_data)
     );
     reg control_rr;
