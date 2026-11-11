@@ -19,7 +19,7 @@ is an integration option, not a dependency of the bonding core.
 | RTL CONTROL frame TX/RX | Implemented as building blocks | Dedicated queues, frame-boundary priority, raw frame decode |
 | RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
-| Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO and header-CRC-checked SOP/EOP reconstruction |
+| Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Board-specific transceiver adapters | Not started | Requires transceiver primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -41,7 +41,9 @@ is an integration option, not a dependency of the bonding core.
    implemented in RTL.
 3. A control fault is sticky; automatic restart/re-negotiation after lane
    recovery is not yet implemented.
-4. The physical node boundary is currently one byte per lane clock. The
+4. The physical node boundary is currently one byte per lane clock. The board
+adapter must provide buffering and assert `laneN_rx_overflow` if it loses
+recovered bytes before they reach the node. The
    transceiver user-side width and achievable line rate have not been validated.
    A wide/parallel framer and PHY gearbox may be required for high-rate SFP+.
 5. The RX framer validates the header CRC before trusting frame length and can
