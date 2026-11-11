@@ -4,7 +4,8 @@
 module bonded_lane_tx_mux #(
     parameter integer DATA_WIDTH = 32,
     parameter integer KEEP_WIDTH = DATA_WIDTH/8,
-    parameter integer LANE_ID = 0
+    parameter integer LANE_ID = 0,
+    parameter integer CONTROL_QUEUE_DEPTH = 4
 ) (
     input wire clk,
     input wire rst,
@@ -37,6 +38,10 @@ module bonded_lane_tx_mux #(
     output wire arbiter_protocol_error
 );
     wire ctrl_frame_valid, ctrl_frame_ready, ctrl_frame_sop, ctrl_frame_eop;
+    wire ctrl_queue_valid, ctrl_queue_ready;
+    wire [207:0] ctrl_queue_body;
+    wire [5:0] ctrl_queue_length;
+    wire ctrl_queue_full, ctrl_queue_empty;
     wire [7:0] ctrl_frame_data;
     wire data_frame_valid, data_frame_ready, data_frame_sop, data_frame_eop;
     wire [7:0] data_frame_data;
@@ -44,14 +49,23 @@ module bonded_lane_tx_mux #(
     reg [31:0] shared_frame_sequence;
     reg sequence_error;
     wire control_start_enable = arbiter_idle && !data_frame_valid;
-    wire data_start_enable = arbiter_idle && !ctrl_valid && !ctrl_frame_valid;
+    wire data_start_enable = arbiter_idle && !ctrl_queue_valid && !ctrl_frame_valid;
+
+    bonded_control_queue #(.DEPTH(CONTROL_QUEUE_DEPTH)) control_queue (
+        .clk(clk), .rst(rst),
+        .in_valid(ctrl_valid), .in_ready(ctrl_ready),
+        .in_body(ctrl_body), .in_length(ctrl_body_length),
+        .out_valid(ctrl_queue_valid), .out_ready(ctrl_queue_ready),
+        .out_body(ctrl_queue_body), .out_length(ctrl_queue_length),
+        .full(ctrl_queue_full), .empty(ctrl_queue_empty)
+    );
 
     bonded_control_frame_tx #(.LANE_ID(LANE_ID)) control_encoder (
         .clk(clk), .rst(rst), .session_id(session_id),
         .frame_start_enable(control_start_enable),
         .frame_sequence_override(shared_frame_sequence),
-        .ctrl_valid(ctrl_valid), .ctrl_ready(ctrl_ready),
-        .ctrl_body(ctrl_body), .ctrl_body_length(ctrl_body_length),
+        .ctrl_valid(ctrl_queue_valid), .ctrl_ready(ctrl_queue_ready),
+        .ctrl_body(ctrl_queue_body), .ctrl_body_length(ctrl_queue_length),
         .out_valid(ctrl_frame_valid), .out_ready(ctrl_frame_ready),
         .out_data(ctrl_frame_data), .out_sop(ctrl_frame_sop), .out_eop(ctrl_frame_eop),
         .next_frame_sequence(), .frame_error(control_frame_error)
