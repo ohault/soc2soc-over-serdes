@@ -1,0 +1,26 @@
+name: Bonding reference-model tests
+
+on:
+  push:
+    branches:
+      - main
+      - feature/bonded-serdes-interconnect
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  bonding-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run bonding unit and integration tests
+        run: python -m unittest discover -s test -p "test_bonding_*.py" -v
