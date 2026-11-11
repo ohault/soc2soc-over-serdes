@@ -46,6 +46,8 @@ module tb_bonded_two_lane_phy_word_node;
     reg [31:0] app_data=0;
     reg [3:0] app_keep=0;
     wire app_ready,b_app_ready;
+    reg b_app_rx_ready=0;
+    reg [15:0] consumer_lfsr=16'h1ace;
     wire a_rx_valid,b_rx_valid;
     wire [7:0] a_rx_data,b_rx_data;
     wire a_rx_sop,a_rx_eop,b_rx_sop,b_rx_eop;
@@ -109,7 +111,7 @@ module tb_bonded_two_lane_phy_word_node;
         .lane1_phy_rx_data(b1_rxd),.lane1_phy_rx_ctrl(b1_rxc),
         .tx_valid(1'b0),.tx_ready(b_app_ready),.tx_data(32'd0),
         .tx_keep(4'd0),.tx_sop(1'b0),.tx_eop(1'b0),
-        .rx_valid(b_rx_valid),.rx_ready(1'b1),.rx_data(b_rx_data),
+        .rx_valid(b_rx_valid),.rx_ready(b_app_rx_ready),.rx_data(b_rx_data),
         .rx_sop(b_rx_sop),.rx_eop(b_rx_eop),.rx_packet_sequence(b_rx_seq),
         .session_active(active_b),.control_fault(fault_b),
         .rx_credit_error(credit_b),.tx_packet_error(txerr_b),.rx_packet_error(rxerr_b),
@@ -119,30 +121,71 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_rx_frame_error(b0rf),.lane1_rx_frame_error(b1rf)
     );
 
-    integer got=0,cycles=0;
-    always @(posedge bond_b) if(b_rx_valid) begin
-        case(got)
-            0: if(!b_rx_sop || b_rx_data!==8'haa || b_rx_eop || b_rx_seq!==0) $fatal(1,"packet0 byte0");
-            1: if(b_rx_sop || b_rx_data!==8'hbb || !b_rx_eop || b_rx_seq!==0) $fatal(1,"packet0 byte1");
-            2: if(!b_rx_sop || b_rx_data!==8'hcc || b_rx_eop || b_rx_seq!==1) $fatal(1,"packet1 byte0");
-            3: if(b_rx_sop || b_rx_data!==8'hdd || !b_rx_eop || b_rx_seq!==1) $fatal(1,"packet1 byte1");
-            default: $fatal(1,"unexpected extra byte");
-        endcase
-        got=got+1;
+    reg [7:0] expected_data[0:127];
+    reg [31:0] expected_sequence[0:127];
+    reg expected_sop[0:127],expected_eop[0:127];
+    integer expected_count=0,got=0,cycles=0,packet_number=0;
+
+    always @(posedge bond_b) begin
+        if(!rst_n) begin
+            consumer_lfsr<=16'h1ace;
+            b_app_rx_ready<=0;
+        end else begin
+            consumer_lfsr<={consumer_lfsr[14:0],
+                consumer_lfsr[15]^consumer_lfsr[13]^consumer_lfsr[12]^consumer_lfsr[10]};
+            // Deliberate, repeatable backpressure at the logical application
+            // interface. The physical RX clocks continue independently.
+            b_app_rx_ready<=(consumer_lfsr[2:0]!=0);
+            if(b_rx_valid && b_app_rx_ready) begin
+                if(got>=expected_count || b_rx_data!==expected_data[got] ||
+                   b_rx_seq!==expected_sequence[got] ||
+                   b_rx_sop!==expected_sop[got] || b_rx_eop!==expected_eop[got])
+                    $fatal(1,"parallel RX mismatch at byte %0d data=%02x seq=%0d sop/eop=%b/%b",
+                           got,b_rx_data,b_rx_seq,b_rx_sop,b_rx_eop);
+                got=got+1;
+            end
+        end
     end
 
-    task send_packet(input [31:0] data);
+    task send_packet(input [127:0] payload,input integer length);
+        integer offset,n,j;
+        reg [31:0] beat;
+        reg [3:0] keep;
     begin
-        @(negedge bond_a);
-        app_valid=1;app_sop=1;app_eop=1;app_keep=4'b0011;app_data=data;
-        while(!app_ready) begin @(negedge bond_a); end
-        @(posedge bond_a);
+        if(length<1 || length>16) $fatal(1,"bad test packet length");
+        for(j=0;j<length;j=j+1) begin
+            expected_data[expected_count+j]=payload[j*8 +: 8];
+            expected_sequence[expected_count+j]=packet_number;
+            expected_sop[expected_count+j]=(j==0);
+            expected_eop[expected_count+j]=(j==length-1);
+        end
+        expected_count=expected_count+length;
+        offset=0;
+        while(offset<length) begin
+            n=length-offset;
+            if(n>4) n=4;
+            beat=0;
+            for(j=0;j<n;j=j+1) beat[j*8 +: 8]=payload[(offset+j)*8 +: 8];
+            keep=(1<<n)-1;
+            @(negedge bond_a);
+            app_valid=1;
+            app_sop=(offset==0);
+            app_eop=(offset+n==length);
+            app_keep=keep;
+            app_data=beat;
+            while(!app_ready) @(negedge bond_a);
+            @(posedge bond_a);
+            offset=offset+n;
+        end
         @(negedge bond_a);
         app_valid=0;app_sop=0;app_eop=0;app_keep=0;
+        packet_number=packet_number+1;
     end
     endtask
 
     initial begin
+        reg [127:0] payload;
+        integer p,i;
         repeat(10) @(posedge bond_a);
         @(negedge bond_a);rst_n=1;
         cycles=0;
@@ -152,21 +195,32 @@ module tb_bonded_two_lane_phy_word_node;
         if(!active_a || !active_b || fault_a || fault_b)
             $fatal(1,"parallel PHY HELLO/READY failed active=%b/%b fault=%b/%b",
                    active_a,active_b,fault_a,fault_b);
-        send_packet(32'h0000bbaa);
+
+        // Exercise SOP/EOP positions on short and multiword packets, including
+        // partial final words and payload bytes equal to K28.5/K28.0 values.
+        for(p=0;p<8;p=p+1) begin
+            payload=0;
+            for(i=0;i<16;i=i+1)
+                payload[i*8 +: 8]=(p*8'h31)+(i*8'h17)+8'h5a;
+            if(p==0) payload[7:0]=8'hbc;
+            if(p==1) payload[7:0]=8'h1c;
+            send_packet(payload,(p==0)?1:(p==1)?2:(p==2)?3:(p==3)?4:
+                        (p==4)?5:(p==5)?7:(p==6)?11:16);
+        end
         cycles=0;
-        while(got<2 && cycles<10000) begin @(posedge bond_b);cycles=cycles+1;end
-        if(got!=2) $fatal(1,"first packet did not cross parallel PHY lanes");
-        send_packet(32'h0000ddcc);
-        cycles=0;
-        while(got<4 && cycles<10000) begin @(posedge bond_b);cycles=cycles+1;end
-        repeat(8) @(posedge bond_b);
-        if(got!=4 || fault_a || fault_b || credit_a || credit_b ||
+        while(got<expected_count && cycles<50000) begin
+            @(posedge bond_b);cycles=cycles+1;
+        end
+        repeat(12) @(posedge bond_b);
+        if(got!=expected_count || fault_a || fault_b || credit_a || credit_b ||
            txerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
            a0rxerr || a1rxerr || b0rxerr || b1rxerr ||
            a0tf || a1tf || b0tf || b1tf || a0rf || a1rf || b0rf || b1rf)
-            $fatal(1,"parallel two-node PHY transport failed got=%0d",got);
-        $display("PASS: autonomous two-node DATA/CONTROL over two parallel 8b/10b lanes");
+            $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
+                   got,expected_count);
+        $display("PASS: two-node parallel PHY, 8 packet lengths, partial words and RX backpressure");
         $finish;
     end
-    initial begin #1000000;$fatal(1,"timeout active=%b/%b got=%0d",active_a,active_b,got);end
+    initial begin #2000000;$fatal(1,"timeout active=%b/%b got=%0d expected=%0d",
+                                  active_a,active_b,got,expected_count);end
 endmodule
