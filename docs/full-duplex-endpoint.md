@@ -45,5 +45,8 @@ transceiver byte streams.
 `tb_bonded_two_lane_endpoint` connects two endpoints in both directions
 through four independent asynchronous lane FIFOs. It checks bidirectional
 packet delivery and CRC-validated wire framing with unrelated clock domains.
-This is a digital integration test, not a PHY, signal-integrity or hardware
-resource validation.
+It also drops one physical direction (endpoint A TX lane 0 / endpoint B RX
+lane 0), verifies that both endpoints become inactive, verifies that reset
+release alone does not reactivate the old session, and then checks explicit
+session re-arming. This is a digital integration test, not a PHY,
+signal-integrity or hardware resource validation.
