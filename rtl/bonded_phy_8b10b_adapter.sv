@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Board/SoC-agnostic adapter between a byte stream and a decoded 8b/10b
 // PHY word containing two or four symbols. One data byte is carried in
-// symbol 0; remaining symbols are K28.5 idles. This is a bring-up adapter,
+// symbol 0 is a K28.5 alignment comma; symbol 1 carries data or K28.0
+// empty; remaining symbols are zero-valued data fillers. This is a bring-up adapter,
 // not a full-rate multi-byte datapath.
 module bonded_phy_8b10b_adapter #(
     parameter integer SYMBOLS_PER_WORD=2,
     parameter integer RX_FIFO_DEPTH=64,
     parameter integer RX_PHY_STALLABLE=0,
     parameter [7:0] IDLE_K=8'hbc,
+    parameter [7:0] EMPTY_K=8'h1c,
+    parameter [7:0] FILL_BYTE=8'h00,
+    parameter integer DATA_SYMBOL_INDEX=1,
     parameter integer PTR_WIDTH=(RX_FIFO_DEPTH<=2)?1:$clog2(RX_FIFO_DEPTH)
 ) (
     input wire clk,
@@ -36,17 +40,23 @@ module bonded_phy_8b10b_adapter #(
     reg [PTR_WIDTH-1:0] wr_ptr,rd_ptr;
     reg [PTR_WIDTH:0] count;
 
-    wire rx_word_has_data=!rx_phy_ctrl[0];
+    wire rx_word_has_data=!rx_phy_ctrl[DATA_SYMBOL_INDEX];
     reg rx_word_malformed;
     integer i;
 
     always @* begin
         rx_word_malformed=1'b0;
-        if(rx_phy_ctrl[0] && rx_phy_data[7:0]!=IDLE)
+        // A unique K28.5 comma in symbol 0 establishes word alignment.
+        if(!rx_phy_ctrl[0] || rx_phy_data[7:0]!=IDLE)
             rx_word_malformed=1'b1;
         for(i=1;i<SYMBOLS_PER_WORD;i=i+1) begin
-            if(!rx_phy_ctrl[i] || rx_phy_data[8*i +: 8]!=IDLE)
-                rx_word_malformed=1'b1;
+            if(i==DATA_SYMBOL_INDEX) begin
+                if(rx_phy_ctrl[i] && rx_phy_data[8*i +: 8]!=EMPTY_K)
+                    rx_word_malformed=1'b1;
+            end else begin
+                if(rx_phy_ctrl[i] || rx_phy_data[8*i +: 8]!=FILL_BYTE)
+                    rx_word_malformed=1'b1;
+            end
         end
     end
 
@@ -61,23 +71,29 @@ module bonded_phy_8b10b_adapter #(
     assign rx_byte_data=rx_mem[rd_ptr];
 
     // The PHY side is a continuous symbol stream: transmit K28.5 idles when
-    // no application byte is available. Symbol 0 carries the next byte.
+    // no application byte is available. Symbol 0 always carries K28.5 so the
+    // receiver can align each PHY word unambiguously.
     assign tx_phy_valid=!rst;
     assign tx_byte_ready=!rst && tx_phy_ready;
     genvar g;
     generate for(g=0;g<SYMBOLS_PER_WORD;g=g+1) begin: tx_symbols
         if(g==0) begin
-            assign tx_phy_data[8*g +: 8]=tx_byte_valid ? tx_byte_data : IDLE;
-            assign tx_phy_ctrl[g]=!tx_byte_valid;
-        end else begin
             assign tx_phy_data[8*g +: 8]=IDLE;
             assign tx_phy_ctrl[g]=1'b1;
+        end else if(g==DATA_SYMBOL_INDEX) begin
+            assign tx_phy_data[8*g +: 8]=tx_byte_valid ? tx_byte_data : EMPTY_K;
+            assign tx_phy_ctrl[g]=!tx_byte_valid;
+        end else begin
+            assign tx_phy_data[8*g +: 8]=FILL_BYTE;
+            assign tx_phy_ctrl[g]=1'b0;
         end
     end endgenerate
 
     initial begin
         if((SYMBOLS_PER_WORD!=2) && (SYMBOLS_PER_WORD!=4))
             $error("SYMBOLS_PER_WORD must be 2 or 4");
+        if(DATA_SYMBOL_INDEX<1 || DATA_SYMBOL_INDEX>=SYMBOLS_PER_WORD)
+            $error("DATA_SYMBOL_INDEX must be in [1, SYMBOLS_PER_WORD-1]");
         if(RX_FIFO_DEPTH<2 || (RX_FIFO_DEPTH & (RX_FIFO_DEPTH-1))!=0)
             $error("RX_FIFO_DEPTH must be a power of two >= 2");
     end
@@ -94,7 +110,7 @@ module bonded_phy_8b10b_adapter #(
                 rx_overflow<=1'b1;
 
             if(rx_push) begin
-                rx_mem[wr_ptr]<=rx_phy_data[7:0];
+                rx_mem[wr_ptr]<=rx_phy_data[8*DATA_SYMBOL_INDEX +: 8];
                 wr_ptr<=wr_ptr+1'b1;
             end
             if(rx_pop) rd_ptr<=rd_ptr+1'b1;
