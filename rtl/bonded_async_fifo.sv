@@ -59,8 +59,8 @@ module bonded_async_fifo #(
           rd_gray_sync2[PTR_WIDTH-3:0]};
     reg full_reg, empty_reg;
 
-    assign wr_ready = !full_reg;
-    assign rd_valid = !empty_reg;
+    assign wr_ready = wr_local_rst_n && !full_reg;
+    assign rd_valid = rd_local_rst_n && !empty_reg;
     // First-word-fall-through read. The memory is written only in wr_clk
     // domain and addressed by the stable read pointer in rd_clk domain.
     assign rd_data = mem[rd_bin[ADDR_WIDTH-1:0]];
