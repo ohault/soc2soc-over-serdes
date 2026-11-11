@@ -32,7 +32,16 @@ module tb_bonded_wire_rx_demux;
   for(i=4;i<31;i=i+1) send(i[7:0],0,(i==30));
   wait(ctrl_count==31);
   if(data_valid || frame_error) $fatal(1,"DATA abort recovery or CONTROL routing failed");
-  $display("PASS: RX demux recovers from aborted DATA frame and routes next CONTROL frame");
+
+  // Also abort a CONTROL frame. A new SOP must restart demux header capture
+  // so the following complete CONTROL frame reaches its decoder.
+  send(8'h53,1,0);send(8'h42,0,0);send(8'h01,0,0);send(8'h02,0,0);
+  send(8'h99,0,0);
+  send(8'h53,1,0);send(8'h42,0,0);send(8'h01,0,0);send(8'h02,0,0);
+  for(i=4;i<31;i=i+1) send(i[7:0],0,(i==30));
+  wait(ctrl_count==67);
+  if(data_valid || !frame_error) $fatal(1,"CONTROL abort did not resynchronize on new SOP");
+  $display("PASS: RX demux recovers from aborted DATA and CONTROL frames");
   $finish;
  end
  initial begin #10000;$fatal(1,"timeout");end
