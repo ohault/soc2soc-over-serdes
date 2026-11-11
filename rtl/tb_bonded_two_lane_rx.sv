@@ -86,8 +86,8 @@ module tb_bonded_two_lane_rx;
         frame0[16]=8'h00; frame0[17]=8'h00; frame0[18]=8'h00; frame0[19]=8'h00;
         frame0[20]=8'h00; frame0[21]=8'h06; frame0[22]=8'h6a; frame0[23]=8'hec;
         frame0[24]=8'h00; frame0[25]=8'h00; frame0[26]=8'h00; frame0[27]=8'h00;
-        frame0[28]=8'h10; frame0[29]=8'h11; frame0[30]=8'hc5; frame0[31]=8'ha2;
-        frame0[32]=8'h66; frame0[33]=8'hbe;
+        frame0[28]=8'h10; frame0[29]=8'h11; frame0[30]=8'hbe; frame0[31]=8'h66;
+        frame0[32]=8'ha2; frame0[33]=8'hc5;
 
         frame1[0]=8'h53; frame1[1]=8'h42; frame1[2]=8'h01; frame1[3]=8'h01;
         frame1[4]=8'h00; frame1[5]=8'h01; frame1[6]=8'h00; frame1[7]=8'h18;
@@ -96,8 +96,8 @@ module tb_bonded_two_lane_rx;
         frame1[16]=8'h00; frame1[17]=8'h00; frame1[18]=8'h00; frame1[19]=8'h00;
         frame1[20]=8'h00; frame1[21]=8'h06; frame1[22]=8'h7a; frame1[23]=8'h0e;
         frame1[24]=8'h00; frame1[25]=8'h00; frame1[26]=8'h00; frame1[27]=8'h01;
-        frame1[28]=8'h20; frame1[29]=8'h21; frame1[30]=8'h03; frame1[31]=8'h7a;
-        frame1[32]=8'h4c; frame1[33]=8'ha3;
+        frame1[28]=8'h20; frame1[29]=8'h21; frame1[30]=8'ha3; frame1[31]=8'h4c;
+        frame1[32]=8'h7a; frame1[33]=8'h03;
 
         #80;
         @(negedge bond_clk);
