@@ -126,6 +126,21 @@ module tb_bonded_two_lane_phy_word_node;
     reg expected_sop[0:127],expected_eop[0:127];
     integer expected_count=0,got=0,cycles=0,packet_number=0;
 
+    // Trace only accepted application beats; this pinpoints packet-TX input
+    // validation failures under variable-length traffic.
+    always @(posedge bond_a) begin
+        if(rst_n && app_valid && app_ready) begin
+            $display("APP beat packet=%0d data=%h keep=%h sop/eop=%b/%b collect=%b send=%b stored=%0d reserve=%b/%b bytes=%0d",
+                packet_number,app_data,app_keep,app_sop,app_eop,
+                node_a.node.endpoint.tx_path.scheduler.collecting,
+                node_a.node.endpoint.tx_path.scheduler.sending,
+                node_a.node.endpoint.tx_path.scheduler.stored_beats,
+                node_a.node.endpoint.tx_path.scheduler.credit_reserve_valid,
+                node_a.node.endpoint.tx_path.scheduler.credit_reserve_ready,
+                node_a.node.endpoint.tx_path.scheduler.prospective_packet_bytes);
+        end
+    end
+
     always @(posedge bond_b) begin
         if(!rst_n) begin
             consumer_lfsr<=16'h1ace;
