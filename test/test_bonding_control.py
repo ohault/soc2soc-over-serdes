@@ -98,14 +98,14 @@ class ControlPlaneTests(unittest.TestCase):
         exchange_hello_and_ready(a, b)
         a.receive(0, Frame(
             FrameType.CONTROL, 0, 0x1234, 0,
-            bytes([ControlOpcode.CREDIT]) + (100).to_bytes(8, "big") + (10).to_bytes(4, "big"),
+            bytes([ControlOpcode.CREDIT]) + (20000).to_bytes(8, "big") + (70).to_bytes(4, "big"),
         ))
         a.receive(1, Frame(
             FrameType.CONTROL, 1, 0x1234, 0,
-            bytes([ControlOpcode.CREDIT]) + (80).to_bytes(8, "big") + (12).to_bytes(4, "big"),
+            bytes([ControlOpcode.CREDIT]) + (18000).to_bytes(8, "big") + (72).to_bytes(4, "big"),
         ))
-        self.assertEqual(a.remote_credit_bytes, 100)
-        self.assertEqual(a.remote_credit_packets, 12)
+        self.assertEqual(a.remote_credit_bytes, 20000)
+        self.assertEqual(a.remote_credit_packets, 72)
 
     def test_ping_is_answered_with_pong(self):
         a, b = make_pair()
