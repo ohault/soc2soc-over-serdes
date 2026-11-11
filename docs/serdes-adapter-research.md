@@ -126,6 +126,25 @@ but it cannot absorb a peer that sends multiple data bytes per PHY word
 continuously; both peers must use the same bring-up profile. This is not a
 full-line-rate solution.
 
+## Candidate common first bring-up profile
+
+A reasonable *candidate* for first cross-board testing is:
+
+- 8b/10b line rate: 6.25 Gb/s per SFP lane.
+- Four decoded symbols per PHY word (40-bit encoded word, 32 data bits plus
+  four K-character indicators).
+- PHY user clock: 156.25 MHz.
+- One data byte per PHY word using the generic comma-first adapter.
+- Effective transport ceiling: 1.25 Gb/s per lane, or 2.5 Gb/s across two lanes,
+  before the project's frame overhead.
+
+This keeps the node clock at 156.25 MHz and uses a line rate within the Acorn
+GTP's documented 6.6-Gb/s limit. The Tang dock's MS5351 reference-clock guide
+also lists 156.25 MHz as a supported output configuration. The actual PLL
+settings, SFP polarity, comma alignment and link stability still require
+vendor-tool verification and then hardware PRBS/loopback testing; this is a
+starting configuration, not a validated board profile.
+
 ## First bring-up adapter
 
 `rtl/bonded_phy_8b10b_adapter.sv` provides a vendor-neutral bridge for a
