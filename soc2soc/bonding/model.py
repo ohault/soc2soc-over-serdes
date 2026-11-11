@@ -248,8 +248,9 @@ class BondedSender(_Session):
         total bytes/packets accepted during this session, not current free space.
         """
         self._require_ready()
-        if byte_limit < self.remote_credit_bytes and packet_limit < self.remote_credit_packets:
-            # A delayed cumulative update is stale; ignore it atomically.
+        if byte_limit <= self.remote_credit_bytes and packet_limit <= self.remote_credit_packets:
+            # A delayed cumulative snapshot may leave one counter unchanged;
+            # ignore the entire stale pair atomically.
             return
         if byte_limit < self.remote_credit_bytes or packet_limit < self.remote_credit_packets:
             raise PacketRejected("inconsistent remote credit update moved one limit backwards")
