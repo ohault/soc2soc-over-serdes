@@ -17,6 +17,29 @@ memory-mapped protocol. One SoC (the *initiator*) reads and writes the bus of th
                              GTP (8b/10b) ═══ SFP ══ DAC ══ SFP ═══ GTP (8b/10b)
 ```
 
+## Experimental bonded packet transport
+
+This branch also develops a separate, board- and SoC-agnostic packet transport
+that bonds the two physical SFP/DAC lanes into one logical full-duplex link.
+It is **not yet wired into `acorn_soc2soc.py`**, does not replace the existing
+SerWB implementation, and must be treated as experimental until its RTL
+regressions and hardware tests pass.
+
+The generic RTL includes an autonomous two-lane node, HELLO/READY session
+negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
+reordering, raw-byte frame reconstruction and a generic 8b/10b PHY symbol
+adapter. Board-specific SERDES primitives and clocks remain outside the
+bonding core.
+
+- [Project roadmap](docs/project-roadmap.md)
+- [RTL control transport](docs/rtl-control-transport.md)
+- [Physical byte-stream contract](docs/physical-byte-stream-interface.md)
+- [SERDES adapter research and throughput limits](docs/serdes-adapter-research.md)
+
+The initial 8b/10b adapter carries one data byte per PHY word for conservative
+bring-up; it is not the full-rate multi-byte datapath required for maximum
+SFP+ throughput. No hardware validation has been performed yet.
+
 ## Scenarios
 
 Every board runs the same gateware: **SFP0 is the initiator and SFP1 the target**. Every DAC cable
