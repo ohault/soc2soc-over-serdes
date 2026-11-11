@@ -14,12 +14,15 @@ module tb_bonded_packet_tx;
     wire [LANES*K-1:0] lane_keep;
     wire [LANES*32-1:0] lane_packet_sequence;
     wire [LANES*16-1:0] lane_packet_length;
-    wire packet_error;\n    wire credit_reserve_valid; wire [15:0] credit_reserve_bytes;
+    wire packet_error;
+    wire credit_reserve_valid; wire [15:0] credit_reserve_bytes;
 
     bonded_packet_tx #(.DATA_WIDTH(W),.LANE_COUNT(LANES),.MAX_PACKET_BYTES(64)) dut (
         .clk(clk),.rst(rst),
         .tx_valid(tx_valid),.tx_ready(tx_ready),.tx_data(tx_data),
-        .tx_keep(tx_keep),.tx_sop(tx_sop),.tx_eop(tx_eop),\n        .credit_reserve_ready(1'b1),.credit_reserve_valid(credit_reserve_valid),\n        .credit_reserve_bytes(credit_reserve_bytes),
+        .tx_keep(tx_keep),.tx_sop(tx_sop),.tx_eop(tx_eop),
+        .credit_reserve_ready(1'b1),.credit_reserve_valid(credit_reserve_valid),
+        .credit_reserve_bytes(credit_reserve_bytes),
         .lane_valid(lane_valid),.lane_ready(lane_ready),
         .lane_data(lane_data),.lane_keep(lane_keep),
         .lane_sop(lane_sop),.lane_eop(lane_eop),
