@@ -76,3 +76,9 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_packet_tx -o /tmp/tb_packet_tx \
             rtl/bonded_packet_tx.sv rtl/tb_bonded_packet_tx.sv
           vvp /tmp/tb_packet_tx
+
+      - name: Compile and run v0 wire TX golden-vector testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_wire_tx_lane -o /tmp/tb_wire_tx \
+            rtl/bonded_wire_tx_lane.sv rtl/tb_bonded_wire_tx_lane.sv
+          vvp /tmp/tb_wire_tx
