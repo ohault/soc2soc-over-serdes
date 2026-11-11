@@ -381,26 +381,16 @@ module tb_bonded_two_lane_phy_word_node;
         if(active_b || !fault_b)
             $fatal(1,"remote peer did not fault after PONG timeout");
         @(negedge bond_a);lane0_up_a=1;
-        repeat(8) @(posedge bond_a);
-        repeat(8) @(posedge bond_b);
-        if(active_a || active_b || !fault_a || !fault_b)
-            $fatal(1,"sticky lane/heartbeat fault cleared without coordinated reset");
-
-        // A coordinated recovery resets both the physical lane FIFOs and
-        // the bonding/control domains. The separate bridge session-flush
-        // regression above covers stale continuation handling without a PHY
-        // reset; this node-level test verifies the complete reinitialization.
-        @(negedge bond_a);bond_rst_n=0;phy_rst_n=0;
-        repeat(6) @(posedge bond_a);
-        @(negedge a_tx0);phy_rst_n=1;
-        repeat(6) @(posedge bond_a);
-        @(negedge bond_a);bond_rst_n=1;
         cycles=0;
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
         if(!active_a || !active_b || fault_a || fault_b)
-            $fatal(1,"bonding session did not re-arm after coordinated reset");
+            $fatal(1,"new session epoch did not re-arm after lane recovery");
+        if(node_a.node.active_session_id!==64'h123456789abcdef1 ||
+           node_b.node.active_session_id!==64'h123456789abcdef1)
+            $fatal(1,"peers did not converge on the incremented session epoch A=%h B=%h",
+                node_a.node.active_session_id,node_b.node.active_session_id);
         expected_count=0;got=0;packet_number=0;
         reverse_expected_count=0;reverse_got=0;reverse_packet_number=0;
         begin : post_reset_traffic
