@@ -71,9 +71,9 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43115988476](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43115988476)
+[43116574703](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43116574703)
 completed successfully for commit
-`c3a0c569ad4d19a2bd42c264c348c59b73b44edd`. Both the Python reference-model
+`5ca86cad5baf1eea3a66095357068eb78f79f417`. Both the Python reference-model
 and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
@@ -84,19 +84,21 @@ PHY errors invalidate both bonded sessions. It also drops a lane, verifies the
 sticky session fault, performs a coordinated physical-lane/bonding reset, and
 re-establishes the full-duplex session. The per-lane bridge regression exercises
 session-drop flushing and stale continuation-word discard without relying on a
-physical FIFO reset.
+physical FIFO reset. The end-to-end topology is intentionally cross-wired:
+local RX0 receives remote TX1 and local RX1 receives remote TX0. Dynamic remote
+lane-ID discovery and local ingress-lane tagging allow HELLO/READY and DATA to
+work with that cable arrangement.
 
 This remains digital simulation evidence. It does not model analogue SERDES
 behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Extend the passing digital regression with asymmetric one-sided lane loss
-   and remote heartbeat-timeout recovery. Current lane-fault handling is
-   sticky; recovery currently requires a coordinated physical-lane and
-   bonding-domain reset rather than autonomous re-negotiation.
-2. Implement RTL lane-map discovery and a fresh per-session epoch so crossed
-   SFP/DAC cabling and stale frames are handled deterministically.
+1. Extend lane-map validation to reject duplicate remote lane IDs and test
+   asymmetric one-sided lane loss followed by remote heartbeat-timeout recovery.
+2. Add a fresh per-session epoch so stale complete frames cannot be accepted
+   after a coordinated reset; the current bridge flush only discards stale
+   continuation words until the next SOP.
 3. Implement the first board-specific SERDES wrapper, beginning with the
    Acorn GTP and LiteICLink integration while keeping all vendor primitives
    outside the generic bonding RTL.
