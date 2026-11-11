@@ -37,6 +37,10 @@ module bonded_two_lane_rx #(
     output wire packet_error
 );
     localparam integer CDC_WIDTH = 42;
+    initial begin
+        if(LANE0_ID==LANE1_ID)
+            $error("LANE0_ID and LANE1_ID must be distinct");
+    end
     wire data0_valid,data0_ready,data0_sop,data0_eop;
     wire [7:0] data0_data;
     wire ctrl0_stream_valid,ctrl0_stream_ready,ctrl0_stream_sop,ctrl0_stream_eop;
@@ -216,8 +220,37 @@ module bonded_two_lane_rx #(
         end
     end
 
-    assign lane0_frame_error = lane0_data_frame_error | ctrl0_demux_error | ctrl0_frame_error | lane0_map_error;
-    assign lane1_frame_error = lane1_data_frame_error | ctrl1_demux_error | ctrl1_frame_error | lane1_map_error;
+    // Mapping values are static once learned in their recovered-clock
+    // domains. Synchronize VALID first-class and the stable ID buses into the
+    // bonding clock to reject a peer that advertises one TX lane ID on both
+    // physical paths.
+    (* async_reg = "true" *) reg [1:0] lane_map_valid_sync1,lane_map_valid_sync2;
+    (* async_reg = "true" *) reg [7:0] lane0_remote_id_sync1,lane0_remote_id_sync2;
+    (* async_reg = "true" *) reg [7:0] lane1_remote_id_sync1,lane1_remote_id_sync2;
+    reg duplicate_remote_lane_id;
+    always @(posedge bond_clk or negedge control_rst_n) begin
+        if(!control_rst_n) begin
+            lane_map_valid_sync1<=0;lane_map_valid_sync2<=0;
+            lane0_remote_id_sync1<=0;lane0_remote_id_sync2<=0;
+            lane1_remote_id_sync1<=0;lane1_remote_id_sync2<=0;
+            duplicate_remote_lane_id<=1'b0;
+        end else begin
+            lane_map_valid_sync1<={lane1_mapping_valid,lane0_mapping_valid};
+            lane_map_valid_sync2<=lane_map_valid_sync1;
+            lane0_remote_id_sync1<=lane0_remote_lane_id;
+            lane0_remote_id_sync2<=lane0_remote_id_sync1;
+            lane1_remote_id_sync1<=lane1_remote_lane_id;
+            lane1_remote_id_sync2<=lane1_remote_id_sync1;
+            if(DYNAMIC_LANE_MAP && lane_map_valid_sync2==2'b11 &&
+               lane0_remote_id_sync2==lane1_remote_id_sync2)
+                duplicate_remote_lane_id<=1'b1;
+        end
+    end
+
+    assign lane0_frame_error = lane0_data_frame_error | ctrl0_demux_error | ctrl0_frame_error |
+                               lane0_map_error | duplicate_remote_lane_id;
+    assign lane1_frame_error = lane1_data_frame_error | ctrl1_demux_error | ctrl1_frame_error |
+                               lane1_map_error | duplicate_remote_lane_id;
 
     wire cdc0_valid, cdc0_ready, cdc1_valid, cdc1_ready;
     wire [CDC_WIDTH-1:0] cdc0_data, cdc1_data;
