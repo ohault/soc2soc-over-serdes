@@ -138,3 +138,11 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_lane_frame_arbiter -o /tmp/tb_lane_arbiter \
             rtl/bonded_lane_frame_arbiter.sv rtl/tb_bonded_lane_frame_arbiter.sv
           vvp /tmp/tb_lane_arbiter
+
+      - name: Compile and run composed per-lane CONTROL/DATA TX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_lane_tx_mux -o /tmp/tb_lane_tx_mux \
+            rtl/bonded_control_frame_tx.sv rtl/bonded_wire_tx_lane.sv \
+            rtl/bonded_lane_frame_arbiter.sv rtl/bonded_lane_tx_mux.sv \
+            rtl/tb_bonded_lane_tx_mux.sv
+          vvp /tmp/tb_lane_tx_mux
