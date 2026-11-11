@@ -170,3 +170,13 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_lane_frame_arbiter_atomic -o /tmp/tb_lane_arbiter_atomic \
             rtl/bonded_lane_frame_arbiter.sv rtl/tb_bonded_lane_frame_arbiter_atomic.sv
           vvp /tmp/tb_lane_arbiter_atomic
+
+      - name: Compile and run integrated two-lane CONTROL RX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_two_lane_rx_control -o /tmp/tb_two_lane_rx_control \
+            rtl/bonded_control_frame_tx.sv rtl/bonded_control_frame_rx.sv \
+            rtl/bonded_wire_rx_demux.sv rtl/bonded_wire_rx_lane.sv \
+            rtl/bonded_async_fifo.sv rtl/bonded_two_lane_cdc.sv \
+            rtl/bonded_packet_rx.sv rtl/bonded_credit_manager.sv rtl/bonded_two_lane_rx.sv \
+            rtl/tb_bonded_two_lane_rx_control.sv
+          vvp /tmp/tb_two_lane_rx_control
