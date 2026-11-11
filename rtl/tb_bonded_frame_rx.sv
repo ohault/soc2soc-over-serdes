@@ -39,7 +39,6 @@ module tb_bonded_frame_rx;
         repeat(3) @(posedge clk);
         @(negedge clk); rst=0; out_ready=0;
         send_beat(32'h67452301,4'hf,1,0);
-        send_beat(32'h00000089,4'h1,0,1);
         repeat(3) begin
             @(posedge clk); #1;
             if (!out_valid || out_data !== 8'h01 || !out_sop || out_eop)
@@ -50,6 +49,7 @@ module tb_bonded_frame_rx;
         expect_byte(8'h23,0,0);
         expect_byte(8'h45,0,0);
         expect_byte(8'h67,0,0);
+        send_beat(32'h00000089,4'h1,0,1);
         expect_byte(8'h89,0,1);
         @(negedge clk);
         if (out_valid) $fatal(1,"RX output not empty");
