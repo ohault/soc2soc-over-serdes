@@ -21,6 +21,11 @@ module bonded_two_lane_rx #(
     input wire [7:0] lane1_data, input wire lane1_sop, input wire lane1_eop,
 
     input wire bond_clk,
+    input wire [63:0] remote_byte_limit,
+    input wire [31:0] remote_packet_limit,
+    output wire [63:0] local_byte_limit,
+    output wire [31:0] local_packet_limit,
+    output wire credit_error,
     output wire out_valid, input wire out_ready,
     output wire [7:0] out_data, output wire out_sop, output wire out_eop,
     output wire [31:0] out_packet_sequence,
@@ -87,6 +92,26 @@ module bonded_two_lane_rx #(
     assign cdc0_ready = reorder_ready[0];
     assign cdc1_ready = reorder_ready[1];
 
+    wire packet_accept_valid, packet_consume_valid;
+    wire [15:0] packet_accept_bytes, packet_consume_bytes;
+    wire [63:0] tx_reserved_bytes, rx_accepted_bytes, rx_consumed_bytes;
+    wire [31:0] tx_reserved_packets, rx_accepted_packets, rx_consumed_packets;
+    wire rx_accept_ready;
+
+    bonded_credit_manager credit_accounting (
+        .clk(bond_clk), .rst(!bond_rst_n),
+        .tx_reserve_valid(1'b0), .tx_reserve_bytes(16'd0), .tx_reserve_ready(),
+        .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
+        .tx_reserved_bytes(tx_reserved_bytes), .tx_reserved_packets(tx_reserved_packets),
+        .rx_accept_valid(packet_accept_valid), .rx_accept_bytes(packet_accept_bytes),
+        .rx_accept_ready(rx_accept_ready),
+        .rx_consume_valid(packet_consume_valid), .rx_consume_bytes(packet_consume_bytes),
+        .rx_accepted_bytes(rx_accepted_bytes), .rx_accepted_packets(rx_accepted_packets),
+        .rx_consumed_bytes(rx_consumed_bytes), .rx_consumed_packets(rx_consumed_packets),
+        .local_byte_limit(local_byte_limit), .local_packet_limit(local_packet_limit),
+        .credit_error(credit_error)
+    );
+
     bonded_packet_rx #(
         .LANE_COUNT(2), .WINDOW_SIZE(REORDER_WINDOW),
         .MAX_PACKET_BYTES(MAX_PACKET_BYTES)
@@ -98,6 +123,8 @@ module bonded_two_lane_rx #(
         .out_valid(out_valid), .out_ready(out_ready), .out_data(out_data),
         .out_sop(out_sop), .out_eop(out_eop),
         .out_packet_sequence(out_packet_sequence),
-        .expected_packet_sequence(), .packet_error(packet_error)
+        .expected_packet_sequence(), .packet_error(packet_error),
+        .packet_accept_valid(packet_accept_valid), .packet_accept_bytes(packet_accept_bytes),
+        .packet_consume_valid(packet_consume_valid), .packet_consume_bytes(packet_consume_bytes)
     );
 endmodule
