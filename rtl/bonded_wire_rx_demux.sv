@@ -84,10 +84,18 @@ module bonded_wire_rx_demux (
             end
             if(state==ST_REPLAY && output_valid && output_ready) begin
                 if(replay_index==3) begin
-                    replay_index<=0;state<=ST_BODY;
+                    replay_index<=0;state<=(!selected_control && !data_enable) ? ST_DROP : ST_BODY;
                 end else replay_index<=replay_index+1'b1;
             end
-            if(state==ST_BODY && in_valid && in_ready && in_eop) begin
+            if(state==ST_BODY && !selected_control && !data_enable) begin
+                // A session reset may abort the DATA encoder without an EOP.
+                // Drop the incomplete frame and resynchronize on the next SOP.
+                if(in_valid && in_ready && in_sop) begin
+                    header_mem[0]<=in_data;header_count<=1;state<=ST_HEADER;
+                end else begin
+                    state<=ST_DROP;header_count<=0;
+                end
+            end else if(state==ST_BODY && in_valid && in_ready && in_eop) begin
                 state<=ST_HEADER;header_count<=0;
             end
             if(state==ST_DROP && in_valid && in_ready) begin
