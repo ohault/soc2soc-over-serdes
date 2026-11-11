@@ -216,8 +216,26 @@ module tb_bonded_two_lane_phy_word_node;
            txerr_a || rxerr_b || a0txerr || a1txerr || b0txerr || b1txerr ||
            a0rxerr || a1rxerr || b0rxerr || b1rxerr ||
            a0tf || a1tf || b0tf || b1tf || a0rf || a1rf || b0rf || b1rf)
-            $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
-                   got,expected_count);
+            begin
+                $display("diag active=%b/%b fault=%b/%b credit=%b/%b txerr=%b/%b rxerr=%b/%b",
+                    active_a,active_b,fault_a,fault_b,credit_a,credit_b,txerr_a,txerr_b,rxerr_a,rxerr_b);
+                $display("diag reorder expected=%0d slot_valid=%b filling=%b lane_active=%b lane_drop=%b counts=%0d/%0d",
+                    node_b.node.endpoint.rx_path.packet_reorder.expected_packet_sequence,
+                    node_b.node.endpoint.rx_path.packet_reorder.slot_valid,
+                    node_b.node.endpoint.rx_path.packet_reorder.slot_filling,
+                    node_b.node.endpoint.rx_path.packet_reorder.lane_active,
+                    node_b.node.endpoint.rx_path.packet_reorder.lane_drop,
+                    node_b.node.endpoint.rx_path.packet_reorder.lane_count[0],
+                    node_b.node.endpoint.rx_path.packet_reorder.lane_count[1]);
+                $display("diag lane frames tx=%0d/%0d rx_expected=%0d/%0d frame_errors=%b%b%b%b",
+                    node_a.node.endpoint.tx_path.lane0_frame_sequence,
+                    node_a.node.endpoint.tx_path.lane1_frame_sequence,
+                    node_b.node.endpoint.rx_path.lane0_expected_wire_sequence,
+                    node_b.node.endpoint.rx_path.lane1_expected_wire_sequence,
+                    a0rf,a1rf,b0rf,b1rf);
+                $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
+                       got,expected_count);
+            end
         $display("PASS: two-node parallel PHY, 8 packet lengths, partial words and RX backpressure");
         $finish;
     end
