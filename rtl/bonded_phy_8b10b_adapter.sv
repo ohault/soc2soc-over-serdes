@@ -72,7 +72,7 @@ module bonded_phy_8b10b_adapter #(
     // The PHY side is a continuous symbol stream: transmit K28.5 idles when
     // no application byte is available. Symbol 0 always carries K28.5 so the
     // receiver can align each PHY word unambiguously.
-    assign tx_phy_valid=!rst;
+    assign tx_phy_valid=!rst && tx_phy_ready;
     assign tx_byte_ready=!rst && tx_phy_ready;
     genvar g;
     generate for(g=0;g<SYMBOLS_PER_WORD;g=g+1) begin: tx_symbols
