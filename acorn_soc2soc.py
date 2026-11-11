@@ -25,11 +25,14 @@
 # --with-stream adds a bidirectional 32-bit stream port with flow control on each link, next to
 # register access (a stream tester is connected to it, see soc2soc/stream.py for your own logic).
 
+import os
+
 from migen import *
 
 from litex.gen import *
 
 from litex.build.io import DifferentialInput
+from litex.build.openfpgaloader import OpenFPGALoader
 
 from litex_boards.platforms import sqrl_acorn
 
@@ -245,19 +248,40 @@ def main():
         prog = create_programmer(soc.platform, args.programmer, args.usb_port)
         prog.flash(0, builder.get_bitstream_filename(mode="flash"))
 
+# Baseboard FTDI chips (USB product ID, vendor 0x0403) and their openFPGALoader cables: the chip
+# depends on the baseboard release.
+FTDI_CABLES = {
+    0x6010 : "ft2232",
+    0x6011 : "ft4232",
+    0x6014 : "digilent_hs2", # FT232H.
+}
+
+def usb_port_ftdi(usb_port, sysfs="/sys/bus/usb/devices"):
+    """Return (busnum, devnum, cable) of the FTDI chip plugged into a host USB port (e.g. 1-3)."""
+    path = os.path.join(sysfs, usb_port)
+    if not os.path.exists(os.path.join(path, "busnum")):
+        raise RuntimeError(f"No USB device on port {usb_port} ({path}).")
+    def read(name):
+        with open(os.path.join(path, name)) as f:
+            return f.read().strip()
+    vid = int(read("idVendor"),  16)
+    pid = int(read("idProduct"), 16)
+    if (vid != 0x0403) or (pid not in FTDI_CABLES):
+        raise RuntimeError(f"No supported FTDI chip on port {usb_port} ({vid:04x}:{pid:04x}).")
+    return int(read("busnum")), int(read("devnum")), FTDI_CABLES[pid]
+
 def create_programmer(platform, name, usb_port=None):
-    prog = platform.create_programmer(name)
-    if usb_port is not None:
-        # The FTDI chip of the board has no serial number: select it by USB bus/device number, which
-        # changes on each replug, so resolve it from the (stable) host USB port.
-        assert name == "openfpgaloader", "--usb-port requires --programmer=openfpgaloader."
-        import os
-        path = os.path.join("/sys/bus/usb/devices", usb_port)
-        if not os.path.exists(os.path.join(path, "busnum")):
-            raise RuntimeError(f"No USB device on port {usb_port} ({path}).")
-        busnum = int(open(os.path.join(path, "busnum")).read())
-        devnum = int(open(os.path.join(path, "devnum")).read())
-        prog.cmd += ["--busdev-num", f"{busnum}:{devnum}"]
+    if usb_port is None:
+        # Platform detection: first FTDI chip found by lsusb.
+        return platform.create_programmer(name)
+    # The FTDI chip of the board has no serial number: select it by USB bus/device number, which
+    # changes on each replug, so resolve it from the (stable) host USB port, and detect the chip
+    # (and so the cable) of that board, not of the first board found.
+    assert name == "openfpgaloader", "--usb-port requires --programmer=openfpgaloader."
+    busnum, devnum, cable = usb_port_ftdi(usb_port)
+    fpga_part = platform.device.rsplit("-", 1)[0].replace("-", "") # xc7a200t-fbg484-3 -> xc7a200tfbg484.
+    prog = OpenFPGALoader(cable=cable, fpga_part=fpga_part, freq=10e6)
+    prog.cmd += ["--busdev-num", f"{busnum}:{devnum}"]
     return prog
 
 if __name__ == "__main__":

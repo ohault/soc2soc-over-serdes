@@ -51,6 +51,7 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | `test/test_link.py` | Simulation: two link layers back to back with SerWB on top (byte misalignment, CRC and error recovery cases, single-SoC bus deadlock). |
 | `test/test_bench.py` | Simulation: bandwidth/latency of each scenario (one and two DAC cables). |
 | `test/test_stream.py` | Simulation: stream port with a slow consumer, and register access while a stream consumer is stalled. |
+| `test/test_programmer.py` | Board selection by host USB port: FTDI chip / programming cable detection. |
 
 ## Installation
 
@@ -73,7 +74,8 @@ pip3 install --user meson ninja && python3 litex_setup.py --gcc=riscv   # For th
 
 The board's FTDI chip has no USB serial number: with several boards connected, `--usb-port` selects
 a board by the host USB port it is plugged into (see `/sys/bus/usb/devices`, and
-[docs/test-procedure.md](docs/test-procedure.md#22-load-or-flash)). It can be omitted with a single
+[docs/test-procedure.md](docs/test-procedure.md#22-load-or-flash)), and detects that board's FTDI
+chip (FT2232, FT4232 or FT232H) to pick the programming cable. It can be omitted with a single
 board.
 
 Useful options:

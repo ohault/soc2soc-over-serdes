@@ -113,10 +113,13 @@ bus interconnect and the bandwidth bench.
 
 The board's FTDI chip has no USB serial number, so with several boards connected each board is
 selected by the **host USB port** it is plugged into (`--usb-port`, the name of the device in
-`/sys/bus/usb/devices`). To find it, list the FTDI devices:
+`/sys/bus/usb/devices`). The FTDI chip depends on the baseboard release (FT2232, or FT4232 on newer
+releases): `--usb-port` detects the chip of the selected board and uses the matching programming
+cable. To find the ports, list the FTDI devices:
 
 ```sh
-for d in /sys/bus/usb/devices/*; do [ "$(cat $d/idProduct 2>/dev/null)" = 6010 ] && echo "$(basename $d)"; done
+for d in /sys/bus/usb/devices/*; do case "$(cat $d/idVendor 2>/dev/null):$(cat $d/idProduct 2>/dev/null)" in
+  0403:6010) echo "$(basename $d) FT2232";; 0403:6011) echo "$(basename $d) FT4232";; 0403:6014) echo "$(basename $d) FT232H";; esac; done
 ```
 
 Name the boards once and for all: board **A** is the one on the first port (e.g. `1-3`), board **B**
@@ -138,7 +141,8 @@ every power-up. With a single board connected, `--usb-port` can be omitted.
 
 Start one `litex_server` per board, **board A on port 1234 and board B on port 1235** (the defaults
 of `test_soc2soc.py`). Use the stable UART names of `/dev/serial/by-path`, which only depend on the
-host USB port; the UART is interface `1.1` of the FTDI chip:
+host USB port. On an FT2232 baseboard the UART is interface `1.1` of the FTDI chip; an FT4232 has
+four interfaces, so check which one answers:
 
 ```sh
 ls -l /dev/serial/by-path/
