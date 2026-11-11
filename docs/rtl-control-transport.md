@@ -86,6 +86,35 @@ Dedicated regressions cover:
 These tests are included in `.github/workflows/bonding-tests.yml`. A successful
 CI result has not yet been observed for the current branch revision.
 
+## RTL control manager and autonomous node
+
+`bonded_control_manager` now implements the v0 control state machine:
+
+- HELLO transmission and per-lane HELLO reception.
+- READY transmission after both lane HELLOs, and per-lane READY tracking.
+- Session establishment only after the bidirectional two-lane exchange.
+- Monotonic remote byte and packet grant updates from HELLO and CREDIT.
+- CREDIT generation when local cumulative grants change.
+- PING/PONG heartbeat and timeout detection.
+- RESET/ERROR and physical-lane-down fault indication.
+
+`bonded_two_lane_node` composes the manager with the full-duplex endpoint.
+It exposes application packet streams, physical lane byte streams, and lane-up
+status. The manager is no longer dependent on an out-of-band session-active
+input.
+
+The reset architecture separates the always-available CONTROL path from the
+session-scoped DATA path. Before session establishment, DATA is held reset or
+discarded by the RX demultiplexer, while HELLO/READY can still traverse both
+physical lanes. A DATA frame already selected when the session drops is
+aborted at the frame arbiter; an in-progress CONTROL frame is not aborted by
+the DATA reset.
+
+For v0, both peers must be provisioned with the same non-zero session ID.
+The manager currently assumes the peer's physical lane IDs map directly to
+the local lane indices. Deterministic session-ID election, crossed-lane
+discovery, and automatic restart after a control fault remain future work.
+
 ## Remaining work before hardware validation
 
 - Connect decoded CONTROL messages to the RTL session manager and credit
