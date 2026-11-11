@@ -26,6 +26,9 @@ module bonded_two_lane_endpoint #(
     output wire [63:0] local_byte_limit,
     output wire [31:0] local_packet_limit,
     output wire rx_credit_error,
+    output wire ctrl_rx_valid, input wire ctrl_rx_ready,
+    output wire [207:0] ctrl_rx_body, output wire [5:0] ctrl_rx_body_length,
+    output wire ctrl_rx_lane,
 
     // Logical application transmit interface (packet stream).
     input wire tx_valid, output wire tx_ready,
@@ -128,6 +131,8 @@ module bonded_two_lane_endpoint #(
         .bond_clk(bond_clk),
         .local_byte_limit(local_byte_limit), .local_packet_limit(local_packet_limit),
         .credit_error(rx_credit_error),
+        .ctrl_rx_valid(ctrl_rx_valid),.ctrl_rx_ready(ctrl_rx_ready),
+        .ctrl_rx_body(ctrl_rx_body),.ctrl_rx_body_length(ctrl_rx_body_length),.ctrl_rx_lane(ctrl_rx_lane),
         .out_valid(rx_path_valid), .out_ready(rx_ready && session_active), .out_data(rx_data),
         .out_sop(rx_sop), .out_eop(rx_eop),
         .out_packet_sequence(rx_packet_sequence),
