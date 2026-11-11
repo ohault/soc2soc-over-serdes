@@ -86,7 +86,8 @@ module bonded_two_lane_phy_word_node #(
         .PONG_TIMEOUT_CYCLES(PONG_TIMEOUT_CYCLES)
     ) node (
         .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),
-        .lane0_up(lane0_up),.lane1_up(lane1_up),
+        .lane0_up(lane0_up && !lane0_phy_tx_error),
+        .lane1_up(lane1_up && !lane1_phy_tx_error),
         .lane0_tx_clk(lane0_tx_clk),.lane0_tx_rst_n(lane0_tx_rst_n),
         .lane0_tx_valid(lane0_byte_tx_valid),.lane0_tx_ready(lane0_byte_tx_ready),
         .lane0_tx_data(lane0_byte_tx_data),.lane0_tx_sop(lane0_byte_tx_sop),
