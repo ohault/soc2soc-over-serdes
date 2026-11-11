@@ -9,7 +9,7 @@ module tb_bonded_lane_frame_arbiter_atomic;
  wire [7:0] out_data;
  integer seen=0;
  bonded_lane_frame_arbiter dut(
-  .clk(clk),.rst(rst),
+  .clk(clk),.rst(rst),.data_abort(1'b0),
   .ctrl_valid(ctrl_valid),.ctrl_ready(ctrl_ready),.ctrl_data(ctrl_byte),
   .ctrl_sop(ctrl_index==0),.ctrl_eop(ctrl_index==1),
   .data_valid(data_valid),.data_ready(data_ready),.data_data(data_byte),
