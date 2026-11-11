@@ -120,7 +120,7 @@ module bonded_two_lane_rx #(
         .frame_error(lane1_data_frame_error), .frame_valid_pulse(rx1_frame_pulse)
     );
     bonded_control_frame_rx #(.LANE_ID(LANE1_ID)) control_decoder1 (
-        .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.expected_frame_sequence_override(lane1_expected_wire_sequence),
+        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.expected_frame_sequence_override(lane1_expected_wire_sequence),
         .in_valid(ctrl1_stream_valid),.in_ready(ctrl1_stream_ready),.in_data(ctrl1_stream_data),
         .in_sop(ctrl1_stream_sop),.in_eop(ctrl1_stream_eop),
         .ctrl_valid(ctrl1_message_valid),.ctrl_ready(ctrl1_message_ready),
