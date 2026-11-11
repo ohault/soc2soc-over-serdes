@@ -18,7 +18,7 @@ module tb_bonded_lane_phy_word_bridge;
     wire [31:0] phy_rx_data;
     wire [3:0] phy_rx_ctrl;
     wire rx_valid;
-    reg rx_ready=0;
+    reg rx_ready=0,stall_rx=0;
     wire [7:0] rx_data;
     wire rx_overflow,rx_symbol_error,rx_gearbox_error;
 
@@ -42,10 +42,10 @@ module tb_bonded_lane_phy_word_bridge;
     // A dual-clock FIFO models the physical lane and its independent recovered
     // RX user clock. It carries decoded symbols plus their K-character flags.
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(8)) channel (
-        .wr_clk(tx_clk),.wr_rst_n(tx_rst_n && session_active),
+        .wr_clk(tx_clk),.wr_rst_n(tx_rst_n),
         .wr_valid(phy_tx_valid),.wr_ready(phy_tx_ready),
         .wr_data({phy_tx_ctrl,phy_tx_data}),
-        .rd_clk(rx_clk),.rd_rst_n(rx_rst_n && session_active),
+        .rd_clk(rx_clk),.rd_rst_n(rx_rst_n),
         .rd_valid(phy_rx_valid),.rd_ready(phy_rx_ready),
         .rd_data({phy_rx_ctrl,phy_rx_data})
     );
@@ -59,7 +59,7 @@ module tb_bonded_lane_phy_word_bridge;
             cycles<=0;
         end else begin
             cycles<=cycles+1;
-            rx_ready<=((cycles%9)!=3 && (cycles%9)!=4 && (cycles%9)!=5);
+            rx_ready<=!stall_rx && ((cycles%9)!=3 && (cycles%9)!=4 && (cycles%9)!=5);
             if(rx_valid && rx_ready) begin
                 if(received>=13 || rx_data!==expected[received])
                     $fatal(1,"byte mismatch at %0d: got %02x",received,rx_data);
@@ -109,9 +109,45 @@ module tb_bonded_lane_phy_word_bridge;
 
         wait(received==13);
         repeat(6) @(posedge rx_clk);
+
+        // Start an old frame, deliver its SOP word, then leave a continuation
+        // word queued while the consumer is stalled. A session drop must flush
+        // the local decoder and discard that old continuation until the next
+        // comma-marked SOP, without resetting the physical channel FIFO.
+        @(negedge rx_clk);received=0;stall_rx=0;
+        send_byte(8'h53,1,0);
+        send_byte(8'h42,0,0);
+        send_byte(8'hbc,0,0);
+        wait(received==3);
+        @(negedge rx_clk);stall_rx=1;
+        send_byte(8'h1c,0,0);
+        send_byte(8'h00,0,0);
+        send_byte(8'hff,0,0);
+        send_byte(8'h10,0,0);
+        repeat(4) @(posedge tx_clk);
+        @(negedge tx_clk);session_active=0;
+        repeat(5) @(posedge rx_clk);
+        @(negedge tx_clk);session_active=1;
+        repeat(5) @(posedge rx_clk);
+        @(negedge rx_clk);stall_rx=0;
+        send_byte(expected[0],1,0);
+        send_byte(expected[1],0,0);
+        send_byte(expected[2],0,0);
+        send_byte(expected[3],0,0);
+        send_byte(expected[4],0,0);
+        send_byte(expected[5],0,0);
+        send_byte(expected[6],0,0);
+        send_byte(expected[7],0,0);
+        send_byte(expected[8],0,0);
+        send_byte(expected[9],0,0);
+        send_byte(expected[10],0,0);
+        send_byte(expected[11],0,0);
+        send_byte(expected[12],0,1);
+        wait(received==13);
+        repeat(6) @(posedge rx_clk);
         if(tx_error || rx_overflow || rx_symbol_error || rx_gearbox_error)
             $fatal(1,"bridge asserted an unexpected error");
-        $display("PASS: lane bridge crosses independent TX/RX clocks and preserves bytes");
+        $display("PASS: independent TX/RX clocks, byte preservation and stale-frame discard after session drop");
         $finish;
     end
     initial begin #100000;$fatal(1,"timeout");end
