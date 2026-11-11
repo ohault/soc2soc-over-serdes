@@ -33,7 +33,7 @@ module bonded_wire_rx_demux (
     reg selected_control;
     wire selected_ready = selected_control ? ctrl_ready : (data_enable ? data_ready : 1'b1);
     wire replay_valid = (state==ST_REPLAY);
-    wire body_valid = (state==ST_BODY) && in_valid;
+    wire body_valid = (state==ST_BODY) && in_valid && !in_sop;
     wire output_valid = replay_valid || body_valid;
     wire [7:0] output_data = replay_valid ? header_mem[replay_index] : in_data;
     wire output_sop = replay_valid ? (replay_index==0) : in_sop;
