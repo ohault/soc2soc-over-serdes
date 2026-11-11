@@ -68,19 +68,23 @@ module bonded_two_lane_node #(
     end
 
     (* async_reg = "true" *) reg [1:0] lane_up_sync1,lane_up_sync2;
-    (* async_reg = "true" *) reg [1:0] lane_overflow_sync1,lane_overflow_sync2;
+    (* async_reg = "true" *) reg [1:0] lane_rx_error_sync1,lane_rx_error_sync2;
+    (* async_reg = "true" *) reg [1:0] lane_tx_error_sync1,lane_tx_error_sync2;
     always @(posedge bond_clk or negedge bond_rst_n) begin
         if(!bond_rst_n) begin
             lane_up_sync1<=0;lane_up_sync2<=0;
-            lane_overflow_sync1<=0;lane_overflow_sync2<=0;
+            lane_rx_error_sync1<=0;lane_rx_error_sync2<=0;
+            lane_tx_error_sync1<=0;lane_tx_error_sync2<=0;
         end else begin
             lane_up_sync1<={lane1_up,lane0_up};
             lane_up_sync2<=lane_up_sync1;
-            lane_overflow_sync1<={lane1_rx_overflow,lane0_rx_overflow};
-            lane_overflow_sync2<=lane_overflow_sync1;
+            lane_rx_error_sync1<={lane1_rx_frame_error,lane0_rx_frame_error};
+            lane_rx_error_sync2<=lane_rx_error_sync1;
+            lane_tx_error_sync1<={lane1_tx_frame_error,lane0_tx_frame_error};
+            lane_tx_error_sync2<=lane_tx_error_sync1;
         end
     end
-    wire [1:0] lane_up=lane_up_sync2 & ~lane_overflow_sync2;
+    wire [1:0] lane_up=lane_up_sync2 & ~lane_rx_error_sync2 & ~lane_tx_error_sync2;
 
     // Convert a bonding-clock session drop into one reset pulse in each
     // recovered RX clock domain. CONTROL negotiation remains alive.
