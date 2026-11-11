@@ -1,64 +1,49 @@
-# Full-duplex two-lane endpoint
+# Full-duplex bonded endpoint
 
-`bonded_two_lane_endpoint` composes the previously tested two-lane TX and RX
-paths into one reusable full-duplex endpoint. It does not assume a board,
-transceiver vendor, SoC, LiteX or Migen.
+`bonded_two_lane_endpoint` composes the two-lane TX and RX paths into one
+board- and SoC-neutral full-duplex endpoint. The TX and RX directions have
+independent clocks; each direction has two lane clocks, for four independent
+physical lane clock domains in total.
 
-## Logical interfaces
+## Session boundary and reset policy
 
-The endpoint exposes two independent application interfaces:
+The endpoint does not negotiate sessions itself. A higher-level control-plane
+implementation supplies:
 
-- TX: a common-bond-clock packet stream with DATA, KEEP, SOP and EOP.
-- RX: a common-bond-clock byte stream with packet SOP/EOP and the global
-  packet sequence, delivered in order.
+- `session_established`: asserted only after peer/session negotiation succeeds;
+- `tx_session_id`: the non-zero session identifier to place in transmitted
+  DATA frames;
+- `rx_expected_session_id`: the non-zero peer session identifier expected
+  in received DATA frames.
 
-The endpoint also exposes four physical byte-stream interfaces: TX and RX for
-each of two lanes. TX and RX lane clocks are separate ports because the
-transmit clock and recovered receive clock need not be related. The board
-adapter is responsible for connecting these streams to the appropriate
-PCS/PMA or vendor transceiver primitives.
+All four lane directions participate in one session. If any TX or RX lane
+reset asserts, `bonded_session_gate` asynchronously drops its common
+readiness synchronizer. The endpoint then deasserts `session_active` and
+asserts the datapath reset for **both** TX and RX. This flushes packet
+collection, reorder slots, frame sequence state and both sides of every
+asynchronous FIFO. The gate waits for two bonding-clock edges after all four
+lane resets and the bond reset are released. The external controller must
+then re-establish the session before traffic is accepted.
 
-The `bonded_session_gate` synchronizes deassertion of all four lane reset
-signals into the bonding clock domain. Any lane reset assertion immediately
-disables the application interfaces. Application traffic is enabled only when
-the external session manager asserts `session_established` and all four lane
-reset indications have been observed released through the synchronizers.
-This is a reset/readiness gate, not the HELLO/READY protocol itself.
+This is intentionally a whole-session reset policy. It does not yet support
+continuing on one surviving lane, lane-local rejoin, retransmission or
+sequence continuity across a lane reset.
 
-## Sessions and reset
+## Interfaces
 
-TX and RX session IDs are independent parameters/ports. The local TX session
-ID is inserted in outgoing frames; the expected peer session ID is checked by
-the receive decoders. A system-level session manager must negotiate and
-coordinate these values before application traffic is enabled.
+The application TX interface accepts complete packets using ready/valid,
+SOP/EOP and KEEP. The application RX interface emits ordered payload bytes
+with SOP/EOP and the global packet sequence. Each physical lane has independent
+TX and RX byte-stream ready/valid interfaces.
 
-This module is a datapath composition with an external session-ready input,
-not a complete link manager. It does not perform HELLO/READY negotiation,
-heartbeat, peer identity/election, credit exchange, lane-loss detection or
-automatic rejoin. The external manager must deassert `session_established`
-on any session/lane failure, coordinate reset with the peer, and assert it
-again only after negotiation and all required resets are complete.
+The endpoint remains independent of LiteX, Migen, FPGA vendor primitives and
+board models. Board adapters supply clocks, resets and the physical
+transceiver byte streams.
 
-## Physical stream contract
+## Verification scope
 
-Each lane TX port uses local ready/valid semantics toward the local PCS
-adapter. Do not connect TX READY directly to a remote endpoint's RX READY
-across the physical link. The PCS/PMA and board adapter must absorb the
-electrical/link-layer timing and present a local transmit acceptance signal.
-The receive adapter presents recovered-clock RX valid/data/SOP/EOP to the
-endpoint; it must ensure the RX decoder can accept the incoming byte stream.
-Protocol-level flow control/credits are the planned mechanism for controlling
-the remote sender, not a combinational ready wire across the cable.
-
-## Verification
-
-`tb_bonded_two_lane_endpoint` instantiates two endpoints and cross-connects
-both lanes in both directions. The test uses independent bonding clocks and
-unrelated transmit/recovered receive clocks for all four lane directions. It
-sends one application packet simultaneously in each direction and checks
-decoded payload, SOP/EOP, global packet sequence and all datapath error flags.
-
-This digital loopback verifies endpoint composition and simultaneous
-bidirectional datapath operation. It does not model a physical transceiver,
-PCS/PMA, elastic buffer, signal integrity, credit flow control or session
-negotiation.
+`tb_bonded_two_lane_endpoint` connects two endpoints in both directions
+through four independent asynchronous lane FIFOs. It checks bidirectional
+packet delivery and CRC-validated wire framing with unrelated clock domains.
+This is a digital integration test, not a PHY, signal-integrity or hardware
+resource validation.
