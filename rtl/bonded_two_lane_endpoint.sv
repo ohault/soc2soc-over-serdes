@@ -70,7 +70,7 @@ module bonded_two_lane_endpoint #(
     output wire [31:0] lane1_tx_frame_sequence
 );
     bonded_session_gate session_gate (
-        .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n),
+        .bond_clk(bond_clk), .bond_rst_n(bond_rst_n),
         .session_established(session_established),
         .lane0_tx_rst_n(lane0_tx_rst_n), .lane1_tx_rst_n(lane1_tx_rst_n),
         .lane0_rx_rst_n(lane0_rx_rst_n), .lane1_rx_rst_n(lane1_rx_rst_n),
