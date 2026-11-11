@@ -106,26 +106,26 @@ module bonded_two_lane_tx #(
     bonded_async_fifo #(.DATA_WIDTH(META_WIDTH),.DEPTH(FIFO_DEPTH)) lane0_fifo (
         .wr_clk(bond_clk),.wr_rst_n(bond_rst_n && lane0_rst_n),
         .wr_valid(sched_valid[0]),.wr_ready(fifo0_wr_ready),.wr_data(fifo0_in),
-        .rd_clk(lane0_clk),.rd_rst_n(control_rst_n && lane0_rst_n),
+        .rd_clk(lane0_clk),.rd_rst_n(bond_rst_n && lane0_rst_n),
         .rd_valid(fifo0_rd_valid),.rd_ready(enc0_in_ready),.rd_data(fifo0_out)
     );
     bonded_async_fifo #(.DATA_WIDTH(META_WIDTH),.DEPTH(FIFO_DEPTH)) lane1_fifo (
         .wr_clk(bond_clk),.wr_rst_n(bond_rst_n && lane1_rst_n),
         .wr_valid(sched_valid[1]),.wr_ready(fifo1_wr_ready),.wr_data(fifo1_in),
-        .rd_clk(lane1_clk),.rd_rst_n(control_rst_n && lane1_rst_n),
+        .rd_clk(lane1_clk),.rd_rst_n(bond_rst_n && lane1_rst_n),
         .rd_valid(fifo1_rd_valid),.rd_ready(enc1_in_ready),.rd_data(fifo1_out)
     );
 
     bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane0_control_fifo (
         .wr_clk(bond_clk),.wr_rst_n(control_rst_n && lane0_rst_n),
         .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl0_wr_ready),.wr_data(ctrl_fifo_in),
-        .rd_clk(lane0_clk),.rd_rst_n(bond_rst_n && lane0_rst_n),
+        .rd_clk(lane0_clk),.rd_rst_n(control_rst_n && lane0_rst_n),
         .rd_valid(ctrl0_rd_valid),.rd_ready(ctrl0_encoder_ready),.rd_data(ctrl0_fifo_out)
     );
     bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane1_control_fifo (
         .wr_clk(bond_clk),.wr_rst_n(control_rst_n && lane1_rst_n),
         .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl1_wr_ready),.wr_data(ctrl_fifo_in),
-        .rd_clk(lane1_clk),.rd_rst_n(bond_rst_n && lane1_rst_n),
+        .rd_clk(lane1_clk),.rd_rst_n(control_rst_n && lane1_rst_n),
         .rd_valid(ctrl1_rd_valid),.rd_ready(ctrl1_encoder_ready),.rd_data(ctrl1_fifo_out)
     );
     bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
