@@ -21,7 +21,7 @@ is an integration option, not a dependency of the bonding core.
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
-| Parallel 8b/10b word adapter and byte/word gearboxes | Standalone dual-clock pipeline prototype; CI pending | Byte TX/RX framing remains intact; SOP comma, multi-byte words, independent TX/RX clocks and async-FIFO loopback |
+| Parallel 8b/10b word adapter and byte/word gearboxes | Standalone dual-clock pipeline prototype; CI passing | Byte TX/RX framing remains intact; SOP comma, multi-byte words, independent TX/RX clocks and async-FIFO loopback |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -68,9 +68,10 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline:** GitHub Actions run
-[43112885282](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43112885282)
+[43113194812](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43113194812)
 completed successfully for commit
-`fac8bcbfb6c7b02d6649ef5430698f9aa78ce67f`. Both the Python reference-model
+`74a68a74e46555a8906ecd67cecfce9545046b17`. It includes the dual-clock
+parallel PHY adapter and asynchronous-FIFO loopback. Both the Python reference-model
 job and the RTL simulation job passed, including the parallel 8b/10b adapter
 and byte/word gearbox loopback. This is a software regression baseline only;
 it does not establish FPGA synthesis, timing closure, transceiver lock or
@@ -87,11 +88,10 @@ it does not transmit SOP/EOP sidebands over the link.
    and session reset during a frame.
 3. Implement RTL lane-map discovery and deterministic session-ID election,
    then add automatic recovery after a lane fault.
-4. Complete CI verification of the dual-clock parallel PHY adapter and
-   asynchronous-FIFO loopback. Then integrate that pipeline with the two-lane
-   endpoint and run a multi-byte two-node regression. The existing one-byte
-   adapter remains the conservative hardware bring-up path, not full
-   transceiver bandwidth.
+4. Integrate the verified dual-clock parallel PHY adapter and byte/word
+   gearboxes with the two-lane node, then run a multi-byte two-node regression.
+   The existing one-byte adapter remains the conservative hardware bring-up
+   path, not full transceiver bandwidth.
 5. Implement the first board-specific SERDES adapter, then validate the same
    bonding core on the second FPGA board.
 6. Only after the generic transport is stable, add PCIe and USB protocol
