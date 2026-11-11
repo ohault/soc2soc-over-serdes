@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 module tb_bonded_wire_rx_framer;
  reg clk=0; always #5 clk=~clk;
- reg rst=1,noise_mode=1,noise_valid=0,ctrl_valid=0;
+ reg rst=1,noise_mode=1,noise_valid=0,ctrl_valid=0,allow_tx=1;
  reg [7:0] noise_data=0;
  reg [207:0] body=0;
  wire ctrl_ready,tx_valid,tx_ready,tx_sop,tx_eop;
@@ -12,7 +12,7 @@ module tb_bonded_wire_rx_framer;
  wire [7:0] raw_data;
  wire out_valid,out_sop,out_eop,frame_error;
  wire [7:0] out_data;
- integer got=0;
+ integer got=0,sent=0;
  reg [7:0] captured[0:40];
  bonded_control_frame_tx #(.LANE_ID(0)) tx(
   .clk(clk),.rst(rst),.session_id(64'h0123456789abcdef),
@@ -22,7 +22,8 @@ module tb_bonded_wire_rx_framer;
   .next_frame_sequence(tx_seq),.frame_error(tx_error));
  assign raw_valid=noise_mode ? noise_valid : tx_valid;
  assign raw_data=noise_mode ? noise_data : tx_data;
- assign tx_ready=!noise_mode && raw_ready;
+ assign tx_ready=!noise_mode && allow_tx && raw_ready;
+ always @(posedge clk) if(!rst && !noise_mode && tx_valid && tx_ready) sent=sent+1;
  assign raw_sop=1'b0;
  assign raw_eop=1'b0;
  bonded_wire_rx_framer #(.MAX_FRAME_BODY(64)) dut(
@@ -56,7 +57,23 @@ module tb_bonded_wire_rx_framer;
      captured[24]!=8'h03 || captured[32]!=8'h10 || captured[40]===8'hxx ||
      tx_error || !frame_error || tx_seq!=1)
     $fatal(1,"framer resynchronization or header/body output mismatch");
-  $display("PASS: raw byte stream frame recovery, CRC-protected header length, SOP/EOP reconstruction");
+  $display("PASS: raw byte stream false-prefix recovery and CRC-protected framing");
+
+  // Abort a second frame after its header and part of its body have crossed
+  // the byte interface. Reset the parser, then ensure a fresh frame is found.
+  @(negedge clk);rst=1;ctrl_valid=0;allow_tx=1;sent=0;got=0;
+  repeat(2) @(posedge clk);
+  @(negedge clk);rst=0;ctrl_valid=1;
+  wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
+  wait(sent==30);
+  @(negedge clk);allow_tx=0;rst=1;
+  repeat(2) @(posedge clk);
+  @(negedge clk);rst=0;allow_tx=1;sent=0;ctrl_valid=1;
+  wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
+  wait(got==41);
+  if(frame_error || tx_error || tx_seq!=1 || captured[24]!=8'h03)
+    $fatal(1,"framer did not recover after mid-frame reset");
+  $display("PASS: raw RX framer recovers after a session-style mid-frame flush");
   $finish;
  end
  initial begin #20000;$fatal(1,"timeout got=%0d",got);end
