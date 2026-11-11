@@ -180,3 +180,16 @@ jobs:
             rtl/bonded_packet_rx.sv rtl/bonded_credit_manager.sv rtl/bonded_two_lane_rx.sv \
             rtl/tb_bonded_two_lane_rx_control.sv
           vvp /tmp/tb_two_lane_rx_control
+
+      - name: Compile and run autonomous two-node control and DATA regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_two_lane_node -o /tmp/tb_two_lane_node \
+            rtl/bonded_control_manager.sv rtl/bonded_two_lane_node.sv \
+            rtl/bonded_two_lane_endpoint.sv rtl/bonded_two_lane_tx.sv rtl/bonded_two_lane_rx.sv \
+            rtl/bonded_packet_tx.sv rtl/bonded_credit_manager.sv rtl/bonded_async_fifo.sv \
+            rtl/bonded_wire_tx_lane.sv rtl/bonded_wire_rx_lane.sv \
+            rtl/bonded_control_frame_tx.sv rtl/bonded_control_frame_rx.sv \
+            rtl/bonded_control_queue.sv rtl/bonded_lane_frame_arbiter.sv rtl/bonded_lane_tx_mux.sv \
+            rtl/bonded_wire_rx_demux.sv rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv \
+            rtl/bonded_session_gate.sv rtl/tb_bonded_two_lane_node.sv
+          vvp /tmp/tb_two_lane_node
