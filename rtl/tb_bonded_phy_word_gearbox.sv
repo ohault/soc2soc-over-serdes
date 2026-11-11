@@ -21,7 +21,7 @@ module tb_bonded_phy_word_gearbox;
  wire [31:0] rx_word_data;
  wire [3:0] rx_word_keep;
  wire rx_overflow,rx_symbol_error;
- wire out_valid,out_sop,out_ready,out_error;
+ wire out_valid,out_sop,out_error;
  wire [7:0] out_data;
  reg [7:0] expected[0:12];
  integer received=0;
