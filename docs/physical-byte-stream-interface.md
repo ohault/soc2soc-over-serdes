@@ -33,7 +33,8 @@ There are no physical SOP/EOP inputs. A per-lane synchronous elastic FIFO
 standard ready/valid semantics. A continuous serial receiver cannot pause
 the cable, so the board adapter must buffer recovered bytes until the node
 accepts them. If the adapter's own receive buffer overruns or a byte is lost,
-it must assert the corresponding `laneN_rx_overflow` input; the autonomous
+it must assert the corresponding sticky `laneN_rx_overflow` input and hold it until
+`bond_rst_n` is asserted; the autonomous
 node propagates this through the lane RX frame error output and synchronizes
 the overrun into the bonding clock domain as a lane-down event, invalidating
 the current session. It must never
