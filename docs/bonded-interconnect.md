@@ -2,6 +2,7 @@
 
 **Status:** proposal for review; no RTL/API changes are made by this document.  
 **Target branch:** `feature/bonded-serdes-interconnect`
+**RTL interface contract:** [`bonded-rtl-interface-v0.md`](bonded-rtl-interface-v0.md) — proposed signal-level interface; no RTL implementation yet.
 
 ## 1. Purpose
 
