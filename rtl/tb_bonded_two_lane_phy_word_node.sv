@@ -290,9 +290,10 @@ module tb_bonded_two_lane_phy_word_node;
             end
             begin : reverse_traffic
                 reg [127:0] reverse_payload;
+                integer ri;
                 reverse_payload=0;
-                for(i=0;i<16;i=i+1)
-                    reverse_payload[i*8 +: 8]=8'he3-(i*8'h0d);
+                for(ri=0;ri<16;ri=ri+1)
+                    reverse_payload[ri*8 +: 8]=8'he3-(ri*8'h0d);
                 send_packet_b(reverse_payload,13);
             end
         join
