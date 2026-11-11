@@ -30,6 +30,23 @@ RTL. The existing example's SFP polarity comments are not fully consistent
 across its test and Ethernet designs, so the adapter must use the actual
 schematic and a PRBS/loopback check rather than assume polarity.
 
+Two details need resolution from the exact Mini schematic/revision before
+writing pin constraints:
+
+- The standalone GTP test lists SFP1 RX as B8/C8, while the 1000BASE-X example
+  lists B8/A8. Do not copy either pin pair blindly; resolve it against the
+  carrier schematic and the actual board revision.
+- The 1000BASE-X example uses RX polarity inversion and no TX polarity
+  inversion, while the standalone GTP test leaves both at zero with FIXME
+  comments. Start from the proven Ethernet example only as a reference, then
+  confirm with PRBS/loopback.
+
+The baseboard repository also records a known SFP TX_DISABLE issue: 4.7-kOhm
+pull-downs may be too weak for some modules. Before debugging a dark TX link,
+check the module's TX_DISABLE level and the carrier revision; do not assume a
+SERDES configuration fault or modify resistors without measuring first.
+
+
 References:
 
 - https://github.com/enjoy-digital/litex-acorn-baseboard
