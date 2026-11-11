@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BSD-2-Clause
-from __future__ import annotations
-
 """Framework-neutral behavioural model for the bonded SerDes transport.
 
 This is a protocol reference model, not synthesizable RTL and not a wire codec.
 It intentionally uses only the Python standard library.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
