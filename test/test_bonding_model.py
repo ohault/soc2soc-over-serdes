@@ -258,6 +258,35 @@ class EndToEndCreditTests(unittest.TestCase):
         with self.assertRaises(PacketRejected):
             sender.update_remote_credits(99, 10)
 
+    def test_reordered_credit_updates_merge_each_counter_independently(self):
+        sender = BondedSender(BondConfig(
+            lane_count=1, max_packet_bytes=16,
+            rx_buffer_bytes=16, rx_buffer_packets=4,
+        ))
+        bring_up(sender, 1)
+
+        sender.update_remote_credits(byte_limit=100, packet_limit=10)
+        # A delayed snapshot carries an old byte limit but a newer packet limit.
+        sender.update_remote_credits(byte_limit=80, packet_limit=12)
+        self.assertEqual(sender.remote_credit_bytes, 100)
+        self.assertEqual(sender.remote_credit_packets, 12)
+
+        # The inverse ordering must also preserve the independently newer value.
+        sender.update_remote_credits(byte_limit=120, packet_limit=9)
+        self.assertEqual(sender.remote_credit_bytes, 120)
+        self.assertEqual(sender.remote_credit_packets, 12)
+
+    def test_credit_updates_reject_negative_and_non_integer_limits(self):
+        sender = BondedSender(BondConfig(
+            lane_count=1, max_packet_bytes=8,
+            rx_buffer_bytes=8, rx_buffer_packets=2,
+        ))
+        bring_up(sender, 1)
+        with self.assertRaises(ValueError):
+            sender.update_remote_credits(-1, 2)
+        with self.assertRaises(TypeError):
+            sender.update_remote_credits(8, 2.5)
+
     def test_receiver_returns_credits_only_after_application_consumes(self):
         receiver = BondedReceiver(
             BondConfig(
