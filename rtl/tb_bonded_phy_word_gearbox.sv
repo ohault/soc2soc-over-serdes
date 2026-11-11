@@ -6,6 +6,7 @@ module tb_bonded_phy_word_gearbox;
  always #7 rx_clk=~rx_clk;
  reg rst=1;
 
+ reg out_ready=0;
  reg in_valid=0,in_sop=0,in_eop=0;
  reg [7:0] in_data=0;
  wire in_ready;
@@ -48,7 +49,6 @@ module tb_bonded_phy_word_gearbox;
   .rd_data({rx_phy_ctrl,rx_phy_data}));
 
 
- reg out_ready=0;
  always @(posedge rx_clk) begin
   if(rst) begin received<=0;cycles<=0;end
   else begin
