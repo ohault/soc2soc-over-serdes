@@ -4,6 +4,7 @@
 module bonded_lane_frame_arbiter (
     input wire clk,
     input wire rst,
+    input wire data_abort,
 
     input wire ctrl_valid,
     output wire ctrl_ready,
@@ -45,6 +46,8 @@ module bonded_lane_frame_arbiter (
         if (rst) begin
             selected <= SEL_IDLE;
             protocol_error <= 1'b0;
+        end else if (data_abort && selected==SEL_DATA) begin
+            selected <= SEL_IDLE;
         end else begin
             if (selected==SEL_IDLE) begin
                 if ((ctrl_valid && !ctrl_sop) ||
