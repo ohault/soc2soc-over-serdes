@@ -48,7 +48,7 @@ jobs:
       - name: Compile and run configurable-width stream testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_stream_width -o /tmp/tb_stream_width \
-            rtl/bonded_stream_tx.sv rtl/tb_bonded_stream_width.sv
+            rtl/bonded_stream_tx.sv rtl/bonded_stream_rx.sv rtl/tb_bonded_stream_width.sv
           vvp /tmp/tb_stream_width
       - name: Compile and run elastic width adapter testbench
         run: |
