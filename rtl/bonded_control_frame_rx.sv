@@ -6,6 +6,7 @@ module bonded_control_frame_rx #(
     input wire clk,
     input wire rst,
     input wire [63:0] expected_session_id,
+    input wire [31:0] expected_frame_sequence_override,
     input wire in_valid,
     output wire in_ready,
     input wire [7:0] in_data,
@@ -17,6 +18,7 @@ module bonded_control_frame_rx #(
     output reg [5:0] ctrl_body_length,
     output reg [31:0] received_frame_sequence,
     output reg [31:0] expected_frame_sequence,
+    output reg frame_valid_pulse,
     output reg frame_error
 );
     localparam [1:0] ST_IDLE=2'd0, ST_COLLECT=2'd1,
@@ -62,9 +64,10 @@ module bonded_control_frame_rx #(
             header_crc<=16'hffff;frame_crc<=32'hffffffff;
             active_session<=0;body_length<=0;
             ctrl_body<=0;ctrl_body_length<=0;
-            received_frame_sequence<=0;expected_frame_sequence<=0;
+            received_frame_sequence<=0;expected_frame_sequence<=0;frame_valid_pulse<=0;
             frame_error<=0;
         end else begin
+            frame_valid_pulse<=0;
             if(in_valid && in_ready) begin
                 if(state==ST_IDLE) begin
                     if(!in_sop || in_eop || expected_session_id==0) begin
@@ -99,7 +102,7 @@ module bonded_control_frame_rx #(
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
                    {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
                     frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session ||
-                   {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence ||
+                   {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
                    frame_mem[20]!=0 || frame_mem[21]>26 ||
                    {frame_mem[22],frame_mem[23]}!=header_crc ||
                    rx_count!=(24+frame_mem[21]+4) ||
@@ -113,8 +116,9 @@ module bonded_control_frame_rx #(
                         if(i<frame_mem[21])
                             ctrl_body[207-i*8 -: 8]<=frame_mem[24+i];
                     ctrl_body_length<=frame_mem[21][5:0];
-                    received_frame_sequence<=expected_frame_sequence;
-                    expected_frame_sequence<=expected_frame_sequence+1'b1;
+                    received_frame_sequence<=expected_frame_sequence_override;
+                    expected_frame_sequence<=expected_frame_sequence_override+1'b1;
+                    frame_valid_pulse<=1'b1;
                     state<=ST_OUTPUT;
                 end
             end
