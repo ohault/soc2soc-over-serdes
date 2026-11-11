@@ -57,13 +57,17 @@ session. The
 
 ## Verification gate before hardware
 
+The raw-byte framer regression now explicitly stalls its consumer during
+header replay and body forwarding, checking that VALID and DATA remain stable
+until READY. This test has been added to the CI workflow; it has not yet been
+observed passing.
+
 The workflow `.github/workflows/bonding-tests.yml` now contains dedicated
 regressions for the control encoder/decoder, queueing, frame arbitration,
 receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
-**The latest GitHub status query returned no check runs/statuses.** Therefore
-these tests are added but must not yet be described as passing. The next
+**The latest GitHub status query for commit `262de29f326fb9c36badf708fd1b2347bd4e3bbc` returned no check runs/statuses, and no pull-request workflow runs were returned.** Therefore these tests are added but must not yet be described as passing. The next
 software gate is to obtain a successful CI run and fix every compile or
 simulation failure before connecting physical boards.
 
