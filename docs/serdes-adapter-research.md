@@ -85,11 +85,36 @@ Examples, before protocol/line-code overhead:
 | Acorn GTP, 6.25 Gb/s, 40-bit | 156.25 MHz | 4 | 1.25 Gb/s |
 | Tang SERDES, 10 Gb/s, 40-bit | 250 MHz | 4 | 2.0 Gb/s |
 
-The table compares raw user-side capacity with the current byte-stream
-acceptance rate; actual usable payload depends on the selected encoding and
-protocol overhead. The 8-bit node interface will backpressure the PHY adapter
-at these rates unless the adapter buffers a significant amount of data, so it
-must not be mistaken for a line-rate solution.
+In the first bring-up profile, the symbol adapter transmits exactly one data
+byte per PHY word and fills the remaining symbol slots with control/filler
+symbols. The node's byte clock is the PHY word clock, so the table gives its
+sustainable payload ceiling. The RX FIFO can absorb finite downstream stalls,
+but it cannot absorb a peer that sends multiple data bytes per PHY word
+continuously; both peers must use the same bring-up profile. This is not a
+full-line-rate solution.
+
+## First bring-up adapter
+
+`rtl/bonded_phy_8b10b_adapter.sv` provides a vendor-neutral bridge for a
+2-symbol (20-bit encoded) or 4-symbol (40-bit encoded) 8b/10b PHY word:
+
+- TX places a unique K28.5 comma in symbol 0, one application byte (or a
+  K28.0 empty marker) in symbol 1, and zero-valued data fillers in remaining
+  slots. This gives the receiver an unambiguous word-alignment comma.
+- RX validates that symbol pattern, strips the comma/empty/filler symbols and
+  places the one data byte into a ready/valid FIFO.
+- A non-stallable PHY source can use the internal RX FIFO and reports overflow
+  if it cannot keep up. A stallable PHY FIFO can use the ready output.
+- Unexpected control characters or data in unused symbol positions set a
+  sticky symbol-error indication. The board adapter should combine this with
+  its PHY error/lock status and drive the node's sticky `laneN_rx_overflow`
+  fault input.
+
+This deliberately uses one data symbol per PHY word, matching the current
+one-byte-per-cycle node. It provides a practical low-rate hardware bring-up
+path without pretending to use the full transceiver bandwidth. The RTL
+regression covers 2- and 4-symbol words, K28.5 alignment, K28.0 empty markers,
+FIFO backpressure, non-stallable overflow and malformed symbol reporting.
 
 ## Recommended next architecture step
 
