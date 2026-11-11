@@ -18,6 +18,8 @@ module bonded_two_lane_endpoint #(
     input wire [63:0] rx_expected_session_id,
     input wire [63:0] remote_byte_limit,
     input wire [31:0] remote_packet_limit,
+    input wire ctrl_tx_valid, output wire ctrl_tx_ready,
+    input wire [207:0] ctrl_tx_body, input wire [5:0] ctrl_tx_body_length,
     input wire session_established,
     output wire session_active,
     // Cumulative receive grants to advertise to the peer in CREDIT frames.
@@ -94,6 +96,8 @@ module bonded_two_lane_endpoint #(
         .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n),
         .session_id(tx_session_id),
         .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
+        .ctrl_valid(ctrl_tx_valid),.ctrl_ready(ctrl_tx_ready),
+        .ctrl_body(ctrl_tx_body),.ctrl_body_length(ctrl_tx_body_length),
         .tx_valid(tx_valid && session_active), .tx_ready(tx_path_ready), .tx_data(tx_data),
         .tx_keep(tx_keep), .tx_sop(tx_sop), .tx_eop(tx_eop),
         .lane0_clk(lane0_tx_clk), .lane0_rst_n(lane0_tx_rst_n),
