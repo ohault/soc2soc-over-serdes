@@ -81,5 +81,40 @@ class LaneWordCodecTest(unittest.TestCase):
                     frame_to_beats(b"x", width)
 
 
+    def test_wire_codec_to_lane_words_and_back(self):
+        from soc2soc.bonding.wire import (
+            Frame, FrameType, decode_frame, encode_data_body, encode_frame,
+        )
+        original = Frame(
+            frame_type=FrameType.DATA,
+            lane_id=1,
+            session_id=0x1020304050607080,
+            frame_sequence=7,
+            body=encode_data_body(0x12345678, b"bonded transport"),
+        )
+        encoded = encode_frame(original)
+        beats = frame_to_beats(encoded, word_bytes=4)
+        reconstructed = beats_to_frame(beats, word_bytes=4)
+        self.assertEqual(decode_frame(reconstructed), original)
+
+    def test_wire_frame_sizes_on_32_bit_lane(self):
+        from soc2soc.bonding.wire import (
+            Frame, FrameType, encode_data_body, encode_frame,
+        )
+        for payload_length in (0, 1, 2, 3, 4, 5, 4095, 4096):
+            with self.subTest(payload_length=payload_length):
+                frame = encode_frame(Frame(
+                    frame_type=FrameType.DATA,
+                    lane_id=0,
+                    session_id=1,
+                    frame_sequence=payload_length,
+                    body=encode_data_body(0, bytes(payload_length)),
+                ))
+                beats = frame_to_beats(frame, word_bytes=4)
+                self.assertEqual(beats_to_frame(beats, word_bytes=4), frame)
+                self.assertTrue(beats[0].sop)
+                self.assertTrue(beats[-1].eop)
+                self.assertEqual(all(b.keep == 0xF for b in beats[:-1]), True)
+
 if __name__ == "__main__":
     unittest.main()
