@@ -70,7 +70,7 @@ module tb_bonded_wire_rx_framer;
   wait(got==41);
   if(captured[0]!=8'h53 || captured[1]!=8'h42 || captured[2]!=8'h01 ||
      captured[3]!=8'h02 || captured[5]!=0 || captured[7]!=8'h18 ||
-     captured[24]!=8'h03 || captured[32]!=8'h10 || captured[40]===8'hxx ||
+     captured[24]!=8'h03 || captured[31]!=8'h10 || captured[32]!=0 || captured[40]===8'hxx ||
      tx_error || !frame_error || tx_seq!=1)
     $fatal(1,"framer resynchronization or header/body output mismatch");
   $display("PASS: raw byte stream false-prefix recovery and CRC-protected framing");
