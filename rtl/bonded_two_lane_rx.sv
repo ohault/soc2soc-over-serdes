@@ -21,8 +21,6 @@ module bonded_two_lane_rx #(
     input wire [7:0] lane1_data, input wire lane1_sop, input wire lane1_eop,
 
     input wire bond_clk,
-    input wire [63:0] remote_byte_limit,
-    input wire [31:0] remote_packet_limit,
     output wire [63:0] local_byte_limit,
     output wire [31:0] local_packet_limit,
     output wire credit_error,
@@ -98,10 +96,14 @@ module bonded_two_lane_rx #(
     wire [31:0] tx_reserved_packets, rx_accepted_packets, rx_consumed_packets;
     wire rx_accept_ready;
 
-    bonded_credit_manager credit_accounting (
+    bonded_credit_manager #(
+        .INITIAL_RX_BYTES(REORDER_WINDOW * MAX_PACKET_BYTES),
+        .INITIAL_RX_PACKETS(REORDER_WINDOW)
+    ) credit_accounting (
         .clk(bond_clk), .rst(!bond_rst_n),
         .tx_reserve_valid(1'b0), .tx_reserve_bytes(16'd0), .tx_reserve_ready(),
-        .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
+        .remote_byte_limit(64'hffff_ffff_ffff_ffff),
+        .remote_packet_limit(32'hffff_ffff),
         .tx_reserved_bytes(tx_reserved_bytes), .tx_reserved_packets(tx_reserved_packets),
         .rx_accept_valid(packet_accept_valid), .rx_accept_bytes(packet_accept_bytes),
         .rx_accept_ready(rx_accept_ready),
