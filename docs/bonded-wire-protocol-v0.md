@@ -137,9 +137,10 @@ PING/PONG is diagnostic/liveness supervision, not a delivery acknowledgement. Th
 
 1. Implemented: pure-Python frame envelope, DATA prefix, CONTROL opcode length validation, CRC-16/CCITT-FALSE and CRC-32C in `soc2soc/bonding/wire.py`.
 2. Implemented: a framework-neutral control-plane reference model in `soc2soc/bonding/control.py`, including per-lane HELLO/READY negotiation, crossed-lane mapping, dedicated CONTROL queues, CONTROL-before-DATA scheduling, CREDIT coalescing, monotonic remote-credit merging, PING/PONG response and lane-loss fail-stop.
-3. Added wire and control-plane tests in `test/test_bonding_wire.py` and `test/test_bonding_control.py`. They must be executed before the implementation is considered validated.
-4. Next: connect control-plane state to the existing sender/receiver behavioural model and simulate two endpoints over independently stalled and latency-skewed lanes.
-5. Only after those tests, freeze RTL field widths and implement the bonding core.
+3. Implemented: an integrated two-endpoint software simulation in `test/test_bonding_integration.py`. It exchanges HELLO/READY over crossed lanes, sends DATA through the wire codec, deliberately reorders arrivals across lanes, returns cumulative credits after application consumption, and checks lane-loss invalidation.
+4. Corrected the control-plane model to reject post-negotiation CONTROL frames arriving with the wrong peer-lane identity and to make duplicate HELLO handling idempotent.
+5. Added an explicit regression correction for coalesced CREDIT queue depth. The Python tests have not yet been executed; passing status is not claimed.
+6. Next: execute the complete test suite in a Python-capable environment, fix any failures, then add randomized latency/backpressure and control-frame-loss scenarios before freezing the RTL contract.
 
 ## 11. Explicit non-goals
 
