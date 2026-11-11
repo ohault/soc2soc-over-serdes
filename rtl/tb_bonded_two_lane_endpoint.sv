@@ -16,7 +16,7 @@ module tb_bonded_two_lane_endpoint;
     always #8 a_rx0=~a_rx0;
     always #12 a_rx1=~a_rx1;
 
-    reg rst_n=0;
+    reg rst_n=0, session_established=0;
     reg av=0,asop=0,aeop=0,bv=0,bsop=0,beop=0;
     reg [31:0] ad=0,bd=0;
     reg [3:0] ak=0,bk=0;
@@ -54,7 +54,7 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_a (
         .bond_clk(bond_a),.bond_rst_n(rst_n),.tx_session_id(64'hA11CE),
-        .rx_expected_session_id(64'hB0B),.session_established(rst_n),.session_active(session_a),
+        .rx_expected_session_id(64'hB0B),.session_established(session_established),.session_active(session_a),
         .tx_valid(av),.tx_ready(ardy),.tx_data(ad),.tx_keep(ak),.tx_sop(asop),.tx_eop(aeop),
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
         .rx_packet_sequence(arseq),
@@ -128,6 +128,12 @@ module tb_bonded_two_lane_endpoint;
     initial begin
         repeat(8) @(posedge bond_a);
         @(negedge bond_a); rst_n=1;
+        // Wait for all four lane reset releases to cross into each endpoint's
+        // bonding clock, then explicitly establish the initial session.
+        repeat(4) @(posedge bond_a);
+        @(negedge bond_a); session_established=1;
+        repeat(4) @(posedge bond_b);
+        if(!session_a || !session_b) $fatal(1,"initial session did not activate");
         fork send_a(); send_b(); join
         while((acount<2 || bcount<2) && timeout<3000) begin
             @(posedge bond_a); timeout=timeout+1;
@@ -137,7 +143,19 @@ module tb_bonded_two_lane_endpoint;
            bt0err || bt1err || are0 || are1 || bre0 || bre1 || arerr || brerr)
             $fatal(1,"full-duplex endpoint failed A=%0d B=%0d txerr=%b/%b rxerr=%b/%b",
                    acount,bcount,ate,bte,arerr,brerr);
-        $display("PASS: two full-duplex bonded endpoints, four unrelated lane clocks, bidirectional packets");
+        // A fault on one physical direction must flush both directions and
+        // must not silently reactivate the old session when the lane recovers.
+        @(negedge a_tx0); session_established=0;
+        @(negedge a_tx0); rst_n=0;
+        repeat(3) @(posedge bond_a);
+        if(session_a || ardy) $fatal(1,"session A remained active during lane reset");
+        @(negedge a_tx0); rst_n=1;
+        repeat(5) @(posedge bond_a);
+        if(session_a || ardy) $fatal(1,"old session A reactivated without renegotiation");
+        @(negedge bond_a); session_established=1;
+        repeat(4) @(posedge bond_a);
+        if(!session_a) $fatal(1,"session A failed to reactivate after renegotiation");
+        $display("PASS: full-duplex packets, four unrelated clocks, coordinated session reset and re-arm");
         $finish;
     end
 endmodule
