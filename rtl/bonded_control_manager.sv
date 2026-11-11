@@ -6,6 +6,8 @@ module bonded_control_manager #(
     parameter [63:0] EXPECTED_PEER_ID = 64'd2,
     parameter [15:0] PROFILE_ID = 16'd1,
     parameter [15:0] MAX_PAYLOAD = 16'd4096,
+    parameter [63:0] INITIAL_SESSION_ID = 64'h1,
+    parameter [31:0] RESTART_BACKOFF_CYCLES = 32'd64,
     parameter [31:0] PING_INTERVAL_CYCLES = 32'd100000000,
     parameter [31:0] PONG_TIMEOUT_CYCLES = 32'd300000000
 ) (
@@ -18,6 +20,7 @@ module bonded_control_manager #(
     input wire [207:0] ctrl_rx_body,
     input wire [5:0] ctrl_rx_body_length,
     input wire ctrl_rx_lane,
+    input wire [63:0] ctrl_rx_session_id,
 
     output wire ctrl_tx_valid,
     input wire ctrl_tx_ready,
@@ -30,7 +33,10 @@ module bonded_control_manager #(
     output reg [31:0] remote_packet_limit,
 
     output reg session_established,
-    output reg fault
+    output reg fault,
+    output reg [63:0] active_session_id,
+    output reg session_changed,
+    output reg session_initiated
 );
     reg [1:0] hello_seen,ready_seen;
     reg was_all_lanes_up;
@@ -44,6 +50,9 @@ module bonded_control_manager #(
     reg [31:0] ping_nonce,next_ping_nonce;
     reg [31:0] ping_age,ping_interval_age;
     reg [31:0] ping_sent_nonce;
+    reg [63:0] highest_peer_session_id;
+    reg restart_pending;
+    reg [31:0] restart_age;
     wire tx_handshake = tx_pending && ctrl_tx_ready;
     wire rx_handshake = ctrl_rx_valid && ctrl_rx_ready;
     wire [7:0] rx_opcode = ctrl_rx_body[207:200];
@@ -62,6 +71,10 @@ module bonded_control_manager #(
     assign ctrl_tx_valid = tx_pending;
 
     initial begin
+        if(INITIAL_SESSION_ID==0)
+            $error("INITIAL_SESSION_ID must be non-zero");
+        if(RESTART_BACKOFF_CYCLES==0)
+            $error("RESTART_BACKOFF_CYCLES must be non-zero");
         if(PING_INTERVAL_CYCLES==0 || PONG_TIMEOUT_CYCLES<=PING_INTERVAL_CYCLES)
             $error("PONG timeout must exceed a non-zero PING interval");
     end
@@ -141,12 +154,18 @@ module bonded_control_manager #(
             ping_pending<=0;ping_queued<=0;ping_nonce<=0;next_ping_nonce<=1;
             ping_age<=0;ping_interval_age<=0;ping_sent_nonce<=0;
             session_established<=0;fault<=0;
+            active_session_id<=INITIAL_SESSION_ID;highest_peer_session_id<=INITIAL_SESSION_ID;
+            session_changed<=0;session_initiated<=0;restart_pending<=0;restart_age<=0;
         end else begin
+            session_changed<=1'b0;
+            session_initiated<=1'b0;
             if(all_lanes_up) was_all_lanes_up<=1;
             if(was_all_lanes_up && !all_lanes_up) begin
                 session_established<=0;
                 fault<=1;
                 tx_pending<=0;
+                restart_pending<=1;
+                restart_age<=0;
             end
 
             if(tx_handshake) begin
