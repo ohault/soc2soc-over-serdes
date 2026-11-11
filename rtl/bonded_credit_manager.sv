@@ -79,6 +79,11 @@ module bonded_credit_manager #(
             if (rx_accept_valid && rx_accept_ready) begin
                 rx_accepted_bytes <= rx_bytes_sum[63:0];
                 rx_accepted_packets <= rx_packets_sum[31:0];
+            end else if (rx_accept_valid && !rx_accept_ready) begin
+                // Unlike sender-side reservation backpressure, this event is
+                // emitted after the reorder buffer has stored the packet. It
+                // therefore indicates that the peer exceeded its grant.
+                credit_error <= 1'b1;
             end
             if (rx_consume_valid) begin
                 if ((consume_bytes_sum[64] == 1'b0) &&
