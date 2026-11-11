@@ -24,6 +24,11 @@ The public `enjoy-digital/litex-acorn-baseboard` bring-up design
 - The existing 1000BASE-X bring-up uses both SFP cages and documents the
   Acorn RX polarity inversion; TX polarity is configured separately.
 
+In the current LiteICLink GTP stream wrapper, the PHY source is continuously
+valid and the PHY sink is continuously ready. The generic adapter should
+therefore use `tx_phy_ready=1` and `RX_PHY_STALLABLE=0`, relying on its local RX
+byte FIFO to absorb finite stalls and reporting overflow if that FIFO fills.
+
 The source is a valuable implementation reference, but the board-specific
 GTP primitive and LiteICLink wrapper must remain outside the generic bonding
 RTL. The existing example's SFP polarity comments are not fully consistent
@@ -78,6 +83,10 @@ The Gowin Customized PHY IP documentation is particularly relevant:
   are PHY-level functions, not a replacement for this project's packet-level
   bonding, sequencing, credits and reassembly.
 - For GW5AST-138, TX and RX internal data widths must match.
+
+For the Gowin FIFO interface, map TX full to `tx_phy_ready` and only issue RX
+read requests when sufficient adapter capacity has been reserved for the PHY
+FIFO's documented read-valid latency.
 
 The first adapter should use the Gowin IP as a PHY boundary only. It should
 export decoded data, recovered RX clock, TX user clock, byte/control
