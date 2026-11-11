@@ -37,6 +37,7 @@ is an integration option, not a dependency of the bonding core.
 - `rtl/bonded_wire_rx_framer.sv`: reconstructs frame boundaries from raw bytes.
 - `rtl/bonded_sync_byte_fifo.sv`: per-lane RX elastic buffering.
 - `docs/physical-byte-stream-interface.md`: contract for a board PHY adapter.
+- `docs/dynamic-lane-mapping.md`: remote lane-ID discovery, crossed cabling and duplicate-ID rejection.
 - `docs/rtl-control-transport.md`: RTL control architecture and limitations.
 
 ## Important v0 limitations
@@ -45,7 +46,8 @@ is an integration option, not a dependency of the bonding core.
 2. The RTL control manager currently assumes direct lane-index mapping. Crossed
    SFP/DAC cable discovery and deterministic session-ID election are not yet
    implemented in RTL.
-3. A control fault is sticky; automatic restart/re-negotiation after lane
+3. A control fault is sticky; recovery currently requires a coordinated
+   physical-lane and bonding-domain reset. Automatic re-negotiation after lane
    recovery is not yet implemented.
 4. The original `bonded_two_lane_node` byte-stream boundary remains available
    as the reference path. `bonded_two_lane_phy_word_node` adds a configurable two- or four-symbol
