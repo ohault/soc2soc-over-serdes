@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BSD-2-Clause
-// Bond-clock session gate. Lane reset release is synchronized into bond_clk;
-// any lane reset assertion immediately disables application traffic.
+// Bond-clock session gate.
+//
+// All four physical directions participate in one bonded session. Any lane
+// reset asynchronously asserts the common gate reset; release is synchronized
+// into bond_clk. The endpoint uses session_active to flush BOTH datapaths,
+// preventing stale packets/sequence state from surviving a partial lane reset.
 module bonded_session_gate (
     input wire bond_clk,
     input wire bond_rst_n,
@@ -11,29 +15,22 @@ module bonded_session_gate (
     input wire lane1_rx_rst_n,
     output wire session_active
 );
-    (* async_reg = "true" *) reg [1:0] lane0_tx_sync;
-    (* async_reg = "true" *) reg [1:0] lane1_tx_sync;
-    (* async_reg = "true" *) reg [1:0] lane0_rx_sync;
-    (* async_reg = "true" *) reg [1:0] lane1_rx_sync;
+    wire all_lanes_rst_n = bond_rst_n &&
+        lane0_tx_rst_n && lane1_tx_rst_n &&
+        lane0_rx_rst_n && lane1_rx_rst_n;
 
-    always @(posedge bond_clk or negedge bond_rst_n or negedge lane0_tx_rst_n) begin
-        if (!bond_rst_n || !lane0_tx_rst_n) lane0_tx_sync <= 2'b00;
-        else lane0_tx_sync <= {lane0_tx_sync[0],1'b1};
-    end
-    always @(posedge bond_clk or negedge bond_rst_n or negedge lane1_tx_rst_n) begin
-        if (!bond_rst_n || !lane1_tx_rst_n) lane1_tx_sync <= 2'b00;
-        else lane1_tx_sync <= {lane1_tx_sync[0],1'b1};
-    end
-    always @(posedge bond_clk or negedge bond_rst_n or negedge lane0_rx_rst_n) begin
-        if (!bond_rst_n || !lane0_rx_rst_n) lane0_rx_sync <= 2'b00;
-        else lane0_rx_sync <= {lane0_rx_sync[0],1'b1};
-    end
-    always @(posedge bond_clk or negedge bond_rst_n or negedge lane1_rx_rst_n) begin
-        if (!bond_rst_n || !lane1_rx_rst_n) lane1_rx_sync <= 2'b00;
-        else lane1_rx_sync <= {lane1_rx_sync[0],1'b1};
+    (* async_reg = "true" *) reg [1:0] lane_release_sync;
+
+    // One asynchronous reset input is used for portable FPGA synthesis.
+    // Assertion is immediate; deassertion takes two bond_clk edges.
+    always @(posedge bond_clk or negedge all_lanes_rst_n) begin
+        if (!all_lanes_rst_n)
+            lane_release_sync <= 2'b00;
+        else
+            lane_release_sync <= {lane_release_sync[0], 1'b1};
     end
 
-    assign session_active = bond_rst_n && session_established &&
-        lane0_tx_sync[1] && lane1_tx_sync[1] &&
-        lane0_rx_sync[1] && lane1_rx_sync[1];
+    assign session_active = all_lanes_rst_n &&
+                            lane_release_sync[1] &&
+                            session_established;
 endmodule
