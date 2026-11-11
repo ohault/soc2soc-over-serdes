@@ -41,15 +41,15 @@ module tb_bonded_two_lane_phy_word_node;
         .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab1(
         .wr_clk(a_tx1),.wr_rst_n(phy_rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
-        .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx1),.rd_rst_n(rst_n),
+        .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx1),.rd_rst_n(phy_rst_n),
         .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba0(
-        .wr_clk(b_tx0),.wr_rst_n(rst_n),.wr_valid(b0_txv),.wr_ready(b0_txr),
-        .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx0),.rd_rst_n(rst_n),
+        .wr_clk(b_tx0),.wr_rst_n(phy_rst_n),.wr_valid(b0_txv),.wr_ready(b0_txr),
+        .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx0),.rd_rst_n(phy_rst_n),
         .rd_valid(a0_rxv),.rd_ready(a0_fifo_rx_ready),.rd_data({a0_rxc,a0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba1(
-        .wr_clk(b_tx1),.wr_rst_n(rst_n),.wr_valid(b1_txv),.wr_ready(b1_txr),
-        .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx1),.rd_rst_n(rst_n),
+        .wr_clk(b_tx1),.wr_rst_n(phy_rst_n),.wr_valid(b1_txv),.wr_ready(b1_txr),
+        .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx1),.rd_rst_n(phy_rst_n),
         .rd_valid(a1_rxv),.rd_ready(a1_rxr),.rd_data({a1_rxc,a1_rxd}));
 
     reg app_valid=0,app_sop=0,app_eop=0;
@@ -78,16 +78,16 @@ module tb_bonded_two_lane_phy_word_node;
         .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
     ) node_a (
         .bond_clk(bond_a),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_a),.lane1_up(lane1_up_a),
-        .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),
+        .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(phy_rst_n),
         .lane0_phy_tx_valid(a0_txv),.lane0_phy_tx_ready(a0_txr),
         .lane0_phy_tx_data(a0_txd),.lane0_phy_tx_ctrl(a0_txc),
-        .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),
+        .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(phy_rst_n),
         .lane0_phy_rx_valid(a0_phy_rx_valid),.lane0_phy_rx_ready(a0_rxr),
         .lane0_phy_rx_data(a0_phy_rx_data),.lane0_phy_rx_ctrl(a0_phy_rx_ctrl),
-        .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),
+        .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(phy_rst_n),
         .lane1_phy_tx_valid(a1_txv),.lane1_phy_tx_ready(a1_txr),
         .lane1_phy_tx_data(a1_txd),.lane1_phy_tx_ctrl(a1_txc),
-        .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(rst_n),
+        .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(phy_rst_n),
         .lane1_phy_rx_valid(a1_rxv),.lane1_phy_rx_ready(a1_rxr),
         .lane1_phy_rx_data(a1_rxd),.lane1_phy_rx_ctrl(a1_rxc),
         .tx_valid(app_valid),.tx_ready(app_ready),.tx_data(app_data),
@@ -110,16 +110,16 @@ module tb_bonded_two_lane_phy_word_node;
         .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
     ) node_b (
         .bond_clk(bond_b),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_b),.lane1_up(lane1_up_b),
-        .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),
+        .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(phy_rst_n),
         .lane0_phy_tx_valid(b0_txv),.lane0_phy_tx_ready(b0_txr),
         .lane0_phy_tx_data(b0_txd),.lane0_phy_tx_ctrl(b0_txc),
-        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),
+        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(phy_rst_n),
         .lane0_phy_rx_valid(b0_phy_rx_valid),.lane0_phy_rx_ready(b0_rxr),
         .lane0_phy_rx_data(b0_phy_rx_data),.lane0_phy_rx_ctrl(b0_phy_rx_ctrl),
-        .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),
+        .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(phy_rst_n),
         .lane1_phy_tx_valid(b1_txv),.lane1_phy_tx_ready(b1_txr),
         .lane1_phy_tx_data(b1_txd),.lane1_phy_tx_ctrl(b1_txc),
-        .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),
+        .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(phy_rst_n),
         .lane1_phy_rx_valid(b1_rxv),.lane1_phy_rx_ready(b1_rxr),
         .lane1_phy_rx_data(b1_rxd),.lane1_phy_rx_ctrl(b1_rxc),
         .tx_valid(b_app_valid),.tx_ready(b_app_ready),.tx_data(b_app_data),
@@ -174,7 +174,7 @@ module tb_bonded_two_lane_phy_word_node;
     end
 
     always @(posedge bond_a) begin
-        if(!rst_n) begin
+        if(!bond_rst_n) begin
             consumer_lfsr_a<=16'hace1;
             a_app_rx_ready<=0;
         end else begin
