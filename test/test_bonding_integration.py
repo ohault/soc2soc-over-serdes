@@ -71,7 +71,7 @@ class BondedEndToEndTests(unittest.TestCase):
             )
 
         # Initial receive grant is conveyed by HELLO in the control plane.
-        sender.update_remote_credits(16, 2)
+        sender.update_remote_credits(\n            control_a.remote_credit_bytes, control_a.remote_credit_packets,\n        )
 
         tx = []
         for payload in (b"packet-zero", b"packet-one"):
