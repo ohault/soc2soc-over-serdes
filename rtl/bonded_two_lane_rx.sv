@@ -52,6 +52,7 @@ module bonded_two_lane_rx #(
     wire [31:0] ctrl0_frame_seq,ctrl0_expected_seq;
     wire [7:0] ctrl0_received_lane_id,rx0_lane_id;
     wire [63:0] ctrl0_received_session_id;
+    wire ctrl0_new_session_hello;
     wire ctrl0_demux_error,ctrl0_frame_error,lane0_data_frame_error,ctrl0_frame_pulse;
     reg [31:0] lane0_expected_wire_sequence;
     reg [7:0] lane0_remote_lane_id,lane1_remote_lane_id;
@@ -66,6 +67,9 @@ module bonded_two_lane_rx #(
     wire lane1_data_enable = bond_rst_n && lane1_rst_n &&
         (!DYNAMIC_LANE_MAP || lane1_mapping_valid);
     wire lane0_rx_reset_n = control_rst_n && lane0_rst_n;
+    (* async_reg = "true" *) reg [1:0] lane0_epoch_sync;
+    reg lane0_epoch_seen;
+    wire lane0_epoch_pulse = lane0_epoch_sync[1] != lane0_epoch_seen;
     wire rx0_valid, rx0_ready, rx0_sop, rx0_eop;
     wire [7:0] rx0_data;
     wire [31:0] rx0_packet_seq, rx0_frame_seq, rx0_expected_frame;
@@ -80,9 +84,13 @@ module bonded_two_lane_rx #(
     wire [31:0] ctrl1_frame_seq,ctrl1_expected_seq;
     wire [7:0] ctrl1_received_lane_id,rx1_lane_id;
     wire [63:0] ctrl1_received_session_id;
+    wire ctrl1_new_session_hello;
     wire ctrl1_demux_error,ctrl1_frame_error,lane1_data_frame_error,ctrl1_frame_pulse;
     reg [31:0] lane1_expected_wire_sequence;
     wire lane1_rx_reset_n = control_rst_n && lane1_rst_n;
+    (* async_reg = "true" *) reg [1:0] lane1_epoch_sync;
+    reg lane1_epoch_seen;
+    wire lane1_epoch_pulse = lane1_epoch_sync[1] != lane1_epoch_seen;
     wire rx1_valid, rx1_ready, rx1_sop, rx1_eop;
     wire [7:0] rx1_data;
     wire [31:0] rx1_packet_seq, rx1_frame_seq, rx1_expected_frame;
@@ -120,7 +128,7 @@ module bonded_two_lane_rx #(
         .frame_error(lane0_data_frame_error), .frame_valid_pulse(rx0_frame_pulse)
     );
     bonded_control_frame_rx #(.LANE_ID(LANE0_ID),.DYNAMIC_LANE_ID(1)) control_decoder0 (
-        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.expected_session_id(64'd0),
+        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.expected_session_id(expected_session_id),
         .expected_frame_sequence_override(lane0_expected_wire_sequence),
         .expected_lane_id(lane0_expected_lane_id),
         .in_valid(ctrl0_stream_valid),.in_ready(ctrl0_stream_ready),.in_data(ctrl0_stream_data),
@@ -129,6 +137,7 @@ module bonded_two_lane_rx #(
         .ctrl_body(ctrl0_message_body),.ctrl_body_length(ctrl0_message_length),
         .received_frame_sequence(ctrl0_frame_seq),.received_lane_id(ctrl0_received_lane_id),
         .received_session_id(ctrl0_received_session_id),
+        .new_session_hello_pulse(ctrl0_new_session_hello),
         .expected_frame_sequence(ctrl0_expected_seq),
         .frame_valid_pulse(ctrl0_frame_pulse),.frame_error(ctrl0_frame_error)
     );
@@ -155,6 +164,7 @@ module bonded_two_lane_rx #(
         .ctrl_body(ctrl1_message_body),.ctrl_body_length(ctrl1_message_length),
         .received_frame_sequence(ctrl1_frame_seq),.received_lane_id(ctrl1_received_lane_id),
         .received_session_id(ctrl1_received_session_id),
+        .new_session_hello_pulse(ctrl1_new_session_hello),
         .expected_frame_sequence(ctrl1_expected_seq),
         .frame_valid_pulse(ctrl1_frame_pulse),.frame_error(ctrl1_frame_error)
     );
@@ -191,13 +201,21 @@ module bonded_two_lane_rx #(
 
     always @(posedge lane0_clk or negedge lane0_rx_reset_n) begin
         if(!lane0_rx_reset_n) begin
+            lane0_epoch_sync<=0;lane0_epoch_seen<=0;
             lane0_expected_wire_sequence<=0;
             lane0_remote_lane_id<=LANE0_ID[7:0];
             lane0_mapping_valid<=!DYNAMIC_LANE_MAP;
             lane0_map_error<=1'b0;
         end else begin
-            if(rx0_frame_pulse || ctrl0_frame_pulse)
-                lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
+            lane0_epoch_sync<={lane0_epoch_sync[0],session_rx_reset_toggle};
+            if(lane0_epoch_pulse) lane0_epoch_seen<=lane0_epoch_sync[1];
+            if(lane0_epoch_pulse) lane0_expected_wire_sequence<=0;
+            else if(rx0_frame_pulse) lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
+            else if(ctrl0_frame_pulse) begin
+                if(ctrl0_new_session_hello)
+                    lane0_expected_wire_sequence<=ctrl0_frame_seq+1'b1;
+                else lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
+            end
             if(DYNAMIC_LANE_MAP && ctrl0_message_valid && ctrl0_message_ready) begin
                 if(!lane0_mapping_valid) begin
                     lane0_remote_lane_id<=ctrl0_received_lane_id;
@@ -209,13 +227,21 @@ module bonded_two_lane_rx #(
     end
     always @(posedge lane1_clk or negedge lane1_rx_reset_n) begin
         if(!lane1_rx_reset_n) begin
+            lane1_epoch_sync<=0;lane1_epoch_seen<=0;
             lane1_expected_wire_sequence<=0;
             lane1_remote_lane_id<=LANE1_ID[7:0];
             lane1_mapping_valid<=!DYNAMIC_LANE_MAP;
             lane1_map_error<=1'b0;
         end else begin
-            if(rx1_frame_pulse || ctrl1_frame_pulse)
-                lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
+            lane1_epoch_sync<={lane1_epoch_sync[0],session_rx_reset_toggle};
+            if(lane1_epoch_pulse) lane1_epoch_seen<=lane1_epoch_sync[1];
+            if(lane1_epoch_pulse) lane1_expected_wire_sequence<=0;
+            else if(rx1_frame_pulse) lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
+            else if(ctrl1_frame_pulse) begin
+                if(ctrl1_new_session_hello)
+                    lane1_expected_wire_sequence<=ctrl1_frame_seq+1'b1;
+                else lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
+            end
             if(DYNAMIC_LANE_MAP && ctrl1_message_valid && ctrl1_message_ready) begin
                 if(!lane1_mapping_valid) begin
                     lane1_remote_lane_id<=ctrl1_received_lane_id;
