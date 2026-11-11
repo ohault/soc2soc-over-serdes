@@ -58,3 +58,9 @@ jobs:
       - name: Compile configurable-width RX module
         run: |
           iverilog -g2012 -Wall -tnull rtl/bonded_stream_rx.sv
+
+      - name: Compile and run asynchronous FIFO CDC testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_async_fifo -o /tmp/tb_async_fifo \
+            rtl/bonded_async_fifo.sv rtl/tb_bonded_async_fifo.sv
+          vvp /tmp/tb_async_fifo
