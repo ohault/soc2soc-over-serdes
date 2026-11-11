@@ -17,6 +17,7 @@ module tb_bonded_two_lane_endpoint;
     always #12 a_rx1=~a_rx1;
 
     reg rst_n=0, session_established=0;
+    reg a_tx0_rst_n=0, b_rx0_rst_n=0;
     reg av=0,asop=0,aeop=0,bv=0,bsop=0,beop=0;
     reg [31:0] ad=0,bd=0;
     reg [3:0] ak=0,bk=0;
@@ -58,7 +59,7 @@ module tb_bonded_two_lane_endpoint;
         .tx_valid(av),.tx_ready(ardy),.tx_data(ad),.tx_keep(ak),.tx_sop(asop),.tx_eop(aeop),
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
         .rx_packet_sequence(arseq),
-        .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(at0v),
+        .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(a_tx0_rst_n),.lane0_tx_valid(at0v),
         .lane0_tx_ready(a2b0_ready),.lane0_tx_data(at0d),.lane0_tx_sop(at0s),.lane0_tx_eop(at0e),
         .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(at1v),
         .lane1_tx_ready(a2b1_ready),.lane1_tx_data(at1d),.lane1_tx_sop(at1s),.lane1_tx_eop(at1e),
@@ -82,7 +83,7 @@ module tb_bonded_two_lane_endpoint;
         .lane0_tx_ready(b2a0_ready),.lane0_tx_data(bt0d),.lane0_tx_sop(bt0s),.lane0_tx_eop(bt0e),
         .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(bt1v),
         .lane1_tx_ready(b2a1_ready),.lane1_tx_data(bt1d),.lane1_tx_sop(bt1s),.lane1_tx_eop(bt1e),
-        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a2b0_valid),
+        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(b_rx0_rst_n),.lane0_rx_valid(a2b0_valid),
         .lane0_rx_ready(at0r),.lane0_rx_data(a2b0_data[7:0]),.lane0_rx_sop(a2b0_data[8]),.lane0_rx_eop(a2b0_data[9]),
         .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a2b1_valid),
         .lane1_rx_ready(at1r),.lane1_rx_data(a2b1_data[7:0]),.lane1_rx_sop(a2b1_data[8]),.lane1_rx_eop(a2b1_data[9]),
@@ -127,7 +128,7 @@ module tb_bonded_two_lane_endpoint;
     integer timeout=0;
     initial begin
         repeat(8) @(posedge bond_a);
-        @(negedge bond_a); rst_n=1;
+        @(negedge bond_a); rst_n=1; a_tx0_rst_n=1; b_rx0_rst_n=1;
         // Wait for all four lane reset releases to cross into each endpoint's
         // bonding clock, then explicitly establish the initial session.
         repeat(4) @(posedge bond_a);
@@ -145,16 +146,19 @@ module tb_bonded_two_lane_endpoint;
                    acount,bcount,ate,bte,arerr,brerr);
         // A fault on one physical direction must flush both directions and
         // must not silently reactivate the old session when the lane recovers.
-        @(negedge a_tx0); session_established=0;
-        @(negedge a_tx0); rst_n=0;
+        @(negedge bond_a); session_established=0;
+        @(negedge a_tx0); a_tx0_rst_n=0; b_rx0_rst_n=0;
         repeat(3) @(posedge bond_a);
-        if(session_a || ardy) $fatal(1,"session A remained active during lane reset");
-        @(negedge a_tx0); rst_n=1;
+        if(session_a || session_b || ardy || brdy)
+            $fatal(1,"a bonded endpoint remained active during lane reset");
+        @(negedge a_tx0); a_tx0_rst_n=1; b_rx0_rst_n=1;
         repeat(5) @(posedge bond_a);
-        if(session_a || ardy) $fatal(1,"old session A reactivated without renegotiation");
+        if(session_a || session_b || ardy || brdy)
+            $fatal(1,"old session reactivated without renegotiation");
         @(negedge bond_a); session_established=1;
-        repeat(4) @(posedge bond_a);
-        if(!session_a) $fatal(1,"session A failed to reactivate after renegotiation");
+        repeat(5) @(posedge bond_a);
+        if(!session_a || !session_b)
+            $fatal(1,"endpoints failed to reactivate after renegotiation");
         $display("PASS: full-duplex packets, four unrelated clocks, coordinated session reset and re-arm");
         $finish;
     end
