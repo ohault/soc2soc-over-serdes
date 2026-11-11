@@ -71,21 +71,20 @@ regressions for the control encoder/decoder, queueing, frame arbitration,
 receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
-**Verified CI baseline for the standalone PHY path:** GitHub Actions run
-[43113194812](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43113194812)
+**Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
+[43113941368](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43113941368)
 completed successfully for commit
-`74a68a74e46555a8906ecd67cecfce9545046b17`. It includes the dual-clock
-parallel PHY adapter and asynchronous-FIFO loopback. Both the Python reference-model
-job and the RTL simulation job passed, including the parallel 8b/10b adapter
-and byte/word gearbox loopback. This is a software regression baseline only;
-it does not establish FPGA synthesis, timing closure, transceiver lock or
-hardware interoperability.
+`2d15cbb75eda4beb7e78b9fc7c00948c9259658d`. Both jobs passed: the Python
+reference-model tests and the RTL simulation suite. The RTL job explicitly
+passed the standalone PHY word adapter, byte/word gearbox, per-lane bridge CDC
+regression and the end-to-end two-node parallel-PHY DATA/CONTROL regression.
+This is a digital simulation result only; it does not establish FPGA synthesis,
+timing closure, transceiver lock, signal integrity or hardware interoperability.
 
 The original autonomous two-node regression sends 8-bit bytes across its
-virtual links. A new end-to-end regression now instantiates the parallel-PHY
-node wrapper on both ends and transports the DATA and CONTROL byte streams as
-multi-byte 8b/10b words through independent dual-clock FIFOs; its CI result is
-pending.
+virtual links. The end-to-end regression instantiates the parallel-PHY node wrapper on both
+ends and transports DATA and CONTROL byte streams as multi-byte 8b/10b words
+through independent dual-clock FIFOs. It passed in CI run 43113941368.
 
 ## Next engineering steps
 
