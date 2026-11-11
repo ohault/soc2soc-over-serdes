@@ -1,43 +1,63 @@
 # Two-lane end-to-end transmit integration
 
-`bonded_two_lane_tx` connects the packet-level scheduler to two independent
-physical lane byte streams:
+`bonded_two_lane_tx` connects the common-clock application packet interface
+to two independent physical lane byte streams:
 
-1. The common-clock application interface accepts a packet with DATA/KEEP/SOP/EOP.
-2. `bonded_packet_tx` buffers a complete packet, assigns its global packet
-   sequence and selects a lane round-robin. The scheduler now also exports the
-   complete packet length alongside each lane beat.
-3. Each lane's beat, KEEP, SOP/EOP, packet sequence and packet length are packed
-   into an independent asynchronous FIFO.
-4. Each FIFO is read in that lane's recovered clock domain.
-5. `bonded_wire_tx_lane` emits the v0 DATA header, packet-sequence prefix,
-   payload and CRC-32C trailer on the lane byte stream.
+1. `bonded_packet_tx` buffers a complete application packet, assigns its
+   monotonically increasing global packet sequence and selects a lane
+   round-robin. It exports the complete packet length with every beat.
+2. Each lane's beat, KEEP, SOP/EOP, packet sequence and packet length are
+   packed together into an independent asynchronous FIFO.
+3. Each FIFO is written in `bond_clk` and read in that lane's clock domain.
+4. The corresponding `bonded_wire_tx_lane` emits the v0 DATA header,
+   packet-sequence prefix, payload and CRC-32C trailer.
+5. The lane byte-stream ready/valid interface connects to the board-specific
+   transceiver adapter.
 
-The module is independent of LiteX, Migen, board models and transceiver vendors.
-A board-specific wrapper supplies the two lane clocks, resets and byte-stream
-interfaces.
+The module is independent of LiteX, Migen, board models and transceiver
+vendors. A board adapter supplies the clocks, resets and physical
+ready/valid byte-stream interfaces.
 
-## Clocking and reset
+## Scheduling and packet boundaries
 
-The packet scheduler and FIFO write ports use `bond_clk`. Each FIFO read port
-and wire encoder use its corresponding lane clock. Each lane FIFO's write and
-read resets are asserted together using `bond_rst_n && laneN_rst_n`; assertion
-is asynchronous and release is synchronized independently in each clock
-domain. The system must keep the application traffic disabled until all
-participating domains have exited reset.
+Packets remain intact on one lane in this first implementation; individual
+packets are not striped across both lanes. Round-robin assignment balances
+packets, while the receiver's global packet sequence/reorder stage restores
+application order across lane latency differences.
+
+The scheduler buffers one complete packet at a time and bounds storage with
+`MAX_PACKET_BYTES`. Each lane FIFO has an independent `FIFO_DEPTH` and
+provides backpressure to the scheduler. The wire encoder checks that the
+number of payload bytes emitted across all beats matches the packet length
+carried with the packet.
+
+## Clocking, reset and remaining integration work
+
+The packet scheduler and FIFO write ports use `bond_clk`. Each FIFO read
+port and wire encoder use its corresponding lane clock. Each lane FIFO's
+write and read resets are asserted together using
+`bond_rst_n && laneN_rst_n`; assertion is asynchronous and release is
+synchronized independently in each clock domain.
+
+A lane reset also resets that lane's wire-frame sequence. The session
+supervisor must coordinate a peer/session reset before traffic resumes, or
+the peer may reject the restarted per-lane frame sequence.
+
+The current RTL provides local ready/valid backpressure. It does not yet
+connect cumulative protocol byte/packet credits to the hardware scheduler.
+It also does not implement retransmission, lane failover, automatic rejoin,
+CONTROL-frame scheduling or full-duplex session supervision.
 
 ## Verification
 
-`tb_bonded_two_lane_tx` uses three unrelated clocks and connects each encoded
-lane directly to its matching v0 wire decoder. It sends two short packets
-through the common application interface. The first packet is assigned to
-lane 0 with global sequence 0; the second is assigned to lane 1 with sequence
-1. The decoders validate the session, lane identifier, header CRC and frame
-CRC, then the test checks the decoded payload bytes and sequence values.
+`tb_bonded_two_lane_tx` uses independent bonding, lane 0 and lane 1 clocks.
+It sends a six-byte, two-beat packet followed by a two-byte partial-beat
+packet. It checks round-robin lane assignment, global packet sequence, packet
+length propagation and decoded payload bytes. Deterministic downstream
+backpressure is applied independently on both lane outputs. Each output is
+connected to the matching v0 wire RX decoder, which validates the complete
+frame before releasing its payload.
 
-This verifies scheduler -> async FIFO -> wire encoder -> wire decoder on both
-lanes. It does not yet verify a physical SerDes/PCS, clock recovery, CONTROL
-frames, credit-based flow control, retransmission, lane-loss handling or
-full-duplex session supervision. The scheduler buffers one complete packet
-before sending it and serves one packet at a time; packet-level striping across
-both lanes and multi-packet concurrency are future optimizations.
+This is a digital simulation of scheduler -> asynchronous FIFO -> wire
+encoder -> wire decoder. It is not a transceiver timing, signal-integrity or
+FPGA resource validation.
