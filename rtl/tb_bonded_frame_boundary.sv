@@ -23,7 +23,6 @@ module tb_bonded_frame_boundary;
         @(posedge clk); #1; in_valid=0; in_sop=0; in_eop=0;
     end endtask
 
-    integer beats=0;
     initial begin
         repeat(3) @(posedge clk);
         @(negedge clk); rst=0; out_ready=0;
@@ -31,18 +30,22 @@ module tb_bonded_frame_boundary;
         send_byte(8'h23,0,0);
         send_byte(8'h45,0,0);
         send_byte(8'h67,0,0);
-        send_byte(8'h89,0,1);
         repeat(3) begin
-            @(posedge clk);
+            @(posedge clk); #1;
             if (!out_valid || out_data !== 32'h67452301 ||
                 out_keep !== 4'hf || !out_sop || out_eop)
                 $fatal(1,"first beat incorrect or not held during stall");
         end
         @(negedge clk); out_ready=1;
         @(posedge clk); #1;
+        if (out_valid) $fatal(1,"TX did not retire first beat");
+        @(negedge clk); out_ready=0;
+        send_byte(8'h89,0,1);
+        @(posedge clk); #1;
         if (!out_valid || out_data !== 32'h00000089 ||
             out_keep !== 4'h1 || out_sop || !out_eop)
             $fatal(1,"partial final beat incorrect");
+        @(negedge clk); out_ready=1;
         @(posedge clk); #1;
         if (out_valid) $fatal(1,"TX did not retire final beat");
         $display("PASS: TX packing, partial KEEP, SOP/EOP and backpressure");
