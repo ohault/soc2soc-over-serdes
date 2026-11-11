@@ -273,7 +273,28 @@ module bonded_control_manager #(
 
             if(ping_pending) begin
                 if(ping_age<PONG_TIMEOUT_CYCLES) ping_age<=ping_age+1'b1;
-                else begin fault<=1;session_established<=0; end
+                else begin fault<=1;session_established<=0;restart_pending<=1;restart_age<=0; end
+            end
+            if(restart_pending && all_lanes_up && LOCAL_PEER_ID<EXPECTED_PEER_ID) begin
+                if(restart_age<RESTART_BACKOFF_CYCLES) restart_age<=restart_age+1'b1;
+                else if(active_session_id==64'hffff_ffff_ffff_ffff) begin
+                    restart_pending<=0;fault<=1;session_established<=0;
+                end else begin
+                    active_session_id<=active_session_id+1'b1;
+                    highest_peer_session_id<=active_session_id+1'b1;
+                    session_changed<=1'b1;session_initiated<=1'b1;
+                    session_established<=1'b0;fault<=1'b0;
+                    hello_seen<=0;ready_seen<=0;
+                    hello_sent<=0;ready_sent<=0;ready_queued<=0;tx_pending<=0;
+                    remote_byte_limit<=0;remote_packet_limit<=0;
+                    last_advertised_bytes<=0;last_advertised_packets<=0;
+                    pong_pending<=0;pong_queued<=0;
+                    ping_pending<=0;ping_queued<=0;ping_age<=0;
+                    ping_interval_age<=0;next_ping_nonce<=1;ping_sent_nonce<=0;
+                    restart_pending<=0;restart_age<=0;
+                end
+            end else if(restart_pending && !all_lanes_up) begin
+                restart_age<=0;
             end
             if(session_established && !ping_pending && ping_interval_age<PING_INTERVAL_CYCLES)
                 ping_interval_age<=ping_interval_age+1'b1;
