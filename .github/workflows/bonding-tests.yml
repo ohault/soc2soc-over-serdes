@@ -98,8 +98,8 @@ jobs:
       - name: Compile and run end-to-end two-lane wire RX and CDC testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_two_lane_rx -o /tmp/tb_two_lane_rx \
-            rtl/bonded_wire_rx_lane.sv rtl/bonded_async_fifo.sv \
-            rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv rtl/bonded_credit_manager.sv \
+            rtl/bonded_wire_rx_lane.sv rtl/bonded_wire_rx_demux.sv rtl/bonded_control_frame_rx.sv \
+            rtl/bonded_async_fifo.sv rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv rtl/bonded_credit_manager.sv \
             rtl/bonded_two_lane_rx.sv rtl/tb_bonded_two_lane_rx.sv
           vvp /tmp/tb_two_lane_rx
 
@@ -121,8 +121,8 @@ jobs:
             rtl/bonded_control_frame_tx.sv rtl/bonded_control_queue.sv \
             rtl/bonded_lane_frame_arbiter.sv rtl/bonded_lane_tx_mux.sv \
             rtl/bonded_two_lane_tx.sv rtl/bonded_two_lane_cdc.sv \
-            rtl/bonded_packet_rx.sv rtl/bonded_two_lane_rx.sv \
-            rtl/bonded_session_gate.sv rtl/bonded_two_lane_endpoint.sv rtl/tb_bonded_two_lane_endpoint.sv
+            rtl/bonded_packet_rx.sv rtl/bonded_wire_rx_demux.sv rtl/bonded_control_frame_rx.sv \
+            rtl/bonded_two_lane_rx.sv rtl/bonded_session_gate.sv rtl/bonded_two_lane_endpoint.sv rtl/tb_bonded_two_lane_endpoint.sv
           vvp /tmp/tb_two_lane_endpoint
 
       - name: Compile and run cumulative byte/packet credit RTL testbench
