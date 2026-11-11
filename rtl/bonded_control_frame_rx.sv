@@ -120,8 +120,11 @@ module bonded_control_frame_rx #(
                     // from an unadopted newer epoch are stale, not PHY errors.
                     state<=ST_IDLE;rx_count<=0;
                 end else if(active_session==expected_session_id &&
-                            ( {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
-                              expected_frame_sequence_override==32'hffffffff)) begin
+                            ({frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
+                             expected_frame_sequence_override==32'hffffffff) &&
+                            !(frame_mem[24]==8'h01 &&
+                              {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}==0 &&
+                              expected_frame_sequence_override!=32'hffffffff)) begin
                     frame_error<=1;state<=ST_IDLE;rx_count<=0;
                 end else begin
                     ctrl_body<=0;
@@ -133,7 +136,11 @@ module bonded_control_frame_rx #(
                     received_lane_id<=frame_mem[5];
                     received_session_id<=active_session;
                     expected_frame_sequence<= {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}+1'b1;
-                    if(active_session>expected_session_id && frame_mem[24]==8'h01)
+                    if(frame_mem[24]==8'h01 &&
+                       ((active_session>expected_session_id) ||
+                        (active_session==expected_session_id &&
+                         {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}==0 &&
+                         expected_frame_sequence_override!=0)))
                         new_session_hello_pulse<=1'b1;
                     frame_valid_pulse<=1'b1;
                     state<=ST_OUTPUT;
