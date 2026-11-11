@@ -9,6 +9,7 @@ module bonded_lane_tx_mux #(
 ) (
     input wire clk,
     input wire rst,
+    input wire data_rst,
     input wire [63:0] session_id,
 
     input wire ctrl_valid,
@@ -75,7 +76,7 @@ module bonded_lane_tx_mux #(
     bonded_wire_tx_lane #(
         .DATA_WIDTH(DATA_WIDTH), .KEEP_WIDTH(KEEP_WIDTH), .LANE_ID(LANE_ID)
     ) data_encoder (
-        .clk(clk), .rst(rst), .session_id(session_id),
+        .clk(clk), .rst(rst || data_rst), .session_id(session_id),
         .frame_start_enable(data_start_enable),
         .frame_sequence_override(shared_frame_sequence),
         .in_valid(data_valid), .in_ready(data_ready),
@@ -103,7 +104,7 @@ module bonded_lane_tx_mux #(
     end
 
     bonded_lane_frame_arbiter arbiter (
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst(rst), .data_abort(data_rst),
         .ctrl_valid(ctrl_frame_valid), .ctrl_ready(ctrl_frame_ready),
         .ctrl_data(ctrl_frame_data), .ctrl_sop(ctrl_frame_sop), .ctrl_eop(ctrl_frame_eop),
         .data_valid(data_frame_valid), .data_ready(data_frame_ready),
