@@ -7,6 +7,7 @@ module bonded_wire_rx_lane #(
 ) (
     input wire clk, input wire rst,
     input wire [63:0] expected_session_id,
+    input wire [31:0] expected_frame_sequence_override,
     input wire in_valid, output wire in_ready,
     input wire [7:0] in_data, input wire in_sop, input wire in_eop,
     output wire out_valid, input wire out_ready,
@@ -108,7 +109,7 @@ module bonded_wire_rx_lane #(
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
                    {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
                     frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session ||
-                   {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence ||
+                   {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
                    {frame_mem[22],frame_mem[23]}!=header_crc ||
                    {frame_mem[20],frame_mem[21]}<4 ||
                    {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
@@ -118,8 +119,8 @@ module bonded_wire_rx_lane #(
                     frame_error<=1; state<=ST_IDLE; rx_count<=0;
                 end else begin
                     out_packet_sequence<={frame_mem[24],frame_mem[25],frame_mem[26],frame_mem[27]};
-                    out_frame_sequence<=expected_frame_sequence;
-                    expected_frame_sequence<=expected_frame_sequence+1'b1;
+                    out_frame_sequence<=expected_frame_sequence_override;
+                    expected_frame_sequence<=expected_frame_sequence_override+1'b1;
                     payload_length<={frame_mem[20],frame_mem[21]}-16'd4;
                     output_index<=0; frame_valid_pulse<=1;
                     if({frame_mem[20],frame_mem[21]}==4) begin
