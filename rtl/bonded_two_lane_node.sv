@@ -27,9 +27,11 @@ module bonded_two_lane_node #(
     input wire lane0_tx_clk,input wire lane0_tx_rst_n,
     output wire lane0_tx_valid,input wire lane0_tx_ready,
     output wire [7:0] lane0_tx_data,
+    output wire lane0_tx_sop, output wire lane0_tx_eop,
     input wire lane1_tx_clk,input wire lane1_tx_rst_n,
     output wire lane1_tx_valid,input wire lane1_tx_ready,
     output wire [7:0] lane1_tx_data,
+    output wire lane1_tx_sop, output wire lane1_tx_eop,
 
     input wire lane0_rx_clk,input wire lane0_rx_rst_n,
     input wire lane0_rx_valid,output wire lane0_rx_ready,
@@ -214,6 +216,10 @@ module bonded_two_lane_node #(
         .rx_packet_error(rx_packet_error),
         .lane0_tx_frame_sequence(lane0_tx_seq),.lane1_tx_frame_sequence(lane1_tx_seq)
     );
+    assign lane0_tx_sop = lane0_tx_sop_internal;
+    assign lane0_tx_eop = lane0_tx_eop_internal;
+    assign lane1_tx_sop = lane1_tx_sop_internal;
+    assign lane1_tx_eop = lane1_tx_eop_internal;
     assign lane0_rx_frame_error = lane0_rx_overflow | lane0_framer_error | lane0_endpoint_rx_error;
     assign lane1_rx_frame_error = lane1_rx_overflow | lane1_framer_error | lane1_endpoint_rx_error;
 endmodule
