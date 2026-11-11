@@ -69,8 +69,9 @@ module bonded_packet_tx #(
     wire packet_credit_ok = !tx_eop || credit_reserve_ready;
     assign tx_ready = !sending && (stored_beats < MAX_PACKET_BEATS) && packet_credit_ok;
     assign credit_reserve_valid = tx_valid && tx_ready && tx_eop &&
-        collecting && tx_keep != 0 &&
+        (!collecting ? tx_sop : !tx_sop) && tx_keep != 0 &&
         ((tx_keep & (tx_keep + 1'b1)) == 0) &&
+        (!collecting || tx_keep == {KEEP_WIDTH{1'b1}}) &&
         prospective_packet_bytes <= MAX_PACKET_BYTES;
     assign credit_reserve_bytes = prospective_packet_bytes;
 
