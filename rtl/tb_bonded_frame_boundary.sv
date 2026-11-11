@@ -48,7 +48,36 @@ module tb_bonded_frame_boundary;
         @(negedge clk); out_ready=1;
         @(posedge clk); #1;
         if (out_valid) $fatal(1,"TX did not retire final beat");
-        $display("PASS: TX packing, partial KEEP, SOP/EOP and backpressure");
+        // Reset during a partially assembled frame: its continuation is invalid.
+        @(negedge clk); out_ready=0;
+        send_byte(8'h11,1,0);
+        @(negedge clk); rst=1;
+        repeat(2) @(posedge clk);
+        @(negedge clk); rst=0;
+        send_byte(8'h22,0,1);
+        @(negedge clk);
+        if (out_valid) $fatal(1,"TX emitted a frame continued across reset");
+
+        // Malformed continuation is discarded; a fresh SOP recovers cleanly.
+        send_byte(8'h33,0,1);
+        @(negedge clk);
+        if (out_valid) $fatal(1,"TX accepted data without SOP");
+        send_byte(8'haa,1,1);
+        @(posedge clk); #1;
+        if (!out_valid || out_data !== 32'h000000aa ||
+            out_keep !== 4'h1 || !out_sop || !out_eop)
+            $fatal(1,"TX did not recover on a fresh single-byte frame");
+
+        // Reset must also withdraw a stalled output beat.
+        @(negedge clk); rst=1;
+        @(posedge clk); #1;
+        if (out_valid) $fatal(1,"TX retained output valid through reset");
+        @(negedge clk); rst=0;
+        send_byte(8'hbb,1,1);
+        @(posedge clk); #1;
+        if (!out_valid || out_data !== 32'h000000bb)
+            $fatal(1,"TX failed after output reset");
+        $display("PASS: TX packing, KEEP, SOP/EOP, backpressure, malformed recovery and reset");
         $finish;
     end
 endmodule
