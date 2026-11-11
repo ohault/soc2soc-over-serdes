@@ -67,10 +67,16 @@ module tb_bonded_phy_8b10b_word_adapter;
    $fatal(1,"four-symbol partial word packing incorrect");
 
   // PHY FIFO backpressure must hold the input word until it can be accepted.
-  txpr4=0;#1;
-  if(txpv4 || txr4) $fatal(1,"four-symbol TX did not backpressure");
-  txpr4=1;#1;
-  if(!txpv4 || !txr4) $fatal(1,"four-symbol TX did not resume");
+  begin : tx_stall_check
+   reg [31:0] held_phy_data;
+   held_phy_data=txpd4;
+   txpr4=0;#1;
+   if(!txpv4 || txr4 || txpd4!==held_phy_data)
+    $fatal(1,"four-symbol TX VALID/DATA were not held stable under backpressure");
+   txpr4=1;#1;
+   if(!txpv4 || !txr4 || txpd4!==held_phy_data)
+    $fatal(1,"four-symbol TX did not resume with the held word");
+  end
   txv4=0;txsop4=0;txk4=0;
 
   // Two-symbol TX: first word has one byte, continuation has two.
