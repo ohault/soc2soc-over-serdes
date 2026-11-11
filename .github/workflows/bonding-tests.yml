@@ -154,3 +154,15 @@ jobs:
             rtl/tb_bonded_control_frame_loopback.sv
           vvp /tmp/tb_control_loopback
 
+
+      - name: Compile and run CONTROL queue regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_control_queue -o /tmp/tb_control_queue \
+            rtl/bonded_control_queue.sv rtl/tb_bonded_control_queue.sv
+          vvp /tmp/tb_control_queue
+
+      - name: Compile and run frame-atomic arbitration regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_lane_frame_arbiter_atomic -o /tmp/tb_lane_arbiter_atomic \
+            rtl/bonded_lane_frame_arbiter.sv rtl/tb_bonded_lane_frame_arbiter_atomic.sv
+          vvp /tmp/tb_lane_arbiter_atomic
