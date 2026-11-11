@@ -36,8 +36,9 @@ accepts them. If the adapter's own receive buffer overruns or a byte is lost,
 it must assert the corresponding sticky `laneN_rx_overflow` input and hold it
 until `bond_rst_n` is asserted. The autonomous node propagates this through
 the lane RX frame error output and synchronizes the overrun into the bonding
-clock domain as a lane-down event, invalidating the current session. It must
-never silently discard a byte and continue. The `bonded_wire_rx_framer` then:
+clock domain as a lane-down event, invalidating the current session. A session-drop event is synchronized into each recovered
+RX clock and flushes the raw-byte FIFO and frame parser, without resetting the
+CONTROL manager. It must never silently discard a byte and continue. The `bonded_wire_rx_framer` then:
 
 1. Searches the raw byte stream for the v0 magic/version/type prefix.
 2. Captures the 24-byte header.
