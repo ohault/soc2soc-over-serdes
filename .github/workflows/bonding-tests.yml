@@ -24,3 +24,21 @@ jobs:
           python-version: "3.12"
       - name: Run bonding unit and integration tests
         run: python -m unittest discover -s test -p "test_bonding_*.py" -v
+
+  rtl-frame-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile and run frame TX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
+            rtl/bonded_frame_tx.sv rtl/tb_bonded_frame_boundary.sv
+          vvp /tmp/tb_frame_boundary
+      - name: Compile frame RX module
+        run: |
+          iverilog -g2012 -Wall -tnull rtl/bonded_frame_rx.sv
