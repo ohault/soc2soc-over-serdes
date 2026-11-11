@@ -39,6 +39,8 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
             rtl/bonded_frame_tx.sv rtl/tb_bonded_frame_boundary.sv
           vvp /tmp/tb_frame_boundary
-      - name: Compile frame RX module
+      - name: Compile and run frame RX testbench
         run: |
-          iverilog -g2012 -Wall -tnull rtl/bonded_frame_rx.sv
+          iverilog -g2012 -Wall -s tb_bonded_frame_rx -o /tmp/tb_frame_rx \
+            rtl/bonded_frame_rx.sv rtl/tb_bonded_frame_rx.sv
+          vvp /tmp/tb_frame_rx
