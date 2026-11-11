@@ -68,6 +68,7 @@ module tb_bonded_wire_rx_framer;
   end
   @(negedge clk);out_ready=1;
   wait(got==41);
+  @(negedge clk); // Let the TX frame-sequence NBA update settle.
   if(captured[0]!=8'h53 || captured[1]!=8'h42 || captured[2]!=8'h01 ||
      captured[3]!=8'h02 || captured[5]!=0 || captured[7]!=8'h18 ||
      captured[24]!=8'h03 || captured[31]!=8'h10 || captured[32]!=0 || captured[40]===8'hxx ||
@@ -87,6 +88,7 @@ module tb_bonded_wire_rx_framer;
   @(negedge clk);rst=0;allow_tx=1;sent=0;ctrl_valid=1;
   wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
   wait(got==41);
+  @(negedge clk);
   if(frame_error || tx_error || tx_seq!=1 || captured[24]!=8'h03)
     $fatal(1,"framer did not recover after mid-frame reset");
   $display("PASS: raw RX framer recovers after a session-style mid-frame flush");
