@@ -18,6 +18,13 @@ transmit clock and recovered receive clock need not be related. The board
 adapter is responsible for connecting these streams to the appropriate
 PCS/PMA or vendor transceiver primitives.
 
+The `bonded_session_gate` synchronizes deassertion of all four lane reset
+signals into the bonding clock domain. Any lane reset assertion immediately
+disables the application interfaces. Application traffic is enabled only when
+the external session manager asserts `session_established` and all four lane
+reset indications have been observed released through the synchronizers.
+This is a reset/readiness gate, not the HELLO/READY protocol itself.
+
 ## Sessions and reset
 
 TX and RX session IDs are independent parameters/ports. The local TX session
@@ -25,11 +32,12 @@ ID is inserted in outgoing frames; the expected peer session ID is checked by
 the receive decoders. A system-level session manager must negotiate and
 coordinate these values before application traffic is enabled.
 
-This module is a datapath composition, not a complete link manager. It does
-not perform HELLO/READY negotiation, heartbeat, peer identity/election,
-credit exchange, lane-loss detection, automatic rejoin or coordinated
-session restart. Reset the relevant TX/RX datapaths and the peer consistently
-before restarting per-lane frame sequences.
+This module is a datapath composition with an external session-ready input,
+not a complete link manager. It does not perform HELLO/READY negotiation,
+heartbeat, peer identity/election, credit exchange, lane-loss detection or
+automatic rejoin. The external manager must deassert `session_established`
+on any session/lane failure, coordinate reset with the peer, and assert it
+again only after negotiation and all required resets are complete.
 
 ## Physical stream contract
 
