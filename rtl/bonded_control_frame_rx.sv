@@ -34,7 +34,8 @@ module bonded_control_frame_rx #(
     reg [7:0] tail0,tail1,tail2,tail3;
     reg [15:0] header_crc;
     reg [31:0] frame_crc;
-    reg [63:0] active_session;
+    wire [63:0] frame_session_id = {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
+                                   frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]};
     reg [5:0] body_length;
     integer i;
 
@@ -67,7 +68,7 @@ module bonded_control_frame_rx #(
             state<=ST_IDLE; rx_count<=0;
             tail0<=0;tail1<=0;tail2<=0;tail3<=0;
             header_crc<=16'hffff;frame_crc<=32'hffffffff;
-            active_session<=0;body_length<=0;
+            body_length<=0;
             ctrl_body<=0;ctrl_body_length<=0;
             received_frame_sequence<=0;received_lane_id<=0;received_session_id<=0;
             expected_frame_sequence<=0;frame_valid_pulse<=0;new_session_hello_pulse<=0;
@@ -82,13 +83,13 @@ module bonded_control_frame_rx #(
                         state<=ST_COLLECT;rx_count<=1;frame_mem[0]<=in_data;
                         tail0<=in_data;tail1<=0;tail2<=0;tail3<=0;
                         header_crc<=crc16_byte(16'hffff,in_data);
-                        frame_crc<=32'hffffffff;active_session<=expected_session_id;
+                        frame_crc<=32'hffffffff;
                     end
                 end else if(in_sop) begin
                     frame_error<=1;state<=ST_COLLECT;rx_count<=1;
                     frame_mem[0]<=in_data;tail0<=in_data;tail1<=0;tail2<=0;tail3<=0;
                     header_crc<=crc16_byte(16'hffff,in_data);
-                    frame_crc<=32'hffffffff;active_session<=expected_session_id;
+                    frame_crc<=32'hffffffff;
                 end else if(rx_count>=54) begin
                     frame_error<=1;state<=ST_IDLE;rx_count<=0;
                 end else begin
@@ -107,19 +108,19 @@ module bonded_control_frame_rx #(
                    frame_mem[4]!=8'h00 || frame_mem[5]>8'd1 ||
                    (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff) && (frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
-                   active_session==0 ||
+                   frame_session_id==0 ||
                    frame_mem[20]!=0 || frame_mem[21]>26 ||
                    {frame_mem[22],frame_mem[23]}!=header_crc ||
                    rx_count!=(24+frame_mem[21]+4) ||
                    {tail3,tail2,tail1,tail0}!=~frame_crc ||
                    !body_valid(frame_mem[24],frame_mem[21][5:0])) begin
                     frame_error<=1;state<=ST_IDLE;rx_count<=0;
-                end else if(active_session!=expected_session_id &&
-                            !(active_session>expected_session_id && frame_mem[24]==8'h01)) begin
+                end else if(frame_session_id!=expected_session_id &&
+                            !(frame_session_id>expected_session_id && frame_mem[24]==8'h01)) begin
                     // Complete frames from older epochs and non-HELLO frames
                     // from an unadopted newer epoch are stale, not PHY errors.
                     state<=ST_IDLE;rx_count<=0;
-                end else if(active_session==expected_session_id &&
+                end else if(frame_session_id==expected_session_id &&
                             ({frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
                              expected_frame_sequence_override==32'hffffffff) &&
                             !(frame_mem[24]==8'h01 &&
@@ -134,11 +135,11 @@ module bonded_control_frame_rx #(
                     ctrl_body_length<=frame_mem[21][5:0];
                     received_frame_sequence<={frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]};
                     received_lane_id<=frame_mem[5];
-                    received_session_id<=active_session;
+                    received_session_id<=frame_session_id;
                     expected_frame_sequence<= {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}+1'b1;
                     if(frame_mem[24]==8'h01 &&
-                       ((active_session>expected_session_id) ||
-                        (active_session==expected_session_id &&
+                       ((frame_session_id>expected_session_id) ||
+                        (frame_session_id==expected_session_id &&
                          {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}==0 &&
                          expected_frame_sequence_override!=0)))
                         new_session_hello_pulse<=1'b1;
