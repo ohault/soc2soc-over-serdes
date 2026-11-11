@@ -53,8 +53,10 @@ The downstream demultiplexer routes DATA and CONTROL to independent decoders.
 
 The generic `rtl/bonded_phy_8b10b_adapter.sv` can sit between the node and a
 PHY that exposes decoded 8b/10b symbols. It maps the node's byte stream to a
-2- or 4-symbol word, inserts K28.5 idles in unused symbol positions, strips
-those idles on RX, and reports malformed symbol words and RX FIFO overflow.
+2- or 4-symbol word, inserts a unique K28.5 comma at symbol 0, carries data or
+a K28.0 empty marker in symbol 1, and uses zero-valued fillers in remaining
+slots. RX validates this pattern, strips the comma/empty/filler symbols and
+reports malformed words and RX FIFO overflow.
 It intentionally carries only one application byte per PHY word, so it is a
 bring-up adapter rather than a full-bandwidth gearbox. The board-specific
 adapter around the FPGA transceiver must implement the vendor-specific parts,
