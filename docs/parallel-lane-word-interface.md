@@ -56,6 +56,17 @@ mask and SOP indication. An idle comma word has no data bytes and is not
 reported as an SOP. The v0 header length and CRC determine the logical EOP. The wire parser still validates the v0 header CRC,
 length and frame CRC; the PHY comma does not replace protocol-level checks.
 
+## RTL prototype
+
+`rtl/bonded_phy_8b10b_word_adapter.sv` implements the parallel symbol-word
+mapping independently of the existing byte-wide node. It supports two- and
+four-symbol words, SOP comma insertion/reconstruction, K28.0 partial-word
+markers, contiguous keep validation, RX buffering/backpressure and overflow/
+symbol-error reporting. Its standalone regression is
+`rtl/tb_bonded_phy_8b10b_word_adapter.sv` and is included in CI. The parallel
+adapter is not yet connected to the autonomous node or the packet framing
+pipeline.
+
 ## TX/RX adapter requirements
 
 1. TX inserts K28.5 at frame start and during idle. It inserts K28.0 in unused
