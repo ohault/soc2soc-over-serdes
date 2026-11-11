@@ -21,9 +21,9 @@ is an integration option, not a dependency of the bonding core.
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
-| Parallel 8b/10b word adapter and byte/word gearboxes | Integrated; CI passing | Multi-byte words, SOP comma, independent TX/RX clocks, backpressure and asynchronous-FIFO loopback |
+| Parallel 8b/10b word adapter and byte/word gearboxes | Integrated; CI passing | Multi-byte words, SOP comma, independent TX/RX clocks, backpressure, session flush and PHY fault propagation |
 | Per-lane PHY bridge | Integrated as generic RTL | TX packer, 8b/10b word adapter, RX unpacker; session-drop flushing |
-| Two-lane parallel-PHY node wrapper | Integrated; end-to-end stress regression passing | Eight variable-length packets, both lanes, partial final words and application RX backpressure |
+| Two-lane parallel-PHY node wrapper | Integrated; full-duplex regression passing | Simultaneous traffic both ways, eight variable-length packets, both lanes, RX backpressure and malformed-symbol session invalidation |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -71,25 +71,26 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43114890195](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43114890195)
+[43115278450](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43115278450)
 completed successfully for commit
-`4f3716ccf9475b19150aafafbad1035ebc393225`. Both the Python reference-model
-and RTL simulation jobs passed. The RTL suite includes the byte and parallel
-PHY adapters, unrelated TX/RX clocks, session-drop flushing, and a two-node
-parallel-PHY test that transfers eight variable-length packets (1, 2, 3, 4, 5,
-7, 11 and 16 bytes), verifies round-robin use of both lanes, and applies
-application-side RX backpressure. The packet-TX regression also exercises
-credit reservation on partial final KEEP words.
+`87f6d99f35ebe1a69290f27b1f44a39b7143917e`. Both the Python reference-model
+and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
+nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
+clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
+16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
+direction, checks round-robin use of both forward lanes, applies application
+RX backpressure, and injects malformed 8b/10b control symbols to verify that
+PHY errors invalidate both bonded sessions. The per-lane bridge regression
+also exercises session-drop flushing and stale continuation-word discard.
 
-The two-node test connects both peers through four independent asynchronous
-symbol FIFOs. It validates the logical RTL path and its clock-domain
-boundaries, but does not model analogue SERDES behavior, transceiver PLL/CDR
-lock, 8b/10b disparity/code errors from a real PHY, signal integrity or timing
-closure. This remains digital simulation evidence, not hardware validation.
+This remains digital simulation evidence. It does not model analogue SERDES
+behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
+integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Extend the passing digital regression with deliberate PHY symbol errors,
-   asymmetric lane loss, heartbeat timeout and session restart/recovery tests.
+1. Extend the passing digital regression with asymmetric lane loss,
+   heartbeat timeout and full session restart/recovery tests. The current
+   control fault is sticky and automatic re-negotiation is not yet implemented.
 2. Implement RTL lane-map discovery and a fresh per-session epoch so crossed
    SFP/DAC cabling and stale frames are handled deterministically.
 3. Implement the first board-specific SERDES wrapper, beginning with the
