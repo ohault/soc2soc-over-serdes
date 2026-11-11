@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // SPDX-License-Identifier: BSD-2-Clause
 module tb_bonded_two_lane_node;
  reg bond_a=0,bond_b=0;
