@@ -99,12 +99,12 @@ integrity, FPGA resource utilization or timing closure.
 1. Add a fresh per-session epoch so stale complete frames cannot be accepted
    after a coordinated reset; the current bridge flush only discards stale
    continuation words until the next SOP.
-3. Implement the first board-specific SERDES wrapper, beginning with the
+2. Implement the first board-specific SERDES wrapper, beginning with the
    Acorn GTP and LiteICLink integration while keeping all vendor primitives
    outside the generic bonding RTL.
-4. Synthesize and time the generic core and board wrapper, then validate
+3. Synthesize and time the generic core and board wrapper, then validate
    transceiver lock, PRBS/loopback, lane skew and sustained traffic on the Acorn.
-5. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
-6. Only after the generic transport is stable on hardware, add PCIe and USB
+4. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
+5. Only after the generic transport is stable on hardware, add PCIe and USB
    protocol adapters as separate layers. The one-byte adapter remains the
    conservative bring-up path; the parallel adapter is the performance path.
