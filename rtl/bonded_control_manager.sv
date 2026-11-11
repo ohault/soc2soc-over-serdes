@@ -33,6 +33,7 @@ module bonded_control_manager #(
     output reg fault
 );
     reg [1:0] hello_seen,ready_seen;
+    reg was_all_lanes_up;
     reg hello_sent,ready_sent,ready_queued;
     reg tx_pending;
     reg [63:0] last_advertised_bytes;
@@ -127,7 +128,7 @@ module bonded_control_manager #(
 
     always @(posedge clk) begin
         if(rst) begin
-            hello_seen<=0;ready_seen<=0;hello_sent<=0;ready_sent<=0;ready_queued<=0;
+            hello_seen<=0;ready_seen<=0;was_all_lanes_up<=0;hello_sent<=0;ready_sent<=0;ready_queued<=0;
             tx_pending<=0;ctrl_tx_body<=0;ctrl_tx_body_length<=0;
             remote_byte_limit<=0;remote_packet_limit<=0;
             last_advertised_bytes<=0;last_advertised_packets<=0;
@@ -136,9 +137,11 @@ module bonded_control_manager #(
             ping_age<=0;ping_interval_age<=0;ping_sent_nonce<=0;
             session_established<=0;fault<=0;
         end else begin
-            if(!all_lanes_up) begin
+            if(all_lanes_up) was_all_lanes_up<=1;
+            if(was_all_lanes_up && !all_lanes_up) begin
                 session_established<=0;
                 fault<=1;
+                tx_pending<=0;
             end
 
             if(tx_handshake) begin
