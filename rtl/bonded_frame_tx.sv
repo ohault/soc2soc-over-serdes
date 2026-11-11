@@ -23,6 +23,7 @@ module bonded_frame_tx #(
     reg [DATA_WIDTH-1:0] assembly;
     reg [COUNT_WIDTH-1:0] count;
     reg frame_open;
+    reg word_sop;
 
     assign in_ready = !out_valid || out_ready;
 
@@ -38,6 +39,7 @@ module bonded_frame_tx #(
             assembly <= {DATA_WIDTH{1'b0}};
             count <= 0;
             frame_open <= 1'b0;
+            word_sop <= 1'b0;
             out_valid <= 1'b0;
             out_data <= {DATA_WIDTH{1'b0}};
             out_keep <= {WORD_BYTES{1'b0}};
@@ -55,17 +57,20 @@ module bonded_frame_tx #(
                     assembly <= {DATA_WIDTH{1'b0}};
                 end else begin
                     assembly[count*8 +: 8] <= in_data;
-                    if (count == 0)
+                    if (count == 0) begin
                         frame_open <= 1'b1;
+                        word_sop <= in_sop;
+                    end
 
                     if ((count == WORD_BYTES-1) || in_eop) begin
                         out_data <= assembly;
                         out_data[count*8 +: 8] <= in_data;
                         out_keep <= ({WORD_BYTES{1'b1}} >> (WORD_BYTES - count - 1));
                         out_valid <= 1'b1;
-                        out_sop <= (count == 0) && in_sop;
+                        out_sop <= (count == 0) ? in_sop : word_sop;
                         out_eop <= in_eop;
                         count <= 0;
+                        word_sop <= 1'b0;
                         if (in_eop)
                             frame_open <= 1'b0;
                     end else begin
