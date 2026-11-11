@@ -81,6 +81,7 @@ class BondedControlPlane:
         self.config = config
         self.session_id = config.session_id
         self._used_session_ids = {config.session_id}
+        self._highest_peer_session_id = config.session_id
         self.lanes_up = [False] * config.lane_count
         self.peer_lane_by_local: list[Optional[int]] = [None] * config.lane_count
         self._hello_seen = [False] * config.lane_count
@@ -160,6 +161,8 @@ class BondedControlPlane:
             raise ValueError("new_session_id must be a non-zero 64-bit integer")
         if new_session_id in self._used_session_ids:
             raise ControlPlaneError("session identifier has already been used by this endpoint")
+        if new_session_id <= self.session_id:
+            raise ControlPlaneError("initiator session identifiers must increase monotonically")
         if self.config.expected_peer_id is not None and self.config.peer_id > self.config.expected_peer_id:
             raise ControlPlaneError("only the lower peer_id endpoint may initiate a new session")
         if not all(self.lanes_up):
@@ -168,6 +171,7 @@ class BondedControlPlane:
             raise ControlPlaneError("restart is only valid after the current session has faulted")
         self.session_id = new_session_id
         self._used_session_ids.add(new_session_id)
+        self._highest_peer_session_id = new_session_id
         self.fault_reason = None
         self._hello_seen = [False] * self.config.lane_count
         self._ready_seen = [False] * self.config.lane_count
@@ -195,8 +199,8 @@ class BondedControlPlane:
             return
         if peer_id >= self.config.peer_id:
             return
-        if frame.session_id == 0 or frame.session_id in self._used_session_ids:
-            return
+        if frame.session_id <= self._highest_peer_session_id:
+            return  # delayed/replayed proposal from an older peer epoch
         if not all(self.lanes_up):
             return
         if lane_count != self.config.lane_count or profile_id != self.config.profile_id:
@@ -209,6 +213,7 @@ class BondedControlPlane:
         """Adopt the initiator's epoch and restart HELLO/READY on all lanes."""
         self.session_id = new_session_id
         self._used_session_ids.add(new_session_id)
+        self._highest_peer_session_id = new_session_id
         self.fault_reason = None
         self._hello_seen = [False] * self.config.lane_count
         self._ready_seen = [False] * self.config.lane_count
