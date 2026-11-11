@@ -35,20 +35,19 @@ module tb_bonded_async_fifo;
         if (!wr_rst_n) begin
             wr_valid <= 0;
             wr_data <= 0;
-            wr_lfsr <= 32'h1ace_b00c;
         end else begin
-            wr_lfsr <= {wr_lfsr[30:0], wr_lfsr[31]^wr_lfsr[21]^wr_lfsr[1]^wr_lfsr[0]};
-            if (!wr_valid || wr_ready) begin
-                if (sent < TOTAL && wr_lfsr[2:0] != 0) begin
+            if (wr_valid && wr_ready) begin
+                expected[sent] = wr_data;
+                sent = sent + 1;
+                if (sent < TOTAL) begin
                     wr_valid <= 1;
                     wr_data <= (sent * 32'h10204081) ^ 32'h5a5aa5a5;
                 end else begin
                     wr_valid <= 0;
                 end
-            end
-            if (wr_valid && wr_ready) begin
-                expected[sent] = wr_data;
-                sent = sent + 1;
+            end else if (!wr_valid && sent < TOTAL) begin
+                wr_valid <= 1;
+                wr_data <= (sent * 32'h10204081) ^ 32'h5a5aa5a5;
             end
         end
     end
