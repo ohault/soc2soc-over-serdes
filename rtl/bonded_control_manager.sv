@@ -6,8 +6,8 @@ module bonded_control_manager #(
     parameter [63:0] EXPECTED_PEER_ID = 64'd2,
     parameter [15:0] PROFILE_ID = 16'd1,
     parameter [15:0] MAX_PAYLOAD = 16'd4096,
-    parameter [31:0] PING_INTERVAL_CYCLES = 32'd100000,
-    parameter [31:0] PONG_TIMEOUT_CYCLES = 32'd300000
+    parameter [31:0] PING_INTERVAL_CYCLES = 32'd100000000,
+    parameter [31:0] PONG_TIMEOUT_CYCLES = 32'd300000000
 ) (
     input wire clk,
     input wire rst,
