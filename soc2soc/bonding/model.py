@@ -34,6 +34,10 @@ class PacketRejected(BondingError):
     """A packet is malformed, stale, duplicated, or outside the receive window."""
 
 
+class CreditViolation(SessionFault):
+    """The peer transmitted beyond the receive capacity it was granted."""
+
+
 @dataclass(frozen=True)
 class BondConfig:
     lane_count: int
@@ -41,6 +45,8 @@ class BondConfig:
     reorder_window: int = 32
     gap_timeout_cycles: int = 1024
     tx_queue_depth: int = 4
+    rx_buffer_bytes: int = 16384
+    rx_buffer_packets: int = 64
     protocol_version: int = PROTOCOL_VERSION
 
     def __post_init__(self):
@@ -54,6 +60,10 @@ class BondConfig:
             raise ValueError("gap_timeout_cycles must be at least 1")
         if self.tx_queue_depth < 1:
             raise ValueError("tx_queue_depth must be at least 1")
+        if self.rx_buffer_bytes < self.max_packet_bytes:
+            raise ValueError("rx_buffer_bytes must hold at least one maximum-sized packet")
+        if self.rx_buffer_packets < 1:
+            raise ValueError("rx_buffer_packets must be at least 1")
         if self.protocol_version < 1:
             raise ValueError("protocol_version must be at least 1")
 
@@ -166,6 +176,10 @@ class BondedSender(_Session):
         self._tx_queues: list[list[BondPacket]] = [
             [] for _ in range(config.lane_count)
         ]
+        self.remote_credit_bytes = 0
+        self.remote_credit_packets = 0
+        self._reserved_tx_bytes = 0
+        self._reserved_tx_packets = 0
 
     @property
     def queued_packets(self) -> tuple[int, ...]:
@@ -182,6 +196,13 @@ class BondedSender(_Session):
                 f"maximum {self.config.max_packet_bytes}"
             )
 
+        # Reserve remote receive capacity before assigning a sequence number.
+        # Credits are cumulative limits, not free-space snapshots.
+        if self._reserved_tx_bytes + len(payload) > self.remote_credit_bytes:
+            return None
+        if self._reserved_tx_packets + 1 > self.remote_credit_packets:
+            return None
+
         # Scan from the round-robin cursor, skipping lanes whose bounded
         # adapter-facing queues are full or whose physical link is unavailable.
         for offset in range(self.config.lane_count):
@@ -197,6 +218,8 @@ class BondedSender(_Session):
                 payload=payload,
             )
             self._tx_queues[lane].append(packet)
+            self._reserved_tx_bytes += len(payload)
+            self._reserved_tx_packets += 1
             self.next_sequence += 1
             self._next_lane = (lane + 1) % self.config.lane_count
             return lane, packet
@@ -217,13 +240,40 @@ class BondedSender(_Session):
             return None
         return self._tx_queues[lane].pop(0)
 
+    def update_remote_credits(self, byte_limit: int, packet_limit: int) -> None:
+        """Apply a peer's cumulative receive-credit limits.
+
+        Repeated or stale updates are harmless: limits may stay the same or
+        increase, but can never decrease within a session. The limits count
+        total bytes/packets accepted during this session, not current free space.
+        """
+        self._require_ready()
+        if byte_limit < self.remote_credit_bytes:
+            raise PacketRejected("remote byte-credit limit moved backwards")
+        if packet_limit < self.remote_credit_packets:
+            raise PacketRejected("remote packet-credit limit moved backwards")
+        if byte_limit < self._reserved_tx_bytes:
+            raise PacketRejected("remote byte-credit limit is below bytes already reserved")
+        if packet_limit < self._reserved_tx_packets:
+            raise PacketRejected("remote packet-credit limit is below packets already reserved")
+        self.remote_credit_bytes = byte_limit
+        self.remote_credit_packets = packet_limit
+
     def _on_session_established(self) -> None:
         self.next_sequence = 0
         self._next_lane = 0
         self._tx_queues = [[] for _ in range(self.config.lane_count)]
+        self._reserved_tx_bytes = 0
+        self._reserved_tx_packets = 0
+        self.remote_credit_bytes = self.config.rx_buffer_bytes
+        self.remote_credit_packets = self.config.rx_buffer_packets
 
     def _on_session_dropped(self) -> None:
         self._tx_queues = [[] for _ in range(self.config.lane_count)]
+        self._reserved_tx_bytes = 0
+        self._reserved_tx_packets = 0
+        self.remote_credit_bytes = 0
+        self.remote_credit_packets = 0
 
 
 class BondedReceiver(_Session):
@@ -238,13 +288,46 @@ class BondedReceiver(_Session):
         super().__init__(config)
         self.next_sequence = 0
         self._pending: dict[int, BondPacket] = {}
+        self._ready: list[BondPacket] = []
         self._gap_age = 0
+        self._received_bytes = 0
+        self._received_packets = 0
+        self._released_bytes = 0
+        self._released_packets = 0
 
     @property
     def pending_sequences(self) -> tuple[int, ...]:
         return tuple(sorted(self._pending))
 
-    def receive(self, lane: int, packet: BondPacket) -> list[bytes]:
+    @property
+    def queued_rx_packets(self) -> int:
+        """Packets retained locally, including out-of-order and app-ready data."""
+        return len(self._pending) + len(self._ready)
+
+    @property
+    def queued_rx_bytes(self) -> int:
+        return sum(len(packet.payload) for packet in self._pending.values()) + sum(
+            len(packet.payload) for packet in self._ready
+        )
+
+    def credit_update(self) -> tuple[int, int]:
+        """Return cumulative byte and packet limits to advertise to the peer."""
+        return (
+            self.config.rx_buffer_bytes + self._released_bytes,
+            self.config.rx_buffer_packets + self._released_packets,
+        )
+
+    def take_rx(self) -> Optional[bytes]:
+        """Deliver one in-order packet to the application and return its credits."""
+        self._require_ready()
+        if not self._ready:
+            return None
+        packet = self._ready.pop(0)
+        self._released_bytes += len(packet.payload)
+        self._released_packets += 1
+        return packet.payload
+
+    def receive(self, lane: int, packet: BondPacket) -> int:
         self._require_ready()
         self._check_lane(lane)
         if not self.lanes_up[lane]:
@@ -261,25 +344,46 @@ class BondedReceiver(_Session):
                 f"[{self.next_sequence}, "
                 f"{self.next_sequence + self.config.reorder_window - 1}]"
             )
-        if packet.sequence in self._pending:
+        if packet.sequence in self._pending or any(
+            queued.sequence == packet.sequence for queued in self._ready
+        ):
             raise PacketRejected(f"duplicate pending sequence {packet.sequence}")
 
+        # Enforce the receiver's advertised cumulative credits. A peer that
+        # exceeds them has violated the flow-control contract; do not silently
+        # drop the packet and continue the session.
+        byte_limit, packet_limit = self.credit_update()
+        if self._received_bytes + len(packet.payload) > byte_limit:
+            self._fail(
+                f"peer exceeded receive byte credits at sequence {packet.sequence}",
+                CreditViolation,
+            )
+        if self._received_packets + 1 > packet_limit:
+            self._fail(
+                f"peer exceeded receive packet credits at sequence {packet.sequence}",
+                CreditViolation,
+            )
+        self._received_bytes += len(packet.payload)
+        self._received_packets += 1
+
         if packet.sequence == self.next_sequence:
-            delivered = [packet.payload]
+            newly_ready = 1
+            self._ready.append(packet)
             self.next_sequence += 1
             while self.next_sequence in self._pending:
                 queued = self._pending.pop(self.next_sequence)
-                delivered.append(queued.payload)
+                self._ready.append(queued)
+                newly_ready += 1
                 self.next_sequence += 1
             self._gap_age = 0
-            return delivered
+            return newly_ready
 
         # Start the timer when the gap is first observed. Later out-of-order
         # arrivals must not keep extending the deadline indefinitely.
         if not self._pending:
             self._gap_age = 0
         self._pending[packet.sequence] = packet
-        return []
+        return 0
 
     def tick(self, cycles: int = 1) -> None:
         """Advance receive time while the next sequence is missing."""
@@ -296,16 +400,27 @@ class BondedReceiver(_Session):
                 f"pending={self.pending_sequences}"
             )
 
-    def _fail(self, reason: str) -> None:
+    def _fail(self, reason: str, error_type=SessionFault) -> None:
         self._pending.clear()
+        self._ready.clear()
         self._drop_session(reason)
-        raise SessionFault(reason)
+        raise error_type(reason)
 
     def _on_session_established(self) -> None:
         self.next_sequence = 0
         self._pending.clear()
+        self._ready.clear()
         self._gap_age = 0
+        self._received_bytes = 0
+        self._received_packets = 0
+        self._released_bytes = 0
+        self._released_packets = 0
 
     def _on_session_dropped(self) -> None:
         self._pending.clear()
+        self._ready.clear()
         self._gap_age = 0
+        self._received_bytes = 0
+        self._received_packets = 0
+        self._released_bytes = 0
+        self._released_packets = 0
