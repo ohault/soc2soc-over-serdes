@@ -13,7 +13,7 @@ module tb_bonded_lane_tx_mux;
  integer got=0, cycles=0;
  reg [7:0] captured[0:75];
  bonded_lane_tx_mux #(.DATA_WIDTH(32),.LANE_ID(0)) dut(
-  .clk(clk),.rst(rst),.session_id(64'h1122334455667788),
+  .clk(clk),.rst(rst),.data_rst(1'b0),.session_id(64'h1122334455667788),
   .ctrl_valid(ctrl_valid),.ctrl_ready(ctrl_ready),.ctrl_body(ctrl_body),.ctrl_body_length(ctrl_len),
   .data_valid(data_valid),.data_ready(data_ready),.data_data(data),.data_keep(keep),
   .data_sop(1'b1),.data_eop(1'b1),.data_packet_sequence(32'h1234),.data_packet_length(16'd3),
