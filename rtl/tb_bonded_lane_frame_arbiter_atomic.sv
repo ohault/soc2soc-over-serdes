@@ -32,7 +32,11 @@ module tb_bonded_lane_frame_arbiter_atomic;
   end
  end
  initial begin
-  repeat(3) @(posedge clk);@(negedge clk);rst=0;data_valid=1;
+  repeat(3) @(posedge clk);@(negedge clk);rst=0;out_ready=0;data_valid=1;
+  repeat(3) @(posedge clk);
+  if(!frame_idle || protocol_error || seen!=0)
+   $fatal(1,"arbiter did not hold an unaccepted SOP while stalled");
+  @(negedge clk);out_ready=1;
   wait(seen==1);@(negedge clk);ctrl_valid=1;
   wait(seen==5);repeat(2)@(posedge clk);
   if(protocol_error || !frame_idle) $fatal(1,"arbiter state/error");
