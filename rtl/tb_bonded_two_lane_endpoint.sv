@@ -91,36 +91,19 @@ module tb_bonded_two_lane_endpoint;
         .lane0_tx_frame_sequence(bt0seq),.lane1_tx_frame_sequence(bt1seq)
     );
 
-    integer txa0=0,txb0=0,rxa0=0,rxb0=0;
-    always @(posedge a_tx0) if(at0v) begin
-        if(txa0<4) $display("A TX0 %0d %02x sop=%b eop=%b",txa0,at0d,at0s,at0e);
-        txa0=txa0+1;
-    end
-    always @(posedge b_tx0) if(bt0v) begin
-        if(txb0<4) $display("B TX0 %0d %02x sop=%b eop=%b",txb0,bt0d,bt0s,bt0e);
-        txb0=txb0+1;
-    end
-    always @(posedge b_rx0) if(at0v) begin
-        if(rxb0<4) $display("B RX0 sees A %0d %02x ready=%b",rxb0,at0d,at0r);
-        rxb0=rxb0+1;
-    end
-    always @(posedge a_rx0) if(bt0v) begin
-        if(rxa0<4) $display("A RX0 sees B %0d %02x ready=%b",rxa0,bt0d,bt0r);
-        rxa0=rxa0+1;
-    end
     integer acount=0,bcount=0;
     always @(posedge bond_a) if(arv) begin
         case(acount)
-          0: if(arseq!==0 || !ars || ard!==8'hc3 || are) $fatal(1,"A RX byte 0 mismatch");
-          1: if(arseq!==0 || ars || ard!==8'hd4 || !are) $fatal(1,"A RX byte 1 mismatch");
+          0: if(arseq!==0 || !ars || ard!==8'ha1 || are) $fatal(1,"A RX byte 0 mismatch");
+          1: if(arseq!==0 || ars || ard!==8'hb2 || !are) $fatal(1,"A RX byte 1 mismatch");
           default: $fatal(1,"unexpected A RX byte");
         endcase
         acount<=acount+1;
     end
     always @(posedge bond_b) if(brv) begin
         case(bcount)
-          0: if(brseq!==0 || !brs || brd!==8'ha1 || bre) $fatal(1,"B RX byte 0 mismatch");
-          1: if(brseq!==0 || brs || brd!==8'hb2 || !bre) $fatal(1,"B RX byte 1 mismatch");
+          0: if(brseq!==0 || !brs || brd!==8'hc3 || bre) $fatal(1,"B RX byte 0 mismatch");
+          1: if(brseq!==0 || brs || brd!==8'hd4 || !bre) $fatal(1,"B RX byte 1 mismatch");
           default: $fatal(1,"unexpected B RX byte");
         endcase
         bcount<=bcount+1;
