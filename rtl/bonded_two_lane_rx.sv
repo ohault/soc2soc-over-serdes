@@ -43,7 +43,7 @@ module bonded_two_lane_rx #(
     wire [207:0] ctrl0_message_body;
     wire [5:0] ctrl0_message_length;
     wire [31:0] ctrl0_frame_seq,ctrl0_expected_seq;
-    wire ctrl0_demux_error,ctrl0_frame_error;
+    wire ctrl0_demux_error,ctrl0_frame_error,lane0_data_frame_error;
     wire rx0_valid, rx0_ready, rx0_sop, rx0_eop;
     wire [7:0] rx0_data;
     wire [31:0] rx0_packet_seq, rx0_frame_seq, rx0_expected_frame;
@@ -56,7 +56,7 @@ module bonded_two_lane_rx #(
     wire [207:0] ctrl1_message_body;
     wire [5:0] ctrl1_message_length;
     wire [31:0] ctrl1_frame_seq,ctrl1_expected_seq;
-    wire ctrl1_demux_error,ctrl1_frame_error;
+    wire ctrl1_demux_error,ctrl1_frame_error,lane1_data_frame_error;
     wire rx1_valid, rx1_ready, rx1_sop, rx1_eop;
     wire [7:0] rx1_data;
     wire [31:0] rx1_packet_seq, rx1_frame_seq, rx1_expected_frame;
@@ -90,7 +90,7 @@ module bonded_two_lane_rx #(
         .out_sop(rx0_sop), .out_eop(rx0_eop),
         .out_packet_sequence(rx0_packet_seq), .out_frame_sequence(rx0_frame_seq),
         .expected_frame_sequence(rx0_expected_frame),
-        .frame_error(lane0_frame_error), .frame_valid_pulse(rx0_frame_pulse)
+        .frame_error(lane0_data_frame_error), .frame_valid_pulse(rx0_frame_pulse)
     );
     bonded_control_frame_rx #(.LANE_ID(LANE0_ID)) control_decoder0 (
         .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.expected_session_id(expected_session_id),
@@ -111,7 +111,7 @@ module bonded_two_lane_rx #(
         .out_sop(rx1_sop), .out_eop(rx1_eop),
         .out_packet_sequence(rx1_packet_seq), .out_frame_sequence(rx1_frame_seq),
         .expected_frame_sequence(rx1_expected_frame),
-        .frame_error(lane1_frame_error), .frame_valid_pulse(rx1_frame_pulse)
+        .frame_error(lane1_data_frame_error), .frame_valid_pulse(rx1_frame_pulse)
     );
     bonded_control_frame_rx #(.LANE_ID(LANE1_ID)) control_decoder1 (
         .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.expected_session_id(expected_session_id),
@@ -151,6 +151,9 @@ module bonded_two_lane_rx #(
         if(!bond_rst_n) control_rr<=0;
         else if(ctrl_rx_valid && ctrl_rx_ready) control_rr<=~select_ctrl1;
     end
+
+    assign lane0_frame_error = lane0_data_frame_error | ctrl0_demux_error | ctrl0_frame_error;
+    assign lane1_frame_error = lane1_data_frame_error | ctrl1_demux_error | ctrl1_frame_error;
 
     wire cdc0_valid, cdc0_ready, cdc1_valid, cdc1_ready;
     wire [CDC_WIDTH-1:0] cdc0_data, cdc1_data;
