@@ -155,7 +155,7 @@ module bonded_two_lane_rx #(
         .frame_error(lane1_data_frame_error), .frame_valid_pulse(rx1_frame_pulse)
     );
     bonded_control_frame_rx #(.LANE_ID(LANE1_ID),.DYNAMIC_LANE_ID(1)) control_decoder1 (
-        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.expected_session_id(64'd0),
+        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.expected_session_id(expected_session_id),
         .expected_frame_sequence_override(lane1_expected_wire_sequence),
         .expected_lane_id(lane1_expected_lane_id),
         .in_valid(ctrl1_stream_valid),.in_ready(ctrl1_stream_ready),.in_data(ctrl1_stream_data),
