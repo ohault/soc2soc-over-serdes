@@ -385,8 +385,30 @@ module tb_bonded_two_lane_phy_word_node;
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        if(!active_a || !active_b || fault_a || fault_b)
+        if(!active_a || !active_b || fault_a || fault_b) begin
+            $display("A epoch=%h changed=%b initiated=%b active=%b fault=%b hello=%b ready=%b sent=%b/%b restart=%b age=%0d",
+                node_a.node.control_manager.active_session_id,node_a.node.control_manager.session_changed,
+                node_a.node.control_manager.session_initiated,active_a,fault_a,
+                node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen,
+                node_a.node.control_manager.hello_sent,node_a.node.control_manager.ready_sent,
+                node_a.node.control_manager.restart_pending,node_a.node.control_manager.restart_age);
+            $display("B epoch=%h changed=%b initiated=%b active=%b fault=%b hello=%b ready=%b sent=%b/%b restart=%b age=%0d",
+                node_b.node.control_manager.active_session_id,node_b.node.control_manager.session_changed,
+                node_b.node.control_manager.session_initiated,active_b,fault_b,
+                node_b.node.control_manager.hello_seen,node_b.node.control_manager.ready_seen,
+                node_b.node.control_manager.hello_sent,node_b.node.control_manager.ready_sent,
+                node_b.node.control_manager.restart_pending,node_b.node.control_manager.restart_age);
+            $display("RX seq A=%0d/%0d B=%0d/%0d map A=%b:%0d/%b:%0d B=%b:%0d/%b:%0d",
+                node_a.node.endpoint.rx_path.lane0_expected_wire_sequence,
+                node_a.node.endpoint.rx_path.lane1_expected_wire_sequence,
+                node_b.node.endpoint.rx_path.lane0_expected_wire_sequence,
+                node_b.node.endpoint.rx_path.lane1_expected_wire_sequence,
+                node_a.node.endpoint.rx_path.lane0_mapping_valid,node_a.node.endpoint.rx_path.lane0_remote_lane_id,
+                node_a.node.endpoint.rx_path.lane1_mapping_valid,node_a.node.endpoint.rx_path.lane1_remote_lane_id,
+                node_b.node.endpoint.rx_path.lane0_mapping_valid,node_b.node.endpoint.rx_path.lane0_remote_lane_id,
+                node_b.node.endpoint.rx_path.lane1_mapping_valid,node_b.node.endpoint.rx_path.lane1_remote_lane_id);
             $fatal(1,"new session epoch did not re-arm after lane recovery");
+        end
         if(node_a.node.active_session_id!==64'h123456789abcdef1 ||
            node_b.node.active_session_id!==64'h123456789abcdef1)
             $fatal(1,"peers did not converge on the incremented session epoch A=%h B=%h",
