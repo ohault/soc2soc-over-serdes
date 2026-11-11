@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 """Framework-neutral bonded SerDes transport reference model."""
 
-from .model import (
+from .control import (\n    BondedControlPlane,\n    ControlConfig,\n    ControlPlaneError,\n    ControlSessionDown,\n)\nfrom .model import (
     BondConfig,
     BondPacket,
     BondedReceiver,
@@ -15,7 +15,7 @@ from .model import (
 )
 
 __all__ = [
-    "BondConfig",
+    "BondedControlPlane",\n    "ControlConfig",\n    "ControlPlaneError",\n    "ControlSessionDown",\n    "BondConfig",
     "BondPacket",
     "BondedReceiver",
     "BondedSender",
