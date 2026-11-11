@@ -183,7 +183,7 @@ module bonded_wire_tx_lane #(
             if(state==ST_IDLE && in_valid && in_ready) begin
                 if(!in_sop || !keep_is_contiguous(in_keep) ||
                    in_packet_length>4096 || in_packet_length==0 ||
-                   session_id==0 ||
+                   session_id==0 || next_frame_sequence==32'hffffffff ||
                    (!in_eop && in_keep!={KEEP_WIDTH{1'b1}})) begin
                     frame_error<=1'b1;
                 end else begin
