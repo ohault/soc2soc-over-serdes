@@ -29,7 +29,7 @@ module tb_bonded_width_adapter;
         in_valid=0; in_sop=0; in_eop=0;
     end endtask
 
-    task expect(input [63:0] data, input [7:0] keep, input sop, input eop);
+    task check_output(input [63:0] data, input [7:0] keep, input sop, input eop);
     begin
         while (!out_valid) @(negedge clk);
         #1;
@@ -54,7 +54,7 @@ module tb_bonded_width_adapter;
                 $fatal(1,"adapter failed aggregation or stalled stability");
         end
         @(negedge clk); out_ready=1;
-        expect(64'h8877665544332211,8'hff,1,1);
+        check_output(64'h8877665544332211,8'hff,1,1);
 
         // A four-byte frame remains a partial 64-bit output beat.
         send(32'h000000aa,4'h1,1,1);
