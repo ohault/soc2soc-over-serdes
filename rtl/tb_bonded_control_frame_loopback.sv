@@ -17,7 +17,7 @@ module tb_bonded_control_frame_loopback;
   .out_valid(stream_valid),.out_ready(stream_ready),.out_data(stream_data),
   .out_sop(stream_sop),.out_eop(stream_eop),.next_frame_sequence(tx_next),.frame_error(tx_error));
  bonded_control_frame_rx #(.LANE_ID(1)) rx(
-  .clk(clk),.rst(rst),.expected_session_id(64'h0123456789abcdef),
+  .clk(clk),.rst(rst),.expected_session_id(64'h0123456789abcdef),.expected_frame_sequence_override(32'd0),
   .in_valid(stream_valid),.in_ready(stream_ready),.in_data(stream_data),
   .in_sop(stream_sop),.in_eop(stream_eop),
   .ctrl_valid(rx_valid),.ctrl_ready(ctrl_ready),.ctrl_body(rx_body),
