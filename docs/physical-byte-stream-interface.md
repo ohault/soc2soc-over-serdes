@@ -12,7 +12,8 @@ For each lane, the node exposes:
 - `laneN_tx_ready`
 - `laneN_tx_data[7:0]`
 
-The accompanying SOP/EOP outputs are internal diagnostic sidebands. **They are
+The autonomous node intentionally does not expose SOP/EOP on its physical TX
+ports. The lower-level endpoint has those internal sidebands, but **they are
 not transmitted over the serial cable.** The physical adapter serializes only
 the data bytes and must preserve their order without dropping or duplicating
 bytes. A small TX elastic buffer is appropriate if the transceiver cannot
