@@ -22,6 +22,7 @@ module bonded_lane_frame_arbiter (
     output wire [7:0] out_data,
     output wire out_sop,
     output wire out_eop,
+    output wire frame_idle,
     output reg protocol_error
 );
     localparam [1:0] SEL_IDLE=2'd0, SEL_CONTROL=2'd1, SEL_DATA=2'd2;
@@ -31,6 +32,7 @@ module bonded_lane_frame_arbiter (
     wire control_active = (selected==SEL_CONTROL) || choose_control;
     wire data_active = (selected==SEL_DATA) || choose_data;
 
+    assign frame_idle = (selected==SEL_IDLE);
     assign ctrl_ready = !rst && control_active && out_ready;
     assign data_ready = !rst && data_active && out_ready;
     assign out_valid = !rst && ((control_active && ctrl_valid) ||
@@ -49,16 +51,13 @@ module bonded_lane_frame_arbiter (
                     (!ctrl_valid && data_valid && !data_sop))
                     protocol_error <= 1'b1;
             end
+            if (out_valid && selected==SEL_IDLE && out_sop)
+                selected <= control_active ? SEL_CONTROL : SEL_DATA;
             if (out_valid && out_ready) begin
-                if (out_sop && selected!=SEL_IDLE)
+                if (out_sop && selected!=SEL_IDLE && !((selected==SEL_IDLE)))
                     protocol_error <= 1'b1;
                 if (out_eop) begin
                     selected <= SEL_IDLE;
-                end else if (selected==SEL_IDLE) begin
-                    if (control_active)
-                        selected <= SEL_CONTROL;
-                    else if (data_active)
-                        selected <= SEL_DATA;
                 end
             end
         end
