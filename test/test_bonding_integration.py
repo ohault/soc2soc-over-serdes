@@ -17,11 +17,11 @@ SESSION = 0x123456789ABCDEF0
 def make_control_pair():
     a = BondedControlPlane(ControlConfig(
         peer_id=0xA, session_id=SESSION, lane_count=2, profile_id=3,
-        expected_peer_id=0xB, initial_rx_bytes=32, initial_rx_packets=4,
+        expected_peer_id=0xB, initial_rx_bytes=16, initial_rx_packets=2,
     ))
     b = BondedControlPlane(ControlConfig(
         peer_id=0xB, session_id=SESSION, lane_count=2, profile_id=3,
-        expected_peer_id=0xA, initial_rx_bytes=32, initial_rx_packets=4,
+        expected_peer_id=0xA, initial_rx_bytes=16, initial_rx_packets=2,
     ))
     for endpoint in (a, b):
         endpoint.set_lane_up(0, True)
