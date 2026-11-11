@@ -22,6 +22,9 @@ module tb_bonded_two_lane_endpoint;
     reg [31:0] ad=0,bd=0;
     reg [3:0] ak=0,bk=0;
     wire ardy,brdy,session_a,session_b;
+    wire [63:0] a_local_bytes,b_local_bytes;
+    wire [31:0] a_local_packets,b_local_packets;
+    wire a_credit_error,b_credit_error;
     wire arv,ars,are,brv,brs,bre;
     wire [7:0] ard,brd;
     wire [31:0] arseq,brseq;
@@ -55,7 +58,8 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_a (
         .bond_clk(bond_a),.bond_rst_n(rst_n),.tx_session_id(64'hA11CE),
-        .rx_expected_session_id(64'hB0B),.remote_byte_limit(64'd16384),.remote_packet_limit(32'd64),.session_established(session_established),.session_active(session_a),
+        .rx_expected_session_id(64'hB0B),.remote_byte_limit(b_local_bytes),.remote_packet_limit(b_local_packets),.session_established(session_established),.session_active(session_a),
+        .local_byte_limit(a_local_bytes),.local_packet_limit(a_local_packets),.rx_credit_error(a_credit_error),
         .tx_valid(av),.tx_ready(ardy),.tx_data(ad),.tx_keep(ak),.tx_sop(asop),.tx_eop(aeop),
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
         .rx_packet_sequence(arseq),
@@ -75,7 +79,8 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_b (
         .bond_clk(bond_b),.bond_rst_n(rst_n),.tx_session_id(64'hB0B),
-        .rx_expected_session_id(64'hA11CE),.remote_byte_limit(64'd16384),.remote_packet_limit(32'd64),.session_established(rst_n),.session_active(session_b),
+        .rx_expected_session_id(64'hA11CE),.remote_byte_limit(a_local_bytes),.remote_packet_limit(a_local_packets),.session_established(rst_n),.session_active(session_b),
+        .local_byte_limit(b_local_bytes),.local_packet_limit(b_local_packets),.rx_credit_error(b_credit_error),
         .tx_valid(bv),.tx_ready(brdy),.tx_data(bd),.tx_keep(bk),.tx_sop(bsop),.tx_eop(beop),
         .rx_valid(brv),.rx_ready(1'b1),.rx_data(brd),.rx_sop(brs),.rx_eop(bre),
         .rx_packet_sequence(brseq),
@@ -141,7 +146,7 @@ module tb_bonded_two_lane_endpoint;
         end
         repeat(5) @(posedge bond_a);
         if(!session_a || !session_b || acount!=2 || bcount!=2 || ate || bte || at0err || at1err ||
-           bt0err || bt1err || are0 || are1 || bre0 || bre1 || arerr || brerr)
+           bt0err || bt1err || are0 || are1 || bre0 || bre1 || arerr || brerr || a_credit_error || b_credit_error)
             $fatal(1,"full-duplex endpoint failed A=%0d B=%0d txerr=%b/%b rxerr=%b/%b",
                    acount,bcount,ate,bte,arerr,brerr);
         // A fault on one physical direction must flush both directions and
