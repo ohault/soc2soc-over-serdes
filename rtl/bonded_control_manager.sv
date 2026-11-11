@@ -61,6 +61,11 @@ module bonded_control_manager #(
     assign ctrl_rx_ready = !rst;
     assign ctrl_tx_valid = tx_pending;
 
+    initial begin
+        if(PING_INTERVAL_CYCLES==0 || PONG_TIMEOUT_CYCLES<=PING_INTERVAL_CYCLES)
+            $error("PONG timeout must exceed a non-zero PING interval");
+    end
+
     task automatic queue_hello;
     begin
         ctrl_tx_body <= 0;
