@@ -118,7 +118,7 @@ module bonded_control_manager #(
         ctrl_tx_body[199:168] <= next_ping_nonce;
         ctrl_tx_body_length <= 5;
         tx_pending <= 1'b1;
-        ping_pending <= 1'b1;
+        ping_queued <= 1'b1;
         ping_sent_nonce <= next_ping_nonce;
         ping_age <= 0;
         next_ping_nonce <= (next_ping_nonce==32'hffff_ffff) ? 32'd1 : next_ping_nonce+1'b1;
