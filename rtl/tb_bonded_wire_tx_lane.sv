@@ -19,7 +19,7 @@ module tb_bonded_wire_tx_lane;
     wire frame_error;
 
     bonded_wire_tx_lane #(.DATA_WIDTH(32),.LANE_ID(1)) dut (
-        .clk(clk),.rst(rst),.session_id(session_id),
+        .clk(clk),.rst(rst),.session_id(session_id),.frame_start_enable(1'b1),.frame_sequence_override(32'd0),
         .in_valid(in_valid),.in_ready(in_ready),.in_data(in_data),
         .in_keep(in_keep),.in_sop(in_sop),.in_eop(in_eop),
         .in_packet_sequence(in_packet_sequence),.in_packet_length(in_packet_length),
