@@ -105,6 +105,8 @@ module bonded_packet_rx #(
                         slot_valid[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] ||
                         slot_filling[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]]) begin
                         packet_error <= 1;
+                        if (lane_active[selected_lane])
+                            slot_filling[lane_slot[selected_lane]] <= 0;
                         lane_active[selected_lane] <= 0;
                         lane_drop[selected_lane] <= !lane_eop[selected_lane];
                     end else if (lane_eop[selected_lane] && MAX_PACKET_BYTES >= 1) begin
