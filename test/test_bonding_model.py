@@ -7,6 +7,7 @@ from soc2soc.bonding import (
     BondPacket,
     BondedReceiver,
     BondedSender,
+    CreditViolation,
     NegotiationError,
     PacketRejected,
     SessionDown,
@@ -22,6 +23,12 @@ def bring_up(endpoint, lane_count, session_id=0x1234):
         peer_version=endpoint.config.protocol_version,
         session_id=session_id,
     )
+    if isinstance(endpoint, BondedSender):
+        # Simulate the peer's initial cumulative receive-credit grant.
+        endpoint.update_remote_credits(
+            endpoint.config.rx_buffer_bytes,
+            endpoint.config.rx_buffer_packets,
+        )
 
 
 class BondedSenderTests(unittest.TestCase):
@@ -135,17 +142,19 @@ class BondedReceiverTests(unittest.TestCase):
         return BondPacket(session_id, sequence, payload)
 
     def test_reorders_packets_arriving_on_different_lanes(self):
-        self.assertEqual(self.receiver.receive(1, self.packet(1)), [])
-        self.assertEqual(self.receiver.receive(0, self.packet(2)), [])
-        self.assertEqual(
-            self.receiver.receive(0, self.packet(0)),
-            [b"p0", b"p1", b"p2"],
-        )
+        self.assertEqual(self.receiver.receive(1, self.packet(1)), 0)
+        self.assertEqual(self.receiver.receive(0, self.packet(2)), 0)
+        self.assertEqual(self.receiver.receive(0, self.packet(0)), 3)
         self.assertEqual(self.receiver.next_sequence, 3)
         self.assertEqual(self.receiver.pending_sequences, ())
+        self.assertEqual(
+            [self.receiver.take_rx(), self.receiver.take_rx(), self.receiver.take_rx()],
+            [b"p0", b"p1", b"p2"],
+        )
 
     def test_rejects_duplicate_stale_and_wrong_session_packets(self):
-        self.assertEqual(self.receiver.receive(0, self.packet(0)), [b"p0"])
+        self.assertEqual(self.receiver.receive(0, self.packet(0)), 1)
+        self.assertEqual(self.receiver.take_rx(), b"p0")
         with self.assertRaises(PacketRejected):
             self.receiver.receive(1, self.packet(0))
         with self.assertRaises(PacketRejected):
@@ -191,14 +200,87 @@ class BondedReceiverTests(unittest.TestCase):
         )
         self.assertEqual(self.receiver.next_sequence, 0)
         self.assertEqual(
-            self.receiver.receive(0, self.packet(0, session_id=0x5678)),
-            [b"p0"],
+            self.receiver.receive(0, self.packet(0, session_id=0x5678)), 1
         )
+        self.assertEqual(self.receiver.take_rx(), b"p0")
 
     def test_rejects_oversized_packet(self):
         with self.assertRaises(PacketRejected):
             self.receiver.receive(0, self.packet(0, payload=b"x" * 33))
 
+
+
+class EndToEndCreditTests(unittest.TestCase):
+    def test_sender_waits_for_initial_peer_credit_grant(self):
+        sender = BondedSender(BondConfig(lane_count=2))
+        for lane in range(2):
+            sender.set_lane_up(lane, True)
+        sender.establish_session(
+            peer_lane_count=2, peer_version=1, session_id=0x1234
+        )
+        self.assertIsNone(sender.send(b"not-yet-granted"))
+        self.assertEqual(sender.next_sequence, 0)
+        sender.update_remote_credits(byte_limit=64, packet_limit=2)
+        self.assertEqual(sender.send(b"one")[1].sequence, 0)
+
+    def test_byte_and_packet_credits_both_apply_backpressure(self):
+        sender = BondedSender(
+            BondConfig(lane_count=1, tx_queue_depth=4)
+        )
+        bring_up(sender, 1)
+        sender.update_remote_credits(byte_limit=5, packet_limit=2)
+        self.assertEqual(sender.send(b"12345")[1].sequence, 0)
+        self.assertIsNone(sender.send(b"x"))
+        self.assertEqual(sender.next_sequence, 1)
+        sender.update_remote_credits(byte_limit=6, packet_limit=2)
+        self.assertEqual(sender.send(b"x")[1].sequence, 1)
+        self.assertIsNone(sender.send(b""))
+        self.assertEqual(sender.next_sequence, 2)
+
+    def test_cumulative_credit_updates_are_idempotent_and_monotonic(self):
+        sender = BondedSender(BondConfig(lane_count=1))
+        bring_up(sender, 1)
+        sender.update_remote_credits(100, 10)
+        sender.update_remote_credits(100, 10)  # Duplicate update.
+        sender.update_remote_credits(80, 9)    # Stale update.
+        self.assertEqual(sender.remote_credit_bytes, 100)
+        self.assertEqual(sender.remote_credit_packets, 10)
+        with self.assertRaises(PacketRejected):
+            sender.update_remote_credits(99, 10)
+
+    def test_receiver_returns_credits_only_after_application_consumes(self):
+        receiver = BondedReceiver(
+            BondConfig(
+                lane_count=1,
+                max_packet_bytes=8,
+                rx_buffer_bytes=8,
+                rx_buffer_packets=2,
+            )
+        )
+        bring_up(receiver, 1)
+        self.assertEqual(receiver.credit_update(), (8, 2))
+        self.assertEqual(receiver.receive(0, BondPacket(0x1234, 0, b"12345")), 1)
+        self.assertEqual(receiver.credit_update(), (8, 2))
+        self.assertEqual(receiver.queued_rx_bytes, 5)
+        self.assertEqual(receiver.take_rx(), b"12345")
+        self.assertEqual(receiver.credit_update(), (13, 3))
+        self.assertEqual(receiver.queued_rx_bytes, 0)
+
+    def test_receiver_accounts_for_packets_in_flight_until_credit_is_returned(self):
+        receiver = BondedReceiver(
+            BondConfig(
+                lane_count=1,
+                max_packet_bytes=8,
+                rx_buffer_bytes=8,
+                rx_buffer_packets=2,
+            )
+        )
+        bring_up(receiver, 1)
+        self.assertEqual(receiver.receive(0, BondPacket(0x1234, 0, b"1234")), 1)
+        self.assertEqual(receiver.receive(0, BondPacket(0x1234, 1, b"5678")), 1)
+        with self.assertRaises(CreditViolation):
+            receiver.receive(0, BondPacket(0x1234, 2, b"x"))
+        self.assertFalse(receiver.session_ready)
 
 if ( __name__ == "__main__" ):
     unittest.main()
