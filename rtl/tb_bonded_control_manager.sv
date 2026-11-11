@@ -87,7 +87,14 @@ module tb_bonded_control_manager;
     $fatal(1,"PONG response incorrect");
   accept_tx();
   if(fault || !session_established) $fatal(1,"unexpected manager fault");
-  $display("PASS: RTL HELLO/READY, monotonic CREDIT, local grant updates and PING/PONG");
+
+  // Let the next periodic PING go unanswered and verify timeout supervision.
+  wait_tx(8'h04);
+  accept_tx();
+  repeat(5005) @(posedge clk);
+  if(!fault || session_established)
+    $fatal(1,"missing PONG did not invalidate the session");
+  $display("PASS: RTL HELLO/READY, cumulative CREDIT, PING/PONG and timeout fault");
   $finish;
  end
  initial begin #200000;$fatal(1,"timeout");end
