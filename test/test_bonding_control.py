@@ -43,16 +43,18 @@ def exchange_hello_and_ready(a, b, crossed=False):
 
 
 def finish_recovery_after_lane0_proposal(a, b, crossed=False):
-    # The initiator's lane-0 HELLO has already been delivered to the adopter.
-    # Exchange the adopter's corresponding HELLO, then negotiate remaining lanes.
-    b_lane0_hello = b.next_frame(0)
-    a.receive(0, b_lane0_hello)
-    for a_lane in range(1, 2):
-        b_lane = 1 - a_lane if crossed else a_lane
-        hello_a = a.next_frame(a_lane)
-        hello_b = b.next_frame(b_lane)
-        a.receive(a_lane, hello_b)
-        b.receive(b_lane, hello_a)
+    # Initiator lane 0's HELLO has already reached the adopter.
+    adopter_lane = 1 if crossed else 0
+    adopter_hello = b.next_frame(adopter_lane)
+    a.receive(0, adopter_hello)
+    # Negotiate the remaining physical connection.
+    a_lane = 1
+    b_lane = 1 - a_lane if crossed else a_lane
+    hello_a = a.next_frame(a_lane)
+    hello_b = b.next_frame(b_lane)
+    a.receive(a_lane, hello_b)
+    b.receive(b_lane, hello_a)
+    # Complete READY on both mapped physical connections.
     for a_lane in range(2):
         b_lane = 1 - a_lane if crossed else a_lane
         ready_a = a.next_frame(a_lane)
@@ -71,7 +73,7 @@ class ControlPlaneTests(unittest.TestCase):
 
     def test_crossed_physical_connections_are_mapped(self):
         a, b = make_pair()
-        finish_recovery_after_lane0_proposal(a, b, crossed=True)
+        exchange_hello_and_ready(a, b, crossed=True)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
         self.assertEqual(a.peer_lane_by_local, [1, 0])
@@ -185,7 +187,7 @@ class ControlPlaneTests(unittest.TestCase):
             endpoint.set_lane_up(0, True)
         a.restart(0x5678)
         proposed = a.next_frame(0)
-        b.receive(0, proposed)  # higher peer adopts the lower peer's epoch
+        b.receive(1, proposed)  # crossed cable: A lane 0 reaches B lane 1
         finish_recovery_after_lane0_proposal(a, b, crossed=True)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
