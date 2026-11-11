@@ -192,17 +192,32 @@ class ControlPlaneTests(unittest.TestCase):
             endpoint.set_lane_up(0, False)
             endpoint.set_lane_up(0, True)
         a.restart(0x5678)
-        b.restart(0x9ABC)
         a_proposal = a.next_frame(0)
-        b_proposal = b.next_frame(0)
-        a.receive(0, b_proposal)  # ignored: higher peer is not authoritative
-        b.receive(0, a_proposal)  # adopts lower peer's session identifier
+        b.receive(0, a_proposal)  # adopts the lower peer's authoritative epoch
         self.assertEqual(a.session_id, 0x5678)
         self.assertEqual(b.session_id, 0x5678)
         exchange_hello_and_ready(a, b)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
 
+    def test_delayed_older_hello_cannot_roll_back_session_epoch(self):
+        a, b = make_pair()
+        exchange_hello_and_ready(a, b)
+        a.set_lane_up(0, False)
+        a.set_lane_up(0, True)
+        a.restart(0x5678)
+        proposal = a.next_frame(0)
+        b.receive(0, proposal)
+        self.assertEqual(b.session_id, 0x5678)
+        old_fields = (
+            (0xA).to_bytes(8, "big") + bytes([2])
+            + (7).to_bytes(2, "big") + (4096).to_bytes(2, "big")
+            + (16384).to_bytes(8, "big") + (64).to_bytes(4, "big")
+        )
+        delayed = Frame(FrameType.CONTROL, 0, 0x2345, 77,
+                        bytes([ControlOpcode.HELLO]) + old_fields)
+        b.receive(0, delayed)
+        self.assertEqual(b.session_id, 0x5678)
     def test_active_peer_adopts_lower_peer_recovery_proposal(self):
         a, b = make_pair()
         exchange_hello_and_ready(a, b)
