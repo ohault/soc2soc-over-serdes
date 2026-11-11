@@ -42,6 +42,24 @@ def exchange_hello_and_ready(a, b, crossed=False):
         b.receive(b_lane, ready_a)
 
 
+def finish_recovery_after_lane0_proposal(a, b, crossed=False):
+    # The initiator's lane-0 HELLO has already been delivered to the adopter.
+    # Exchange the adopter's corresponding HELLO, then negotiate remaining lanes.
+    b_lane0_hello = b.next_frame(0)
+    a.receive(0, b_lane0_hello)
+    for a_lane in range(1, 2):
+        b_lane = 1 - a_lane if crossed else a_lane
+        hello_a = a.next_frame(a_lane)
+        hello_b = b.next_frame(b_lane)
+        a.receive(a_lane, hello_b)
+        b.receive(b_lane, hello_a)
+    for a_lane in range(2):
+        b_lane = 1 - a_lane if crossed else a_lane
+        ready_a = a.next_frame(a_lane)
+        ready_b = b.next_frame(b_lane)
+        a.receive(a_lane, ready_b)
+        b.receive(b_lane, ready_a)
+
 class ControlPlaneTests(unittest.TestCase):
     def test_two_lane_hello_ready_negotiation(self):
         a, b = make_pair()
@@ -53,7 +71,7 @@ class ControlPlaneTests(unittest.TestCase):
 
     def test_crossed_physical_connections_are_mapped(self):
         a, b = make_pair()
-        exchange_hello_and_ready(a, b, crossed=True)
+        finish_recovery_after_lane0_proposal(a, b, crossed=True)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
         self.assertEqual(a.peer_lane_by_local, [1, 0])
@@ -196,7 +214,7 @@ class ControlPlaneTests(unittest.TestCase):
         b.receive(0, a_proposal)  # adopts the lower peer's authoritative epoch
         self.assertEqual(a.session_id, 0x5678)
         self.assertEqual(b.session_id, 0x5678)
-        exchange_hello_and_ready(a, b)
+        finish_recovery_after_lane0_proposal(a, b)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
 
