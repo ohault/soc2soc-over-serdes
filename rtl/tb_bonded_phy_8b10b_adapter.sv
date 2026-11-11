@@ -47,7 +47,7 @@ module tb_bonded_phy_8b10b_adapter;
  initial begin
   repeat(3) @(posedge clk);@(negedge clk);rst=0;
 
-  // TX inserts K28.5 into every unused symbol position.
+  // TX emits a comma, a data/empty symbol and zero-valued fillers.
   txv2=1;txd2=8'ha5;#1;
   if(!txpv2 || !txr2 || txpd2!==16'ha5bc || txpc2!==2'b01)
    $fatal(1,"two-symbol TX packing failed");
@@ -91,7 +91,7 @@ module tb_bonded_phy_8b10b_adapter;
   @(posedge clk);@(negedge clk);rxpv2=0;
   if(!err2) $fatal(1,"malformed 8b10b symbol word was not reported");
 
-  $display("PASS: 2/4-symbol 8b10b packing, K28.5 idles, RX backpressure and overflow");
+  $display("PASS: 2/4-symbol 8b10b alignment, empty markers, backpressure and overflow");
   $finish;
  end
  initial begin #50000;$fatal(1,"timeout");end
