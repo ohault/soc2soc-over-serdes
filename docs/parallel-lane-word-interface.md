@@ -39,6 +39,9 @@ The generic wide lane interface should carry:
 - `sop` on the first word of a wire frame
 
 The byte order is little-endian: byte 0 is the least-significant byte slice.
+The keep mask uses contiguous low-order ones; on an SOP word it can mark at
+most N-1 bytes, and on a continuation word at most N bytes. The adapter packs
+those valid bytes into the PHY data symbols after removing the comma slot.
 For a 40-bit encoded PHY word (four 8b/10b symbols), the decoded data bus is
 32 bits wide with four control-character flags. The first frame word has
 three valid data bytes because symbol 0 is the comma; continuation words can
@@ -49,7 +52,8 @@ wide. The first frame word carries one data byte after the comma; continuation
 words carry two bytes.
 
 The RX adapter removes control characters and emits data words with a keep
-mask and SOP indication. The wire parser still validates the v0 header CRC,
+mask and SOP indication. An idle comma word has no data bytes and is not
+reported as an SOP. The v0 header length and CRC determine the logical EOP; The wire parser still validates the v0 header CRC,
 length and frame CRC; the PHY comma does not replace protocol-level checks.
 
 ## TX/RX adapter requirements
