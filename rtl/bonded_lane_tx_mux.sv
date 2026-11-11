@@ -51,7 +51,11 @@ module bonded_lane_tx_mux #(
     reg sequence_error;
     wire arbiter_error;
     wire control_start_enable = arbiter_idle && !data_frame_valid;
-    wire data_start_enable = arbiter_idle && !ctrl_queue_valid && !ctrl_frame_valid;
+    // Prevent the DATA encoder from snapshotting the current shared frame
+    // sequence on the same cycle a new CONTROL message is being enqueued.
+    // CONTROL owns the next frame boundary, so DATA admission waits until the
+    // control queue and encoder are both empty.
+    wire data_start_enable = arbiter_idle && !ctrl_valid && !ctrl_queue_valid && !ctrl_frame_valid;
 
     bonded_control_queue #(.DEPTH(CONTROL_QUEUE_DEPTH)) control_queue (
         .clk(clk), .rst(rst),
