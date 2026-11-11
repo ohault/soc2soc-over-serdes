@@ -34,13 +34,13 @@ module tb_bonded_phy_8b10b_adapter;
 
  task send2(input [7:0] b);
  begin
-  @(negedge clk);rxpd2={8'hbc,b};rxpc2=2'b10;rxpv2=1;
+  @(negedge clk);rxpd2={b,8'hbc};rxpc2=2'b01;rxpv2=1;
   while(!rxpr2) @(negedge clk);
   @(posedge clk);@(negedge clk);rxpv2=0;
  end endtask
  task send4(input [7:0] b);
  begin
-  @(negedge clk);rxpd4={8'hbc,8'hbc,8'hbc,b};rxpc4=4'b1110;rxpv4=1;
+  @(negedge clk);rxpd4={8'h00,8'h00,b,8'hbc};rxpc4=4'b0001;rxpv4=1;
   @(posedge clk);@(negedge clk);rxpv4=0;
  end endtask
 
@@ -49,20 +49,20 @@ module tb_bonded_phy_8b10b_adapter;
 
   // TX inserts K28.5 into every unused symbol position.
   txv2=1;txd2=8'ha5;#1;
-  if(!txpv2 || !txr2 || txpd2!==16'hbca5 || txpc2!==2'b10)
+  if(!txpv2 || !txr2 || txpd2!==16'ha5bc || txpc2!==2'b01)
    $fatal(1,"two-symbol TX packing failed");
   txv2=0;#1;
-  if(txpd2!==16'hbcbc || txpc2!==2'b11)
+  if(txpd2!==16'h1cbc || txpc2!==2'b11)
    $fatal(1,"two-symbol TX idle insertion failed");
 
   txv4=1;txd4=8'h5a;#1;
-  if(!txpv4 || !txr4 || txpd4!==32'hbcbcbc5a || txpc4!==4'b1110)
+  if(!txpv4 || !txr4 || txpd4!==32'h00005abc || txpc4!==4'b0001)
    $fatal(1,"four-symbol TX packing failed");
   txv4=0;
 
   // Stallable RX FIFO: fill, apply backpressure, then push/pop together.
   send2(8'h11);send2(8'h22);
-  @(negedge clk);rxpv2=1;rxpd2={8'hbc,8'h33};rxpc2=2'b10;#1;
+  @(negedge clk);rxpv2=1;rxpd2={8'h33,8'hbc};rxpc2=2'b01;#1;
   if(rxpr2) $fatal(1,"stallable RX did not backpressure when full");
   rxr2=1;
   @(posedge clk);@(negedge clk);rxpv2=0;
@@ -81,7 +81,7 @@ module tb_bonded_phy_8b10b_adapter;
   if(!rxv4 || rxd4!==8'h42) $fatal(1,"four-symbol RX FIFO ordering failed");
 
   // A non-idle control character or data in an unused symbol slot is invalid.
-  @(negedge clk);rxpv2=1;rxpd2={8'hbc,8'h11};rxpc2=2'b00;
+  @(negedge clk);rxpv2=1;rxpd2={8'h22,8'h11};rxpc2=2'b00;
   @(posedge clk);@(negedge clk);rxpv2=0;
   if(!err2) $fatal(1,"malformed 8b10b symbol word was not reported");
 
