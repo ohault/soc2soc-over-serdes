@@ -86,7 +86,7 @@ module tb_bonded_two_lane_endpoint;
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_b (
         .bond_clk(bond_b),.bond_rst_n(rst_n),.tx_session_id(64'hB0B),
         .rx_expected_session_id(64'hA11CE),.remote_byte_limit(a_local_bytes),.remote_packet_limit(a_local_packets),
-        .ctrl_tx_valid(1'b0),.ctrl_tx_ready(),.ctrl_tx_body(208'd0),.ctrl_tx_body_length(6'd0),.session_established(rst_n),.session_active(session_b),
+        .ctrl_tx_valid(1'b0),.ctrl_tx_ready(),.ctrl_tx_body(208'd0),.ctrl_tx_body_length(6'd0),.session_established(session_established),.session_active(session_b),
         .local_byte_limit(b_local_bytes),.local_packet_limit(b_local_packets),.rx_credit_error(b_credit_error),
         .ctrl_rx_valid(b_ctrl_rx_valid),.ctrl_rx_ready(1'b1),.ctrl_rx_body(b_ctrl_rx_body),.ctrl_rx_body_length(b_ctrl_rx_len),.ctrl_rx_lane(b_ctrl_rx_lane),
         .tx_valid(bv),.tx_ready(brdy),.tx_data(bd),.tx_keep(bk),.tx_sop(bsop),.tx_eop(beop),
