@@ -16,6 +16,8 @@ module bonded_two_lane_endpoint #(
     input wire bond_rst_n,
     input wire [63:0] tx_session_id,
     input wire [63:0] rx_expected_session_id,
+    input wire session_established,
+    output wire session_active,
 
     // Logical application transmit interface (packet stream).
     input wire tx_valid, output wire tx_ready,
@@ -61,6 +63,19 @@ module bonded_two_lane_endpoint #(
     output wire [31:0] lane0_tx_frame_sequence,
     output wire [31:0] lane1_tx_frame_sequence
 );
+    bonded_session_gate session_gate (
+        .bond_clk(bond_clk), .bond_rst_n(bond_rst_n),
+        .session_established(session_established),
+        .lane0_tx_rst_n(lane0_tx_rst_n), .lane1_tx_rst_n(lane1_tx_rst_n),
+        .lane0_rx_rst_n(lane0_rx_rst_n), .lane1_rx_rst_n(lane1_rx_rst_n),
+        .session_active(session_active)
+    );
+
+    wire tx_path_ready;
+    wire rx_path_valid;
+    assign tx_ready = session_active && tx_path_ready;
+    assign rx_valid = session_active && rx_path_valid;
+
     bonded_two_lane_tx #(
         .DATA_WIDTH(DATA_WIDTH), .KEEP_WIDTH(KEEP_WIDTH),
         .FIFO_DEPTH(TX_FIFO_DEPTH), .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
@@ -68,7 +83,7 @@ module bonded_two_lane_endpoint #(
     ) tx_path (
         .bond_clk(bond_clk), .bond_rst_n(bond_rst_n),
         .session_id(tx_session_id),
-        .tx_valid(tx_valid), .tx_ready(tx_ready), .tx_data(tx_data),
+        .tx_valid(tx_valid && session_active), .tx_ready(tx_path_ready), .tx_data(tx_data),
         .tx_keep(tx_keep), .tx_sop(tx_sop), .tx_eop(tx_eop),
         .lane0_clk(lane0_tx_clk), .lane0_rst_n(lane0_tx_rst_n),
         .lane0_valid(lane0_tx_valid), .lane0_ready(lane0_tx_ready),
@@ -96,7 +111,7 @@ module bonded_two_lane_endpoint #(
         .lane1_valid(lane1_rx_valid), .lane1_ready(lane1_rx_ready),
         .lane1_data(lane1_rx_data), .lane1_sop(lane1_rx_sop), .lane1_eop(lane1_rx_eop),
         .bond_clk(bond_clk),
-        .out_valid(rx_valid), .out_ready(rx_ready), .out_data(rx_data),
+        .out_valid(rx_path_valid), .out_ready(rx_ready && session_active), .out_data(rx_data),
         .out_sop(rx_sop), .out_eop(rx_eop),
         .out_packet_sequence(rx_packet_sequence),
         .lane0_frame_error(lane0_rx_frame_error),
