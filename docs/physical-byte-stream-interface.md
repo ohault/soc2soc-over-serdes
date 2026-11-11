@@ -33,12 +33,11 @@ There are no physical SOP/EOP inputs. A per-lane synchronous elastic FIFO
 standard ready/valid semantics. A continuous serial receiver cannot pause
 the cable, so the board adapter must buffer recovered bytes until the node
 accepts them. If the adapter's own receive buffer overruns or a byte is lost,
-it must assert the corresponding sticky `laneN_rx_overflow` input and hold it until
-`bond_rst_n` is asserted; the autonomous
-node propagates this through the lane RX frame error output and synchronizes
-the overrun into the bonding clock domain as a lane-down event, invalidating
-the current session. It must never
-silently discard a byte and continue. The `bonded_wire_rx_framer` then:
+it must assert the corresponding sticky `laneN_rx_overflow` input and hold it
+until `bond_rst_n` is asserted. The autonomous node propagates this through
+the lane RX frame error output and synchronizes the overrun into the bonding
+clock domain as a lane-down event, invalidating the current session. It must
+never silently discard a byte and continue. The `bonded_wire_rx_framer` then:
 
 1. Searches the raw byte stream for the v0 magic/version/type prefix.
 2. Captures the 24-byte header.
@@ -62,8 +61,9 @@ parts, while preserving the byte-stream contract:
   the chosen physical error policy. The node synchronizes this status into
   its bonding clock domain.
 - Error/overflow handling: a PHY error, adapter RX-buffer overflow
-  (`laneN_rx_overflow`) or byte-alignment loss must drop the lane/session or reset the framer so the
-  receiver does not continue parsing a corrupted byte count.
+  (`laneN_rx_overflow`) or byte-alignment loss must drop the lane/session or
+  reset the framer so the receiver does not continue parsing a corrupted byte
+  count.
 
 The core currently assumes an error-free byte stream between such reset/error
 events. It does not yet provide an arbitrary byte-deletion recovery protocol
