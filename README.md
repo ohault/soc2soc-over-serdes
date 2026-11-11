@@ -41,6 +41,7 @@ bonding core.
 - [SERDES adapter research and throughput limits](docs/serdes-adapter-research.md)
 - [Parallel lane-word interface proposal](docs/parallel-lane-word-interface.md)
 - [Dynamic lane mapping and crossed-cable behavior](docs/dynamic-lane-mapping.md)
+- [RTL session epoch v1 proposal](docs/session-epoch-v1.md)
 
 The initial 8b/10b adapter carries one data byte per PHY word for conservative
 bring-up; it is not the full-rate multi-byte datapath required for maximum
