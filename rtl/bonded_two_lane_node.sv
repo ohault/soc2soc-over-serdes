@@ -14,7 +14,7 @@ module bonded_two_lane_node #(
     parameter [63:0] LOCAL_PEER_ID=64'd1,
     parameter [63:0] EXPECTED_PEER_ID=64'd2,
     parameter [15:0] PROFILE_ID=16'd1,
-    parameter [15:0] MAX_PAYLOAD=16'd4096,
+    parameter [15:0] MAX_PAYLOAD=MAX_PACKET_BYTES,
     parameter [31:0] PING_INTERVAL_CYCLES=32'd100000,
     parameter [31:0] PONG_TIMEOUT_CYCLES=32'd300000
 ) (
