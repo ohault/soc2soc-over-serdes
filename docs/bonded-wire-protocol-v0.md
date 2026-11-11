@@ -140,7 +140,7 @@ PING/PONG is diagnostic/liveness supervision, not a delivery acknowledgement. Th
 3. Implemented: an integrated two-endpoint software simulation in `test/test_bonding_integration.py`. It exchanges HELLO/READY over crossed lanes, sends DATA through the wire codec, deliberately reorders arrivals across lanes, returns cumulative credits after application consumption, and checks lane-loss invalidation.
 4. Corrected the control-plane model to reject post-negotiation CONTROL frames arriving with the wrong peer-lane identity and to make duplicate HELLO handling idempotent.
 5. Added an explicit regression correction for coalesced CREDIT queue depth. The Python tests have not yet been executed; passing status is not claimed.
-6. Next: execute the complete test suite in a Python-capable environment, fix any failures, then add randomized latency/backpressure and control-frame-loss scenarios before freezing the RTL contract.
+6. CI: the reference-model workflow passed the 43-test suite, including the seeded 120-packet latency/backpressure simulation (run 43069711240).\n7. Implemented: deterministic negotiation timeout and PING/PONG heartbeat supervision in `BondedControlPlane.tick(now_cycles)`. The caller supplies monotonically increasing bonding-clock cycles; incomplete negotiation and unanswered heartbeat probes fault the whole v0 session.\n8. Added tests for negotiation timeout, successful PING/PONG, missing PONG and wrong-nonce PONG. The new tests are awaiting CI execution.\n9. Next: extend the model with reset/restart epochs and explicit control-frame loss/duplication/reordering tests, then freeze the RTL contract.
 
 ## 11. Explicit non-goals
 
