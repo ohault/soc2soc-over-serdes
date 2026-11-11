@@ -64,13 +64,17 @@ module bonded_two_lane_endpoint #(
     output wire [31:0] lane1_tx_frame_sequence
 );
     bonded_session_gate session_gate (
-        .bond_clk(bond_clk), .bond_rst_n(bond_rst_n),
+        .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n),
         .session_established(session_established),
         .lane0_tx_rst_n(lane0_tx_rst_n), .lane1_tx_rst_n(lane1_tx_rst_n),
         .lane0_rx_rst_n(lane0_rx_rst_n), .lane1_rx_rst_n(lane1_rx_rst_n),
         .session_active(session_active)
     );
 
+    // A loss/reset of any physical direction drops session_active. Feed that
+    // condition back into both datapaths so all packet, reorder and FIFO state
+    // is flushed as one session, not left partially alive per lane.
+    wire datapath_rst_n = bond_rst_n && session_active;
     wire tx_path_ready;
     wire rx_path_valid;
     assign tx_ready = session_active && tx_path_ready;
@@ -103,7 +107,7 @@ module bonded_two_lane_endpoint #(
         .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
         .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
     ) rx_path (
-        .bond_rst_n(bond_rst_n), .expected_session_id(rx_expected_session_id),
+        .bond_rst_n(datapath_rst_n), .expected_session_id(rx_expected_session_id),
         .lane0_clk(lane0_rx_clk), .lane0_rst_n(lane0_rx_rst_n),
         .lane0_valid(lane0_rx_valid), .lane0_ready(lane0_rx_ready),
         .lane0_data(lane0_rx_data), .lane0_sop(lane0_rx_sop), .lane0_eop(lane0_rx_eop),
