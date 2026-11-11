@@ -56,7 +56,7 @@ module tb_bonded_phy_8b10b_adapter;
    $fatal(1,"two-symbol TX idle insertion failed");
 
   txv4=1;txd4=8'h5a;#1;
-  if(!txpv4 || !txr4 || txpd4!==32'hbcbcb c5a || txpc4!==4'b1110)
+  if(!txpv4 || !txr4 || txpd4!==32'hbcbcbc5a || txpc4!==4'b1110)
    $fatal(1,"four-symbol TX packing failed");
   txv4=0;
 
