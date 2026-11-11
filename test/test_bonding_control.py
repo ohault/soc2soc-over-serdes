@@ -186,7 +186,7 @@ class ControlPlaneTests(unittest.TestCase):
         a.restart(0x5678)
         proposed = a.next_frame(0)
         b.receive(0, proposed)  # higher peer adopts the lower peer's epoch
-        exchange_hello_and_ready(a, b, crossed=True)
+        finish_recovery_after_lane0_proposal(a, b, crossed=True)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
         self.assertEqual(a.session_id, 0x5678)
@@ -246,7 +246,7 @@ class ControlPlaneTests(unittest.TestCase):
         b.receive(0, b_proposal)
         self.assertEqual(b.session_id, 0x5678)
         self.assertFalse(b.session_ready)
-        exchange_hello_and_ready(a, b)
+        finish_recovery_after_lane0_proposal(a, b)
         self.assertTrue(a.session_ready)
         self.assertTrue(b.session_ready)
     def test_restart_rejects_reuse_of_previous_session_identifier(self):
