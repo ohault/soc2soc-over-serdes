@@ -71,7 +71,8 @@ module bonded_packet_tx #(
     assign credit_reserve_valid = tx_valid && tx_ready && tx_eop &&
         (!collecting ? tx_sop : !tx_sop) && tx_keep != 0 &&
         ((tx_keep & (tx_keep + 1'b1)) == 0) &&
-        (!collecting || tx_keep == {KEEP_WIDTH{1'b1}}) &&
+        // A multi-beat packet may end with a partial final beat. Reserve
+        // credits using the complete byte count regardless of final KEEP.
         prospective_packet_bytes <= MAX_PACKET_BYTES;
     assign credit_reserve_bytes = prospective_packet_bytes;
 
