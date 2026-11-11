@@ -31,8 +31,10 @@ module tb_bonded_lane_tx_mux;
   ctrl_body=0; ctrl_body[207:200]=8'h03;
   ctrl_body[199:136]=64'h1000; ctrl_body[135:104]=32'd32;
   repeat(3) @(posedge clk); @(negedge clk); rst=0; ctrl_valid=1; data_valid=1;
-  wait(ctrl_ready); @(posedge clk); @(negedge clk); ctrl_valid=0;
-  wait(data_ready); @(posedge clk); @(negedge clk); data_valid=0;
+  fork
+   begin wait(ctrl_ready); @(posedge clk); @(negedge clk); ctrl_valid=0; end
+   begin wait(data_ready); @(posedge clk); @(negedge clk); data_valid=0; end
+  join
   wait(got==76);
   repeat(2) @(posedge clk);
   if(captured[3]!=8'h02 || captured[16]!=0 || captured[19]!=0)
