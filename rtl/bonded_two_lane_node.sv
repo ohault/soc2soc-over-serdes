@@ -78,9 +78,11 @@ module bonded_two_lane_node #(
         end else begin
             lane_up_sync1<={lane1_up,lane0_up};
             lane_up_sync2<=lane_up_sync1;
-            lane_rx_error_sync1<={lane1_rx_frame_error,lane0_rx_frame_error};
+            lane_rx_error_sync1<={lane1_rx_frame_error && session_active,
+                                  lane0_rx_frame_error && session_active};
             lane_rx_error_sync2<=lane_rx_error_sync1;
-            lane_tx_error_sync1<={lane1_tx_frame_error,lane0_tx_frame_error};
+            lane_tx_error_sync1<={lane1_tx_frame_error && session_active,
+                                  lane0_tx_frame_error && session_active};
             lane_tx_error_sync2<=lane_tx_error_sync1;
         end
     end
