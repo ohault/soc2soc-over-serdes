@@ -12,16 +12,16 @@ is an integration option, not a dependency of the bonding core.
 |---|---|---|
 | Architecture and v0 wire protocol | Implemented in reference model | DATA/CONTROL envelope, CRCs, sequence spaces, session concepts |
 | Python control-plane reference | Implemented | HELLO/READY, CREDIT, heartbeat, lane/session supervision |
-| RTL DATA framing and packet streams | Implemented; regression status unconfirmed | Packet TX/RX, CRC, ordering and reassembly |
-| Two-lane TX/RX integration | Integrated; regression status unconfirmed | Current RTL integration is two lanes |
-| CDC and width adaptation | Implemented; regression status unconfirmed | Common bonding clock and per-lane asynchronous FIFOs |
+| RTL DATA framing and packet streams | Implemented; CI passing | Packet TX/RX, CRC, ordering and reassembly |
+| Two-lane TX/RX integration | Integrated; CI passing | Current RTL integration is two lanes |
+| CDC and width adaptation | Implemented; CI passing | Common bonding clock and per-lane asynchronous FIFOs |
 | Cumulative flow control | Partially integrated | TX reservation and RX accounting; receiver reports post-admission overrun |
 | RTL CONTROL frame TX/RX | Implemented as building blocks | Dedicated queues, frame-boundary priority, raw frame decode |
 | RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
-| Parallel 8b/10b word adapter and byte/word gearboxes | Standalone pipeline prototype; CI result pending | Byte TX/RX framing remains intact; SOP comma, multi-byte words and RX buffering; not yet integrated with node |
+| Parallel 8b/10b word adapter and byte/word gearboxes | Standalone pipeline prototype; CI passing | Byte TX/RX framing remains intact; SOP comma, multi-byte words, RX buffering and loopback |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -67,9 +67,14 @@ regressions for the control encoder/decoder, queueing, frame arbitration,
 receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
-**The latest GitHub status query for commit `262de29f326fb9c36badf708fd1b2347bd4e3bbc` returned no check runs/statuses, and no pull-request workflow runs were returned.** Therefore these tests are added but must not yet be described as passing. The next
-software gate is to obtain a successful CI run and fix every compile or
-simulation failure before connecting physical boards.
+**Verified CI baseline:** GitHub Actions run
+[43112885282](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43112885282)
+completed successfully for commit
+`fac8bcbfb6c7b02d6649ef5430698f9aa78ce67f`. Both the Python reference-model
+job and the RTL simulation job passed, including the parallel 8b/10b adapter
+and byte/word gearbox loopback. This is a software regression baseline only;
+it does not establish FPGA synthesis, timing closure, transceiver lock or
+hardware interoperability.
 
 The autonomous two-node test sends only 8-bit bytes across its virtual links;
 it does not transmit SOP/EOP sidebands over the link.
@@ -82,11 +87,11 @@ it does not transmit SOP/EOP sidebands over the link.
    and session reset during a frame.
 3. Implement RTL lane-map discovery and deterministic session-ID election,
    then add automatic recovery after a lane fault.
-4. Complete CI verification of the standalone parallel PHY word adapter and
-   byte/word gearbox loopback. Then integrate that pipeline with the two-lane
-   endpoint and run a multi-byte two-node regression. The existing one-byte
-   adapter remains the conservative hardware bring-up path, not full
-   transceiver bandwidth.
+4. Split the parallel PHY adapter into independent TX and recovered-RX clock
+   domains, add an unrelated-clock PHY loopback using the asynchronous FIFO,
+   then integrate that pipeline with the two-lane endpoint and run a multi-byte
+   two-node regression. The existing one-byte adapter remains the conservative
+   hardware bring-up path, not full transceiver bandwidth.
 5. Implement the first board-specific SERDES adapter, then validate the same
    bonding core on the second FPGA board.
 6. Only after the generic transport is stable, add PCIe and USB protocol
