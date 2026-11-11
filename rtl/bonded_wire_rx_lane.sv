@@ -111,16 +111,20 @@ module bonded_wire_rx_lane #(
                    frame_mem[4]!=8'h00 || frame_mem[5]>8'd1 ||
                    (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff) && (frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
-                   {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
-                    frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session ||
-                   {frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
                    {frame_mem[22],frame_mem[23]}!=header_crc ||
                    {frame_mem[20],frame_mem[21]}<4 ||
                    {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
                    rx_count!=(24+{frame_mem[20],frame_mem[21]}+4) ||
-                   {tail3,tail2,tail1,tail0}!=~frame_crc ||
-                   expected_frame_sequence_override==32'hffffffff) begin
+                   {tail3,tail2,tail1,tail0}!=~frame_crc) begin
                     frame_error<=1; state<=ST_IDLE; rx_count<=0;
+                end else if({frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
+                             frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session) begin
+                    // A complete frame from an older or unadopted session is
+                    // stale, not a physical-lane framing error.
+                    state<=ST_IDLE;rx_count<=0;
+                end else if({frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]}!=expected_frame_sequence_override ||
+                            expected_frame_sequence_override==32'hffffffff) begin
+                    frame_error<=1;state<=ST_IDLE;rx_count<=0;
                 end else begin
                     out_packet_sequence<={frame_mem[24],frame_mem[25],frame_mem[26],frame_mem[27]};
                     out_frame_sequence<=expected_frame_sequence_override;
