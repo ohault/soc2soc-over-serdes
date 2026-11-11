@@ -20,13 +20,13 @@ module tb_bonded_two_lane_node;
  bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ab0(
   .wr_clk(a_tx0),.wr_rst_n(rst_n),.wr_valid(a0txv),.wr_ready(ab0ready),.wr_data(a0txd),
   .rd_clk(a_tx0),.rd_rst_n(rst_n),.rd_valid(ab0v),.rd_ready(b0rxr),.rd_data(ab0data));
- bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(32)) ab1(
+ bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ab1(
   .wr_clk(a_tx1),.wr_rst_n(rst_n),.wr_valid(a1txv),.wr_ready(ab1ready),.wr_data(a1txd),
   .rd_clk(a_tx1),.rd_rst_n(rst_n),.rd_valid(ab1v),.rd_ready(b1rxr),.rd_data(ab1data));
- bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(32)) ba0(
+ bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ba0(
   .wr_clk(b_tx0),.wr_rst_n(rst_n),.wr_valid(b0txv),.wr_ready(ba0ready),.wr_data(b0txd),
   .rd_clk(b_tx0),.rd_rst_n(rst_n),.rd_valid(ba0v),.rd_ready(a0rxr),.rd_data(ba0data));
- bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(32)) ba1(
+ bonded_async_fifo #(.DATA_WIDTH(8),.DEPTH(32)) ba1(
   .wr_clk(b_tx1),.wr_rst_n(rst_n),.wr_valid(b1txv),.wr_ready(ba1ready),.wr_data(b1txd),
   .rd_clk(b_tx1),.rd_rst_n(rst_n),.rd_valid(ba1v),.rd_ready(a1rxr),.rd_data(ba1data));
  assign a0txr=ab0ready; assign a1txr=ab1ready; assign b0txr=ba0ready; assign b1txr=ba1ready;
