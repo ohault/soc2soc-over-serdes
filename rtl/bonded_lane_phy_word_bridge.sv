@@ -72,6 +72,9 @@ module bonded_lane_phy_word_bridge #(
     wire [SYMBOLS_PER_WORD-1:0] rx_word_keep;
     wire rx_overflow_int,rx_symbol_error_int,rx_gearbox_error_int;
     wire rx_phy_ready_int;
+    wire rx_unpacker_ready;
+    reg rx_drop_until_sop;
+    wire rx_word_to_unpacker_valid=rx_word_valid && (!rx_drop_until_sop || rx_word_sop);
 
     bonded_byte_to_phy_word #(.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD)) tx_packer (
         .clk(tx_clk),.rst(tx_packer_rst),
@@ -102,9 +105,14 @@ module bonded_lane_phy_word_bridge #(
         .rx_overflow(rx_overflow_int),.rx_symbol_error(rx_symbol_error_int)
     );
 
+    // After a session drop, discard continuation words until the next
+    // comma-marked SOP. This drains the old frame tail but still permits
+    // HELLO/READY CONTROL frames while the session is being re-established.
+    assign rx_word_ready=(rx_drop_until_sop && !rx_word_sop) ? 1'b1 : rx_unpacker_ready;
+
     bonded_phy_word_to_byte #(.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD)) rx_unpacker (
         .clk(rx_clk),.rst(rx_adapter_rst),
-        .word_valid(rx_word_valid),.word_ready(rx_word_ready),
+        .word_valid(rx_word_to_unpacker_valid),.word_ready(rx_unpacker_ready),
         .word_data(rx_word_data),.word_keep(rx_word_keep),.word_sop(rx_word_sop),
         .byte_valid(rx_byte_valid),.byte_ready(rx_byte_ready),
         .byte_data(rx_byte_data),.byte_sop(),
@@ -114,6 +122,15 @@ module bonded_lane_phy_word_bridge #(
     // While a session-drop pulse flushes the decoder, drain and discard the
     // vendor RX FIFO so pre-drop symbols cannot leak into the next session.
     assign rx_phy_ready=rx_rst_n && (rx_flush ? 1'b1 : rx_phy_ready_int);
+
+    always @(posedge rx_clk or negedge rx_rst_n) begin
+        if(!rx_rst_n)
+            rx_drop_until_sop<=1'b0;
+        else if(rx_flush)
+            rx_drop_until_sop<=1'b1;
+        else if(rx_word_valid && rx_word_ready && rx_word_sop)
+            rx_drop_until_sop<=1'b0;
+    end
 
     // Fault indications are sticky until the physical RX reset. They therefore
     // remain asserted long enough for the bonding-clock control manager to
