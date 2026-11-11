@@ -48,7 +48,10 @@ module bonded_phy_8b10b_word_adapter #(
 
     wire tx_keep_bad = tx_valid &&
         (!keep_is_contiguous(tx_keep) || (tx_sop && tx_keep[SYMBOLS_PER_WORD-1]));
-    assign tx_phy_valid=!rst && tx_phy_ready && !tx_keep_bad;
+    // PHY VALID describes the continuously produced word stream (including
+    // idle words) and must not be gated by READY. The application-side READY
+    // is the actual transfer condition and backpressures the source.
+    assign tx_phy_valid=!rst && !tx_keep_bad;
     assign tx_ready=!rst && tx_phy_ready && !tx_keep_bad;
 
     genvar g;
