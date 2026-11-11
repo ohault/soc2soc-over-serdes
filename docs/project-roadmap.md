@@ -15,15 +15,15 @@ is an integration option, not a dependency of the bonding core.
 | RTL DATA framing and packet streams | Implemented; CI passing | Packet TX/RX, CRC, ordering and reassembly |
 | Two-lane TX/RX integration | Integrated; CI passing | Current RTL integration is two lanes |
 | CDC and width adaptation | Implemented; CI passing | Common bonding clock and per-lane asynchronous FIFOs |
-| Cumulative flow control | Partially integrated | TX reservation and RX accounting; receiver reports post-admission overrun |
+| Cumulative flow control | Integrated for v0; CI passing | TX reserves whole-packet byte/packet credits including partial final KEEP; RX reports post-admission overrun |
 | RTL CONTROL frame TX/RX | Implemented as building blocks | Dedicated queues, frame-boundary priority, raw frame decode |
 | RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
-| Parallel 8b/10b word adapter and byte/word gearboxes | Dual-clock pipeline; standalone CI passing | Byte TX/RX framing remains intact; SOP comma, multi-byte words and independent TX/RX clocks |
+| Parallel 8b/10b word adapter and byte/word gearboxes | Integrated; CI passing | Multi-byte words, SOP comma, independent TX/RX clocks, backpressure and asynchronous-FIFO loopback |
 | Per-lane PHY bridge | Integrated as generic RTL | TX packer, 8b/10b word adapter, RX unpacker; session-drop flushing |
-| Two-lane parallel-PHY node wrapper | Integrated; end-to-end regression added, CI pending | Connects the unchanged byte-oriented node to two independent multi-byte PHY lanes |
+| Two-lane parallel-PHY node wrapper | Integrated; end-to-end stress regression passing | Eight variable-length packets, both lanes, partial final words and application RX backpressure |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -48,7 +48,7 @@ is an integration option, not a dependency of the bonding core.
 3. A control fault is sticky; automatic restart/re-negotiation after lane
    recovery is not yet implemented.
 4. The original `bonded_two_lane_node` byte-stream boundary remains available
-   as the reference path. `bonded_two_lane_phy_word_node` adds a four-symbol
+   as the reference path. `bonded_two_lane_phy_word_node` adds a configurable two- or four-symbol
    parallel PHY boundary, but the board-specific transceiver user-side width,
    clocking, and achievable line rate have not been validated. The adapter
    fault outputs are sticky and invalidate the session on recovered-byte loss,
@@ -61,10 +61,9 @@ is an integration option, not a dependency of the bonding core.
 
 ## Verification gate before hardware
 
-The raw-byte framer regression now explicitly stalls its consumer during
-header replay and body forwarding, checking that VALID and DATA remain stable
-until READY. This test has been added to the CI workflow; it has not yet been
-observed passing.
+The raw-byte framer regression explicitly stalls its consumer during header
+replay and body forwarding, checking that VALID and DATA remain stable until
+READY. It passes in the current CI baseline.
 
 The workflow `.github/workflows/bonding-tests.yml` now contains dedicated
 regressions for the control encoder/decoder, queueing, frame arbitration,
@@ -72,33 +71,33 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43113941368](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43113941368)
+[43114890195](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43114890195)
 completed successfully for commit
-`2d15cbb75eda4beb7e78b9fc7c00948c9259658d`. Both jobs passed: the Python
-reference-model tests and the RTL simulation suite. The RTL job explicitly
-passed the standalone PHY word adapter, byte/word gearbox, per-lane bridge CDC
-regression and the end-to-end two-node parallel-PHY DATA/CONTROL regression.
-This is a digital simulation result only; it does not establish FPGA synthesis,
-timing closure, transceiver lock, signal integrity or hardware interoperability.
+`4f3716ccf9475b19150aafafbad1035ebc393225`. Both the Python reference-model
+and RTL simulation jobs passed. The RTL suite includes the byte and parallel
+PHY adapters, unrelated TX/RX clocks, session-drop flushing, and a two-node
+parallel-PHY test that transfers eight variable-length packets (1, 2, 3, 4, 5,
+7, 11 and 16 bytes), verifies round-robin use of both lanes, and applies
+application-side RX backpressure. The packet-TX regression also exercises
+credit reservation on partial final KEEP words.
 
-The original autonomous two-node regression sends 8-bit bytes across its
-virtual links. The end-to-end regression instantiates the parallel-PHY node wrapper on both
-ends and transports DATA and CONTROL byte streams as multi-byte 8b/10b words
-through independent dual-clock FIFOs. It passed in CI run 43113941368.
-
+The two-node test connects both peers through four independent asynchronous
+symbol FIFOs. It validates the logical RTL path and its clock-domain
+boundaries, but does not model analogue SERDES behavior, transceiver PLL/CDR
+lock, 8b/10b disparity/code errors from a real PHY, signal integrity or timing
+closure. This remains digital simulation evidence, not hardware validation.
 ## Next engineering steps
 
-1. Obtain and review CI results for the current branch.
-2. Extend two-node simulation to exercise repeated packets, both-lane
-   utilization, backpressure, cumulative CREDIT updates, heartbeat timeout,
-   and session reset during a frame.
-3. Implement RTL lane-map discovery and deterministic session-ID election,
-   then add automatic recovery after a lane fault.
-4. Obtain a successful CI run for the new two-node parallel-PHY regression,
-   then extend it with backpressure, longer/random packet sizes, lane skew,
-   symbol errors, session drops and recovery. The existing one-byte adapter
-   remains the conservative hardware bring-up path.
-5. Implement the first board-specific SERDES adapter, then validate the same
-   bonding core on the second FPGA board.
-6. Only after the generic transport is stable, add PCIe and USB protocol
-   adapters as separate layers.
+1. Extend the passing digital regression with deliberate PHY symbol errors,
+   asymmetric lane loss, heartbeat timeout and session restart/recovery tests.
+2. Implement RTL lane-map discovery and a fresh per-session epoch so crossed
+   SFP/DAC cabling and stale frames are handled deterministically.
+3. Implement the first board-specific SERDES wrapper, beginning with the
+   Acorn GTP and LiteICLink integration while keeping all vendor primitives
+   outside the generic bonding RTL.
+4. Synthesize and time the generic core and board wrapper, then validate
+   transceiver lock, PRBS/loopback, lane skew and sustained traffic on the Acorn.
+5. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
+6. Only after the generic transport is stable on hardware, add PCIe and USB
+   protocol adapters as separate layers. The one-byte adapter remains the
+   conservative bring-up path; the parallel adapter is the performance path.
