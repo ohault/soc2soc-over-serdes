@@ -88,3 +88,9 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_wire_rx_lane -o /tmp/tb_wire_rx \
             rtl/bonded_wire_rx_lane.sv rtl/tb_bonded_wire_rx_lane.sv
           vvp /tmp/tb_wire_rx
+
+      - name: Compile and run in-order multi-lane packet RX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_packet_rx -o /tmp/tb_packet_rx \
+            rtl/bonded_packet_rx.sv rtl/tb_bonded_packet_rx.sv
+          vvp /tmp/tb_packet_rx
