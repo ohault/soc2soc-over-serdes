@@ -41,11 +41,11 @@ module tb_bonded_packet_rx;
                    input integer sop,input integer eop);
         begin
             @(negedge clk);
-            while(!lane_ready[lane]) @(negedge clk);
             lane_valid[lane]=1;
             lane_data[lane*8 +: 8]=data;
             lane_packet_sequence[lane*32 +: 32]=seq;
             lane_sop[lane]=sop; lane_eop[lane]=eop;
+            while(!lane_ready[lane]) @(negedge clk);
             @(posedge clk);
             @(negedge clk);
             lane_valid[lane]=0; lane_sop[lane]=0; lane_eop[lane]=0;
