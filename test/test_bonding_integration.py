@@ -92,8 +92,8 @@ class BondedEndToEndTests(unittest.TestCase):
         lane0, packet0 = tx[0]
         self.assertEqual(receiver.receive(1 - lane1, packet1), 0)
         self.assertEqual(receiver.receive(1 - lane0, packet0), 2)
-        self.assertEqual(receiver.take_rx(), b"packet-")
-        self.assertEqual(receiver.take_rx(), b"packet-")
+        self.assertEqual(receiver.take_rx(), b"packet-z")
+        self.assertEqual(receiver.take_rx(), b"packet-o")
 
         # The receiver returns cumulative credits only after application
         # consumption. The control frame crosses back through the codec.
