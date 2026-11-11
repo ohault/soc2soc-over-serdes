@@ -16,6 +16,7 @@ module bonded_two_lane_node #(
     parameter [63:0] EXPECTED_PEER_ID=64'd2,
     parameter [15:0] PROFILE_ID=16'd1,
     parameter [15:0] MAX_PAYLOAD=MAX_PACKET_BYTES,
+    parameter [31:0] RESTART_BACKOFF_CYCLES=32'd64,
     parameter [31:0] PING_INTERVAL_CYCLES=32'd100000000,
     parameter [31:0] PONG_TIMEOUT_CYCLES=32'd300000000
 ) (
@@ -130,6 +131,14 @@ module bonded_two_lane_node #(
     wire [63:0] local_byte_limit,remote_byte_limit;
     wire [31:0] local_packet_limit,remote_packet_limit;
     wire session_established;
+    wire [63:0] active_session_id,ctrl_rx_session_id;
+    wire session_changed,session_initiated;
+    wire control_tx_rst_n=bond_rst_n && !session_changed;
+    reg session_rx_reset_toggle;
+    always @(posedge bond_clk or negedge bond_rst_n) begin
+        if(!bond_rst_n) session_rx_reset_toggle<=1'b0;
+        else if(session_initiated) session_rx_reset_toggle<=~session_rx_reset_toggle;
+    end
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
     wire lane0_tx_sop_internal,lane0_tx_eop_internal,lane1_tx_sop_internal,lane1_tx_eop_internal;
     wire lane0_framed_valid,lane0_framed_ready,lane0_framed_sop,lane0_framed_eop;
@@ -171,17 +180,22 @@ module bonded_two_lane_node #(
     bonded_control_manager #(
         .LOCAL_PEER_ID(LOCAL_PEER_ID),.EXPECTED_PEER_ID(EXPECTED_PEER_ID),
         .PROFILE_ID(PROFILE_ID),.MAX_PAYLOAD(MAX_PAYLOAD),
+        .INITIAL_SESSION_ID(SESSION_ID),.RESTART_BACKOFF_CYCLES(RESTART_BACKOFF_CYCLES),
         .PING_INTERVAL_CYCLES(PING_INTERVAL_CYCLES),
         .PONG_TIMEOUT_CYCLES(PONG_TIMEOUT_CYCLES)
     ) control_manager (
         .clk(bond_clk),.rst(!bond_rst_n),.lane_up(lane_up),
         .ctrl_rx_valid(ctrl_rx_valid),.ctrl_rx_ready(ctrl_rx_ready),
-        .ctrl_rx_body(ctrl_rx_body),.ctrl_rx_body_length(ctrl_rx_length),.ctrl_rx_lane(ctrl_rx_lane),
+        .ctrl_rx_body(ctrl_rx_body),.ctrl_rx_body_length(ctrl_rx_length),
+        .ctrl_rx_session_id(ctrl_rx_session_id),.ctrl_rx_lane(ctrl_rx_lane),
+        .ctrl_rx_session_id(ctrl_rx_session_id),
         .ctrl_tx_valid(ctrl_tx_valid),.ctrl_tx_ready(ctrl_tx_ready),
         .ctrl_tx_body(ctrl_tx_body),.ctrl_tx_body_length(ctrl_tx_length),
         .local_byte_limit(local_byte_limit),.local_packet_limit(local_packet_limit),
         .remote_byte_limit(remote_byte_limit),.remote_packet_limit(remote_packet_limit),
-        .session_established(session_established),.fault(control_fault)
+        .session_established(session_established),.fault(control_fault),
+        .active_session_id(active_session_id),.session_changed(session_changed),
+        .session_initiated(session_initiated)
     );
 
     bonded_two_lane_endpoint #(
@@ -191,7 +205,8 @@ module bonded_two_lane_node #(
         .LANE0_ID(LANE0_ID),.LANE1_ID(LANE1_ID),.DYNAMIC_LANE_MAP(1)
     ) endpoint (
         .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),
-        .tx_session_id(SESSION_ID),.rx_expected_session_id(SESSION_ID),
+        .control_tx_rst_n(control_tx_rst_n),.session_rx_reset_toggle(session_rx_reset_toggle),
+        .tx_session_id(active_session_id),.rx_expected_session_id(active_session_id),
         .remote_byte_limit(remote_byte_limit),.remote_packet_limit(remote_packet_limit),
         .ctrl_tx_valid(ctrl_tx_valid),.ctrl_tx_ready(ctrl_tx_ready),
         .ctrl_tx_body(ctrl_tx_body),.ctrl_tx_body_length(ctrl_tx_length),
