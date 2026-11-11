@@ -2,9 +2,9 @@
 // Bond-clock session gate.
 //
 // All four physical directions participate in one bonded session. Any lane
-// reset asynchronously asserts the common gate reset; release is synchronized
-// into bond_clk. The endpoint uses session_active to flush BOTH datapaths,
-// preventing stale packets/sequence state from surviving a partial lane reset.
+// reset asynchronously drops the gate and clears the re-arm latch. After all
+// lanes return, the external session controller MUST deassert
+// session_established and then assert it again after peer renegotiation.
 module bonded_session_gate (
     input wire bond_clk,
     input wire bond_rst_n,
@@ -20,9 +20,9 @@ module bonded_session_gate (
         lane0_rx_rst_n && lane1_rx_rst_n;
 
     (* async_reg = "true" *) reg [1:0] lane_release_sync;
+    reg session_rearm_armed;
 
-    // One asynchronous reset input is used for portable FPGA synthesis.
-    // Assertion is immediate; deassertion takes two bond_clk edges.
+    // Asynchronous assertion; two-cycle synchronous release.
     always @(posedge bond_clk or negedge all_lanes_rst_n) begin
         if (!all_lanes_rst_n)
             lane_release_sync <= 2'b00;
@@ -30,7 +30,17 @@ module bonded_session_gate (
             lane_release_sync <= {lane_release_sync[0], 1'b1};
     end
 
+    // A lane fault invalidates the previous session even if the lane later
+    // recovers. Require an explicit low->high session_established transition.
+    always @(posedge bond_clk or negedge all_lanes_rst_n) begin
+        if (!all_lanes_rst_n)
+            session_rearm_armed <= 1'b0;
+        else if (!session_established)
+            session_rearm_armed <= 1'b1;
+    end
+
     assign session_active = all_lanes_rst_n &&
                             lane_release_sync[1] &&
+                            session_rearm_armed &&
                             session_established;
 endmodule
