@@ -14,7 +14,8 @@ module tb_bonded_two_lane_phy_word_node;
     always #10.3 a_rx1=~a_rx1;
     always #8.2 b_rx0=~b_rx0;
     always #12.4 b_rx1=~b_rx1;
-    reg rst_n=0;
+    reg phy_rst_n=0,bond_rst_n=0;
+    reg lane0_up_a=1,lane1_up_a=1,lane0_up_b=1,lane1_up_b=1;
     reg inject_a0_bad=0,inject_b0_bad=0;
     wire a0_phy_rx_valid=a0_rxv || inject_a0_bad;
     wire b0_phy_rx_valid=b0_rxv || inject_b0_bad;
@@ -35,11 +36,11 @@ module tb_bonded_two_lane_phy_word_node;
     wire [3:0] a0_rxc,a1_rxc,b0_rxc,b1_rxc;
 
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab0(
-        .wr_clk(a_tx0),.wr_rst_n(rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
-        .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx0),.rd_rst_n(rst_n),
+        .wr_clk(a_tx0),.wr_rst_n(phy_rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
+        .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx0),.rd_rst_n(phy_rst_n),
         .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab1(
-        .wr_clk(a_tx1),.wr_rst_n(rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
+        .wr_clk(a_tx1),.wr_rst_n(phy_rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
         .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx1),.rd_rst_n(rst_n),
         .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba0(
@@ -76,7 +77,7 @@ module tb_bonded_two_lane_phy_word_node;
         .EXPECTED_PEER_ID(64'd2),.MAX_PAYLOAD(16'd64),
         .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
     ) node_a (
-        .bond_clk(bond_a),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
+        .bond_clk(bond_a),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_a),.lane1_up(lane1_up_a),
         .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),
         .lane0_phy_tx_valid(a0_txv),.lane0_phy_tx_ready(a0_txr),
         .lane0_phy_tx_data(a0_txd),.lane0_phy_tx_ctrl(a0_txc),
@@ -108,7 +109,7 @@ module tb_bonded_two_lane_phy_word_node;
         .EXPECTED_PEER_ID(64'd1),.MAX_PAYLOAD(16'd64),
         .PING_INTERVAL_CYCLES(32'd1000000),.PONG_TIMEOUT_CYCLES(32'd3000000)
     ) node_b (
-        .bond_clk(bond_b),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
+        .bond_clk(bond_b),.bond_rst_n(bond_rst_n),.lane0_up(lane0_up_b),.lane1_up(lane1_up_b),
         .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),
         .lane0_phy_tx_valid(b0_txv),.lane0_phy_tx_ready(b0_txr),
         .lane0_phy_tx_data(b0_txd),.lane0_phy_tx_ctrl(b0_txc),
@@ -152,7 +153,7 @@ module tb_bonded_two_lane_phy_word_node;
             lane1_data_frames<=lane1_data_frames+1;
 
     always @(posedge bond_b) begin
-        if(!rst_n) begin
+        if(!bond_rst_n) begin
             consumer_lfsr<=16'h1ace;
             b_app_rx_ready<=0;
         end else begin
@@ -274,7 +275,7 @@ module tb_bonded_two_lane_phy_word_node;
         reg [127:0] payload;
         integer p,i;
         repeat(10) @(posedge bond_a);
-        @(negedge bond_a);rst_n=1;
+        @(negedge bond_a);phy_rst_n=1;bond_rst_n=1;
         cycles=0;
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
@@ -351,6 +352,57 @@ module tb_bonded_two_lane_phy_word_node;
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
+        // A physical lane-down event invalidates the session. Restoring the
+        // lane alone must not clear the sticky control fault; a coordinated
+        // bonding-domain reset is required to negotiate a fresh session.
+        @(negedge bond_a);lane0_up_a=0;
+        @(negedge bond_b);lane0_up_b=0;
+        repeat(8) @(posedge bond_a);
+        repeat(8) @(posedge bond_b);
+        if(active_a || active_b || !fault_a || !fault_b)
+            $fatal(1,"asymmetric lane-down did not invalidate both sessions");
+        @(negedge bond_a);lane0_up_a=1;
+        @(negedge bond_b);lane0_up_b=1;
+        repeat(8) @(posedge bond_a);
+        repeat(8) @(posedge bond_b);
+        if(active_a || active_b || !fault_a || !fault_b)
+            $fatal(1,"sticky lane fault cleared without a coordinated reset");
+
+        // Keep the PHY clocks and async symbol FIFOs running while resetting
+        // only the bonding/control domains. This verifies that the bridge
+        // flushes stale lane words and can re-arm on fresh HELLO/READY frames.
+        @(negedge bond_a);bond_rst_n=0;
+        repeat(6) @(posedge bond_a);
+        @(negedge bond_a);bond_rst_n=1;
+        cycles=0;
+        while((!active_a || !active_b) && cycles<20000) begin
+            @(posedge bond_a);cycles=cycles+1;
+        end
+        if(!active_a || !active_b || fault_a || fault_b)
+            $fatal(1,"bonding session did not re-arm after coordinated reset");
+        expected_count=0;got=0;packet_number=0;
+        reverse_expected_count=0;reverse_got=0;reverse_packet_number=0;
+        begin : post_reset_traffic
+            reg [127:0] fwd_payload,rev_payload;
+            integer k;
+            fwd_payload=0;rev_payload=0;
+            for(k=0;k<16;k=k+1) begin
+                fwd_payload[k*8 +: 8]=8'h41+k*8'h09;
+                rev_payload[k*8 +: 8]=8'hd2-k*8'h07;
+            end
+            fork
+                send_packet(fwd_payload,5);
+                send_packet_b(rev_payload,6);
+            join
+        end
+        cycles=0;
+        while((got<expected_count || reverse_got<reverse_expected_count) && cycles<20000) begin
+            @(posedge bond_b);cycles=cycles+1;
+        end
+        if(got!=5 || reverse_got!=6 || fault_a || fault_b ||
+           txerr_a || txerr_b || rxerr_a || rxerr_b)
+            $fatal(1,"post-reset DATA traffic failed A->B=%0d B->A=%0d",got,reverse_got);
+
         // Inject an illegal K28.5 control character in symbol slot 1 at
         // both receivers. It must be reported as a sticky PHY fault and
         // invalidate each endpoint's bonded session.
