@@ -62,10 +62,14 @@ length and frame CRC; the PHY comma does not replace protocol-level checks.
 mapping independently of the existing byte-wide node. It supports two- and
 four-symbol words, SOP comma insertion/reconstruction, K28.0 partial-word
 markers, contiguous keep validation, RX buffering/backpressure and overflow/
-symbol-error reporting. Its standalone regression is
-`rtl/tb_bonded_phy_8b10b_word_adapter.sv` and is included in CI. The parallel
-adapter is not yet connected to the autonomous node or the packet framing
-pipeline.
+symbol-error reporting. `rtl/bonded_byte_to_phy_word.sv` packs the existing
+byte-framed TX stream into N-1-byte SOP words and N-byte continuation words;
+`rtl/bonded_phy_word_to_byte.sv` restores the byte stream on RX. This keeps the
+v0 frame encoder, CRCs and frame parser byte-oriented while allowing the PHY
+boundary to carry multiple bytes per clock. The integrated loopback regression
+is `rtl/tb_bonded_phy_word_gearbox.sv` and is included in CI. This is still a
+standalone pipeline prototype: it is not yet connected to the autonomous node
+or a board-specific transceiver.
 
 ## TX/RX adapter requirements
 
