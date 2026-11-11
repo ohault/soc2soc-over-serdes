@@ -12,6 +12,8 @@ module tb_bonded_wire_rx_framer;
  wire [7:0] raw_data;
  wire out_valid,out_sop,out_eop,frame_error;
  wire [7:0] out_data;
+ reg out_ready=1'b1;
+ reg [7:0] stalled_data;
  integer got=0,sent=0;
  reg [7:0] captured[0:40];
  bonded_control_frame_tx #(.LANE_ID(0)) tx(
@@ -28,9 +30,9 @@ module tb_bonded_wire_rx_framer;
  assign raw_eop=1'b0;
  bonded_wire_rx_framer #(.MAX_FRAME_BODY(64)) dut(
   .clk(clk),.rst(rst),.in_valid(raw_valid),.in_ready(raw_ready),.in_data(raw_data),
-  .out_valid(out_valid),.out_ready(1'b1),.out_data(out_data),.out_sop(out_sop),
+  .out_valid(out_valid),.out_ready(out_ready),.out_data(out_data),.out_sop(out_sop),
   .out_eop(out_eop),.frame_error(frame_error));
- always @(posedge clk) if(out_valid) begin
+ always @(posedge clk) if(out_valid && out_ready) begin
   if(got>=41) $fatal(1,"extra framed byte");
   captured[got]=out_data;
   if(out_sop !== (got==0)) $fatal(1,"SOP mismatch at %0d",got);
@@ -51,6 +53,20 @@ module tb_bonded_wire_rx_framer;
   send_noise(8'h53);send_noise(8'h42);send_noise(8'h01);send_noise(8'h02);
   @(negedge clk);noise_mode=0;ctrl_valid=1;
   wait(ctrl_ready);@(posedge clk);@(negedge clk);ctrl_valid=0;
+  // Stall during header replay and again during body forwarding. The
+  // output must remain stable until the consumer accepts each byte.
+  wait(out_valid);@(negedge clk);out_ready=0;stalled_data=out_data;
+  repeat(4) begin
+   @(posedge clk);
+   if(!out_valid || out_data!==stalled_data) $fatal(1,"header replay changed under backpressure");
+  end
+  @(negedge clk);out_ready=1;
+  wait(got==28);@(negedge clk);out_ready=0;stalled_data=out_data;
+  repeat(4) begin
+   @(posedge clk);
+   if(!out_valid || out_data!==stalled_data) $fatal(1,"body byte changed under backpressure");
+  end
+  @(negedge clk);out_ready=1;
   wait(got==41);
   if(captured[0]!=8'h53 || captured[1]!=8'h42 || captured[2]!=8'h01 ||
      captured[3]!=8'h02 || captured[5]!=0 || captured[7]!=8'h18 ||
