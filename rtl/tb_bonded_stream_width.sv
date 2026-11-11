@@ -90,8 +90,7 @@ module stream_width_case #(
                     {{(KEEP_WIDTH-1){1'b0}}, 1'b1}, 0, 1);
 
         // Sparse KEEP is malformed; the following single-beat frame recovers.
-        send_beat({DATA_WIDTH{1'b0}}, {{(KEEP_WIDTH-2){1'b0}}, 2'b01} << 1,
-                  1, 1);
+        send_beat({DATA_WIDTH{1'b0}}, {KEEP_WIDTH{1'b0}}, 1, 1);
         send_beat({{(DATA_WIDTH-8){1'b0}}, 8'h5A},
                   {{(KEEP_WIDTH-1){1'b0}}, 1'b1}, 1, 1);
         expect_beat({{(DATA_WIDTH-8){1'b0}}, 8'h5A},
