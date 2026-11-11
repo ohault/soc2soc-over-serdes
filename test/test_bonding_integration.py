@@ -90,8 +90,8 @@ class BondedEndToEndTests(unittest.TestCase):
         # the two independent physical lanes.
         lane1, packet1 = tx[1]
         lane0, packet0 = tx[0]
-        self.assertEqual(receiver.receive(lane1, packet1), 0)
-        self.assertEqual(receiver.receive(lane0, packet0), 2)
+        self.assertEqual(receiver.receive(1 - lane1, packet1), 0)
+        self.assertEqual(receiver.receive(1 - lane0, packet0), 2)
         self.assertEqual(receiver.take_rx(), b"packet-")
         self.assertEqual(receiver.take_rx(), b"packet-")
 
@@ -103,7 +103,7 @@ class BondedEndToEndTests(unittest.TestCase):
         decoded_credit = decode_frame(encode_frame(credit_frame))
         self.assertEqual(decoded_credit.frame_type, FrameType.CONTROL)
         self.assertEqual(decoded_credit.body[0], ControlOpcode.CREDIT)
-        control_a.receive(0, decoded_credit)
+        control_a.receive(1, decoded_credit)
         sender.update_remote_credits(
             control_a.remote_credit_bytes, control_a.remote_credit_packets,
         )
@@ -113,7 +113,7 @@ class BondedEndToEndTests(unittest.TestCase):
         control_a.enqueue_data(lane, next_packet.sequence, next_packet.payload)
         data_frame = decode_frame(encode_frame(control_a.next_frame(lane)))
         sequence, payload = decode_data_body(data_frame.body)
-        self.assertEqual(receiver.receive(lane, BondPacket(SESSION, sequence, payload)), 1)
+        self.assertEqual(receiver.receive(1 - lane, BondPacket(SESSION, sequence, payload)), 1)
         self.assertEqual(receiver.take_rx(), b"refill")
 
     def test_lane_failure_invalidates_control_session_and_data_session(self):
