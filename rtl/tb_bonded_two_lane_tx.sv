@@ -45,14 +45,14 @@ module tb_bonded_two_lane_tx;
     wire d0err,d1err,d0pulse,d1pulse;
     reg [31:0] got0=0,got1=0;
     bonded_wire_rx_lane #(.LANE_ID(0),.MAX_PAYLOAD(64)) decoder0 (
-        .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.expected_session_id(session_id),
+        .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.expected_session_id(session_id),.expected_frame_sequence_override(32'd0),
         .in_valid(l0v && l0r),.in_ready(d0in_ready),.in_data(l0d),.in_sop(l0s),.in_eop(l0e),
         .out_valid(d0v),.out_ready(1'b1),.out_data(d0d),.out_sop(d0s),.out_eop(d0e),
         .out_packet_sequence(d0seq),.out_frame_sequence(d0fseq),
         .expected_frame_sequence(d0expected),.frame_error(d0err),.frame_valid_pulse(d0pulse)
     );
     bonded_wire_rx_lane #(.LANE_ID(1),.MAX_PAYLOAD(64)) decoder1 (
-        .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.expected_session_id(session_id),
+        .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.expected_session_id(session_id),.expected_frame_sequence_override(32'd0),
         .in_valid(l1v && l1r),.in_ready(d1in_ready),.in_data(l1d),.in_sop(l1s),.in_eop(l1e),
         .out_valid(d1v),.out_ready(1'b1),.out_data(d1d),.out_sop(d1s),.out_eop(d1e),
         .out_packet_sequence(d1seq),.out_frame_sequence(d1fseq),
