@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-2-Clause
 `timescale 1ns/1ps
 module tb_bonded_phy_word_gearbox;
- reg clk=0; always #5 clk=~clk;
+ reg clk=0,rx_clk=0;
+ always #5 clk=~clk;
+ always #7 rx_clk=~rx_clk;
  reg rst=1;
 
  reg in_valid=0,in_sop=0,in_eop=0;
@@ -36,7 +38,7 @@ module tb_bonded_phy_word_gearbox;
 
  bonded_phy_8b10b_word_adapter #(.SYMBOLS_PER_WORD(4),.RX_FIFO_DEPTH(4),
   .RX_PHY_STALLABLE(1)) phy(
-  .tx_clk(clk),.tx_rst(rst),.rx_clk(clk),.rx_rst(rst),
+  .tx_clk(clk),.tx_rst(rst),.rx_clk(rx_clk),.rx_rst(rst),
   .tx_valid(packed_valid),.tx_ready(packed_ready),.tx_data(packed_data),
   .tx_keep(packed_keep),.tx_sop(packed_sop),
   .tx_phy_valid(tx_phy_valid),.tx_phy_ready(tx_phy_ready),
@@ -47,20 +49,23 @@ module tb_bonded_phy_word_gearbox;
   .rx_data(rx_word_data),.rx_keep(rx_word_keep),.rx_sop(rx_word_sop),
   .rx_overflow(rx_overflow),.rx_symbol_error(rx_symbol_error));
 
- assign tx_phy_ready=rx_phy_ready;
- assign rx_phy_valid=tx_phy_valid;
- assign rx_phy_data=tx_phy_data;
- assign rx_phy_ctrl=tx_phy_ctrl;
+ // A dual-clock FIFO models the independent recovered RX clock domain
+ // of a real SERDES. No TX READY signal is combinationally tied to RX READY.
+ bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(8)) serdes_loopback(
+  .wr_clk(clk),.wr_rst_n(!rst),.wr_valid(tx_phy_valid),.wr_ready(tx_phy_ready),
+  .wr_data({tx_phy_ctrl,tx_phy_data}),
+  .rd_clk(rx_clk),.rd_rst_n(!rst),.rd_valid(rx_phy_valid),.rd_ready(rx_phy_ready),
+  .rd_data({rx_phy_ctrl,rx_phy_data}));
 
  bonded_phy_word_to_byte #(.SYMBOLS_PER_WORD(4)) unpacker(
-  .clk(clk),.rst(rst),
+  .clk(rx_clk),.rst(rst),
   .word_valid(rx_word_valid),.word_ready(rx_word_ready),
   .word_data(rx_word_data),.word_keep(rx_word_keep),.word_sop(rx_word_sop),
   .byte_valid(out_valid),.byte_ready(out_ready),.byte_data(out_data),
   .byte_sop(out_sop),.word_error());
 
  reg out_ready=0;
- always @(posedge clk) begin
+ always @(posedge rx_clk) begin
   if(rst) begin received<=0;cycles<=0;end
   else begin
    cycles<=cycles+1;
@@ -107,7 +112,7 @@ module tb_bonded_phy_word_gearbox;
   send_byte(expected[12],0,1);
 
   wait(received==13);
-  repeat(4) @(posedge clk);
+  repeat(4) @(posedge rx_clk);
   if(out_error || tx_error || rx_overflow || rx_symbol_error || !in_ready)
    $fatal(1,"unexpected error/overflow in integrated gearbox loopback");
   $display("PASS: byte/word packing, PHY comma removal, control-valued payload bytes and backpressure");
