@@ -61,8 +61,7 @@ module bonded_phy_8b10b_adapter #(
 
     wire rx_pop=rx_byte_valid && rx_byte_ready;
     wire rx_space=(count<RX_FIFO_DEPTH) || rx_pop;
-    assign rx_phy_ready=!rst &&
-        (!RX_PHY_STALLABLE || !rx_phy_valid || !rx_word_has_data || rx_space || rx_word_malformed);
+    assign rx_phy_ready=!rst && (!RX_PHY_STALLABLE || rx_space);
     wire rx_accept=rx_phy_valid && rx_phy_ready;
     wire rx_push=rx_accept && rx_word_has_data && !rx_word_malformed && rx_space;
 
