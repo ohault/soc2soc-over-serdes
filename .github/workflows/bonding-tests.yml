@@ -154,9 +154,3 @@ jobs:
             rtl/tb_bonded_control_frame_loopback.sv
           vvp /tmp/tb_control_loopback
 
-      - name: Compile and run CONTROL frame encoder/decoder loopback
-        run: |
-          iverilog -g2012 -Wall -s tb_bonded_control_frame_loopback -o /tmp/tb_control_loopback \
-            rtl/bonded_control_frame_tx.sv rtl/bonded_control_frame_rx.sv \
-            rtl/tb_bonded_control_frame_loopback.sv
-          vvp /tmp/tb_control_loopback
