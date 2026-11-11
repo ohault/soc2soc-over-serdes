@@ -79,6 +79,41 @@ module bonded_two_lane_node #(
         end
     end
     wire [1:0] lane_up=lane_up_sync2 & ~lane_overflow_sync2;
+
+    // Convert a bonding-clock session drop into one reset pulse in each
+    // recovered RX clock domain. CONTROL negotiation remains alive.
+    reg session_active_d,session_drop_toggle;
+    always @(posedge bond_clk or negedge bond_rst_n) begin
+        if(!bond_rst_n) begin
+            session_active_d<=1'b0;
+            session_drop_toggle<=1'b0;
+        end else begin
+            session_active_d<=session_active;
+            if(session_active_d && !session_active)
+                session_drop_toggle<=~session_drop_toggle;
+        end
+    end
+
+    (* async_reg = "true" *) reg [1:0] lane0_drop_sync,lane1_drop_sync;
+    reg lane0_drop_seen,lane1_drop_seen;
+    wire lane0_session_drop_pulse=(lane0_drop_sync[1]!=lane0_drop_seen);
+    wire lane1_session_drop_pulse=(lane1_drop_sync[1]!=lane1_drop_seen);
+    always @(posedge lane0_rx_clk or negedge lane0_rx_local_rst_n) begin
+        if(!lane0_rx_local_rst_n) begin lane0_drop_sync<=0;lane0_drop_seen<=0;end
+        else begin
+            lane0_drop_sync<={lane0_drop_sync[0],session_drop_toggle};
+            if(lane0_session_drop_pulse) lane0_drop_seen<=lane0_drop_sync[1];
+        end
+    end
+    always @(posedge lane1_rx_clk or negedge lane1_rx_local_rst_n) begin
+        if(!lane1_rx_local_rst_n) begin lane1_drop_sync<=0;lane1_drop_seen<=0;end
+        else begin
+            lane1_drop_sync<={lane1_drop_sync[0],session_drop_toggle};
+            if(lane1_session_drop_pulse) lane1_drop_seen<=lane1_drop_sync[1];
+        end
+    end
+    wire lane0_rx_local_rst_n=bond_rst_n && lane0_rx_rst_n && !lane0_session_drop_pulse;
+    wire lane1_rx_local_rst_n=bond_rst_n && lane1_rx_rst_n && !lane1_session_drop_pulse;
     wire ctrl_tx_valid,ctrl_tx_ready,ctrl_rx_valid,ctrl_rx_ready,ctrl_rx_lane;
     wire [207:0] ctrl_tx_body,ctrl_rx_body;
     wire [5:0] ctrl_tx_length,ctrl_rx_length;
@@ -95,13 +130,13 @@ module bonded_two_lane_node #(
     wire [7:0] lane0_raw_data,lane1_raw_data;
 
     bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane0_rx_elastic (
-        .clk(lane0_rx_clk),.rst(!bond_rst_n || !lane0_rx_rst_n),
+        .clk(lane0_rx_clk),.rst(!lane0_rx_local_rst_n),
         .in_valid(lane0_rx_valid),.in_ready(lane0_rx_ready),.in_data(lane0_rx_data),
         .out_valid(lane0_raw_valid),.out_ready(lane0_raw_ready),.out_data(lane0_raw_data),
         .full(),.empty()
     );
     bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane1_rx_elastic (
-        .clk(lane1_rx_clk),.rst(!bond_rst_n || !lane1_rx_rst_n),
+        .clk(lane1_rx_clk),.rst(!lane1_rx_local_rst_n),
         .in_valid(lane1_rx_valid),.in_ready(lane1_rx_ready),.in_data(lane1_rx_data),
         .out_valid(lane1_raw_valid),.out_ready(lane1_raw_ready),.out_data(lane1_raw_data),
         .full(),.empty()
@@ -109,14 +144,14 @@ module bonded_two_lane_node #(
     wire lane0_endpoint_rx_error,lane1_endpoint_rx_error;
 
     bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane0_framer (
-        .clk(lane0_rx_clk),.rst(!bond_rst_n || !lane0_rx_rst_n),
+        .clk(lane0_rx_clk),.rst(!lane0_rx_local_rst_n),
         .in_valid(lane0_raw_valid),.in_ready(lane0_raw_ready),.in_data(lane0_raw_data),
         .out_valid(lane0_framed_valid),.out_ready(lane0_framed_ready),
         .out_data(lane0_framed_data),.out_sop(lane0_framed_sop),.out_eop(lane0_framed_eop),
         .frame_error(lane0_framer_error)
     );
     bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane1_framer (
-        .clk(lane1_rx_clk),.rst(!bond_rst_n || !lane1_rx_rst_n),
+        .clk(lane1_rx_clk),.rst(!lane1_rx_local_rst_n),
         .in_valid(lane1_raw_valid),.in_ready(lane1_raw_ready),.in_data(lane1_raw_data),
         .out_valid(lane1_framed_valid),.out_ready(lane1_framed_ready),
         .out_data(lane1_framed_data),.out_sop(lane1_framed_sop),.out_eop(lane1_framed_eop),
