@@ -58,7 +58,8 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_a (
         .bond_clk(bond_a),.bond_rst_n(rst_n),.tx_session_id(64'hA11CE),
-        .rx_expected_session_id(64'hB0B),.remote_byte_limit(b_local_bytes),.remote_packet_limit(b_local_packets),.session_established(session_established),.session_active(session_a),
+        .rx_expected_session_id(64'hB0B),.remote_byte_limit(b_local_bytes),.remote_packet_limit(b_local_packets),
+        .ctrl_tx_valid(1'b0),.ctrl_tx_ready(),.ctrl_tx_body(208'd0),.ctrl_tx_body_length(6'd0),.session_established(session_established),.session_active(session_a),
         .local_byte_limit(a_local_bytes),.local_packet_limit(a_local_packets),.rx_credit_error(a_credit_error),
         .tx_valid(av),.tx_ready(ardy),.tx_data(ad),.tx_keep(ak),.tx_sop(asop),.tx_eop(aeop),
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
@@ -79,7 +80,8 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_b (
         .bond_clk(bond_b),.bond_rst_n(rst_n),.tx_session_id(64'hB0B),
-        .rx_expected_session_id(64'hA11CE),.remote_byte_limit(a_local_bytes),.remote_packet_limit(a_local_packets),.session_established(rst_n),.session_active(session_b),
+        .rx_expected_session_id(64'hA11CE),.remote_byte_limit(a_local_bytes),.remote_packet_limit(a_local_packets),
+        .ctrl_tx_valid(1'b0),.ctrl_tx_ready(),.ctrl_tx_body(208'd0),.ctrl_tx_body_length(6'd0),.session_established(rst_n),.session_active(session_b),
         .local_byte_limit(b_local_bytes),.local_packet_limit(b_local_packets),.rx_credit_error(b_credit_error),
         .tx_valid(bv),.tx_ready(brdy),.tx_data(bd),.tx_keep(bk),.tx_sop(bsop),.tx_eop(beop),
         .rx_valid(brv),.rx_ready(1'b1),.rx_data(brd),.rx_sop(brs),.rx_eop(bre),
