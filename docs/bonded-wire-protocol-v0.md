@@ -135,11 +135,11 @@ PING/PONG is diagnostic/liveness supervision, not a delivery acknowledgement. Th
 
 ## 10. Implementation sequence
 
-1. Implement a pure-Python encoder/decoder for the envelope and each CONTROL opcode, including CRC test vectors.
-2. Add round-trip, malformed-length, CRC-corruption, unknown-opcode, wrong-session, duplicate, and reordered-control tests.
-3. Extend the behavioural model so control frames are scheduled on reserved capacity independently of DATA queues.
-4. Simulate two endpoints over two independently stalled/latency-skewed lanes.
-5. Only then freeze RTL field widths and implement the Migen-independent protocol logic (the first RTL may still be Migen-based if that is the chosen repository toolchain).
+1. Implemented: pure-Python frame envelope, DATA prefix, CONTROL opcode length validation, CRC-16/CCITT-FALSE and CRC-32C in `soc2soc/bonding/wire.py`.
+2. Implemented: a framework-neutral control-plane reference model in `soc2soc/bonding/control.py`, including per-lane HELLO/READY negotiation, crossed-lane mapping, dedicated CONTROL queues, CONTROL-before-DATA scheduling, CREDIT coalescing, monotonic remote-credit merging, PING/PONG response and lane-loss fail-stop.
+3. Added wire and control-plane tests in `test/test_bonding_wire.py` and `test/test_bonding_control.py`. They must be executed before the implementation is considered validated.
+4. Next: connect control-plane state to the existing sender/receiver behavioural model and simulate two endpoints over independently stalled and latency-skewed lanes.
+5. Only after those tests, freeze RTL field widths and implement the bonding core.
 
 ## 11. Explicit non-goals
 
