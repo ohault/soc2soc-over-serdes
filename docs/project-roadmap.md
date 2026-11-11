@@ -71,26 +71,30 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43115278450](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43115278450)
+[43115988476](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43115988476)
 completed successfully for commit
-`87f6d99f35ebe1a69290f27b1f44a39b7143917e`. Both the Python reference-model
+`c3a0c569ad4d19a2bd42c264c348c59b73b44edd`. Both the Python reference-model
 and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
 16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
 direction, checks round-robin use of both forward lanes, applies application
 RX backpressure, and injects malformed 8b/10b control symbols to verify that
-PHY errors invalidate both bonded sessions. The per-lane bridge regression
-also exercises session-drop flushing and stale continuation-word discard.
+PHY errors invalidate both bonded sessions. It also drops a lane, verifies the
+sticky session fault, performs a coordinated physical-lane/bonding reset, and
+re-establishes the full-duplex session. The per-lane bridge regression exercises
+session-drop flushing and stale continuation-word discard without relying on a
+physical FIFO reset.
 
 This remains digital simulation evidence. It does not model analogue SERDES
 behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Extend the passing digital regression with asymmetric lane loss,
-   heartbeat timeout and full session restart/recovery tests. The current
-   control fault is sticky and automatic re-negotiation is not yet implemented.
+1. Extend the passing digital regression with asymmetric one-sided lane loss
+   and remote heartbeat-timeout recovery. Current lane-fault handling is
+   sticky; recovery currently requires a coordinated physical-lane and
+   bonding-domain reset rather than autonomous re-negotiation.
 2. Implement RTL lane-map discovery and a fresh per-session epoch so crossed
    SFP/DAC cabling and stale frames are handled deterministically.
 3. Implement the first board-specific SERDES wrapper, beginning with the
