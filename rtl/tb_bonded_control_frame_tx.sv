@@ -14,7 +14,7 @@ module tb_bonded_control_frame_tx;
  reg [15:0] c16;
  reg [31:0] c32;
  bonded_control_frame_tx #(.LANE_ID(1)) dut(
- .clk(clk),.rst(rst),.session_id(session_id),.ctrl_valid(ctrl_valid),.ctrl_ready(ctrl_ready),
+ .clk(clk),.rst(rst),.session_id(session_id),.frame_start_enable(1'b1),.frame_sequence_override(32'd0),.ctrl_valid(ctrl_valid),.ctrl_ready(ctrl_ready),
  .ctrl_body(body),.ctrl_body_length(body_len),.out_valid(out_valid),.out_ready(out_ready),
  .out_data(out_data),.out_sop(out_sop),.out_eop(out_eop),
  .next_frame_sequence(next_seq),.frame_error(frame_error));
