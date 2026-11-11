@@ -47,6 +47,9 @@ module bonded_two_lane_tx #(
     wire fifo0_rd_valid, fifo1_rd_valid;
     wire enc0_in_ready, enc1_in_ready;
     wire ctrl0_wr_ready,ctrl1_wr_ready,ctrl0_rd_valid,ctrl1_rd_valid;
+    wire ctrl0_encoder_ready,ctrl1_encoder_ready;
+    wire ctrl0_error,ctrl1_error,arb0_error,arb1_error;
+    wire lane0_data_error,lane1_data_error;
     wire [213:0] ctrl_fifo_in={ctrl_body_length,ctrl_body};
     wire [213:0] ctrl0_fifo_out,ctrl1_fifo_out;
     wire ctrl_broadcast_ready = ctrl0_wr_ready && ctrl1_wr_ready;
@@ -124,8 +127,6 @@ module bonded_two_lane_tx #(
         .rd_clk(lane1_clk),.rd_rst_n(bond_rst_n && lane1_rst_n),
         .rd_valid(ctrl1_rd_valid),.rd_ready(ctrl1_encoder_ready),.rd_data(ctrl1_fifo_out)
     );
-    wire ctrl0_encoder_ready,ctrl1_encoder_ready;
-    wire ctrl0_error,ctrl1_error,arb0_error,arb1_error;
     bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
         .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.session_id(session_id),
         .ctrl_valid(ctrl0_rd_valid),.ctrl_ready(ctrl0_encoder_ready),
@@ -160,7 +161,6 @@ module bonded_two_lane_tx #(
         .data_frame_error(lane1_data_error),.control_frame_error(ctrl1_error),
         .arbiter_protocol_error(arb1_error)
     );
-    wire lane0_data_error,lane1_data_error;
     assign lane0_frame_error = lane0_data_error | ctrl0_error | arb0_error;
     assign lane1_frame_error = lane1_data_error | ctrl1_error | arb1_error;
 endmodule
