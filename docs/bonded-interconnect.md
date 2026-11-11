@@ -166,8 +166,14 @@ Packet-level striping will not guarantee that two lanes are perfectly utilised f
 - If every lane queue is full, the logical sender does not accept the packet; the caller must retain it and retry. A rejected enqueue must not consume a sequence number.
 - The adapter-facing dequeue operation represents acceptance by that lane adapter, not wire transmission or remote acknowledgement.
 - Reassembly/reorder buffers have explicit finite capacities and high-water marks.
-- This reference-model step covers local per-lane TX queue capacity and aggregate sender backpressure. It does **not yet** model remote receiver capacity, a wire-level credit protocol, or the number of packets already in flight after a remote pause.
-- Those remote-flow-control semantics must be specified before RTL. The model must eventually distinguish local queue space, lane-adapter acceptance, physical transmission, and remote receive-buffer availability.
+- The reference model uses **cumulative byte and packet credits**. At session start, the sender admits no data until it receives the peer's initial grant.
+- A credit grant is a cumulative upper limit on total payload bytes and packets accepted during the session, not a snapshot of currently free space. The sender reserves both limits when it accepts a logical packet, before assigning its sequence number.
+- The receiver returns credits only when the application consumes a complete in-order packet. Its advertised limits are initial buffer capacity plus cumulative released bytes/packets.
+- Duplicate credit updates are idempotent. A stale update that moves both limits backwards is ignored; an inconsistent update that moves only one limit backwards is rejected.
+- The receiver checks every arriving packet against the cumulative limits. A peer that exceeds either limit causes a session fault; the receiver does not silently drop data and continue.
+- Cumulative credits account for packets that are still in the physical lanes or waiting in the receiver's reorder/application queues: the sender cannot reuse capacity until the receiver has actually released it.
+- This is a **reference-model rule**, not yet a wire-level control-frame design. Header fields, update cadence, retransmission of credit updates, integrity protection, and control-frame prioritisation remain to be specified before RTL.
+- The adapter-facing queue, physical transmission, remote receipt, and application consumption are distinct events. Credits are consumed at logical enqueue and returned only on application consumption, deliberately making the initial policy conservative.
 
 The current `SerDesLinkPHY` has a per-lane pause mechanism and an RX buffer. This can help the first adapter, but it is not a substitute for aggregate buffering and ordering.
 
