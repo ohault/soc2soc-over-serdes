@@ -14,8 +14,7 @@ module bonded_sync_byte_fifo #(
     input wire out_ready,
     output wire [7:0] out_data,
     output wire full,
-    output wire empty,
-    output reg overflow
+    output wire empty
 );
     reg [7:0] mem[0:DEPTH-1];
     reg [PTR_WIDTH-1:0] wr_ptr,rd_ptr;
@@ -32,11 +31,8 @@ module bonded_sync_byte_fifo #(
             $error("PHY elastic FIFO DEPTH must be a power of two >= 2");
     end
     always @(posedge clk) begin
-        if(rst) begin wr_ptr<=0;rd_ptr<=0;count<=0;overflow<=1'b0; end
+        if(rst) begin wr_ptr<=0;rd_ptr<=0;count<=0; end
         else begin
-            // This flag is for a non-stallable PHY adapter: a byte presented
-            // while full has already been lost at the physical boundary.
-            if(in_valid && !in_ready) overflow<=1'b1;
             if(push) begin mem[wr_ptr]<=in_data;wr_ptr<=wr_ptr+1'b1;end
             if(pop) rd_ptr<=rd_ptr+1'b1;
             case({push,pop})
