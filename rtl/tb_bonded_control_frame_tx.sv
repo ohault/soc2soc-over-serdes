@@ -61,8 +61,13 @@ module tb_bonded_control_frame_tx;
    if(captured[37]!=((c32>>24)&8'hff) || captured[38]!=((c32>>16)&8'hff) ||
       captured[39]!=((c32>>8)&8'hff) || captured[40]!=(c32&8'hff))
       $fatal(1,"frame CRC32C mismatch");
-   if(captured[24]!=8'h03 || captured[25]!=0 || captured[32]!=8'h10 ||
-      captured[33]!=0 || captured[34]!=0 || captured[35]!=0 || captured[36]!=8'h20)
+   // CREDIT body: opcode, 64-bit byte limit 0x1000, then
+   // 32-bit packet limit 0x20, all in network byte order.
+   if(captured[24]!=8'h03 || captured[25]!=0 || captured[26]!=0 ||
+      captured[27]!=0 || captured[28]!=0 || captured[29]!=0 ||
+      captured[30]!=0 || captured[31]!=8'h10 || captured[32]!=0 ||
+      captured[33]!=0 || captured[34]!=0 || captured[35]!=0 ||
+      captured[36]!=8'h20)
       $fatal(1,"CREDIT body byte order/fields mismatch");
    if(next_seq!=1 || frame_error)$fatal(1,"sequence/error status mismatch");
    // Invalid opcode is accepted as an input transaction but never emitted.
