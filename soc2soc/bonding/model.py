@@ -226,8 +226,11 @@ class BondedReceiver(_Session):
             self._gap_age = 0
             return delivered
 
+        # Start the timer when the gap is first observed. Later out-of-order
+        # arrivals must not keep extending the deadline indefinitely.
+        if not self._pending:
+            self._gap_age = 0
         self._pending[packet.sequence] = packet
-        self._gap_age = 0
         return []
 
     def tick(self, cycles: int = 1) -> None:
