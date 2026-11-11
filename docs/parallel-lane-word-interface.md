@@ -91,8 +91,9 @@ wrapper `rtl/bonded_lane_phy_word_bridge.sv` now combines the packer, symbol
 adapter and unpacker with separate TX and recovered-RX clocks and session-drop
 flushing. `rtl/bonded_two_lane_phy_word_node.sv` connects two such bridges to
 the unchanged byte-oriented autonomous node. Its end-to-end two-node regression
-is `rtl/tb_bonded_two_lane_phy_word_node.sv`; this new regression has been added
-to CI but its result is still pending.
+is `rtl/tb_bonded_two_lane_phy_word_node.sv`; it exercises eight packet
+lengths, both physical lanes, partial words, application backpressure and
+simultaneous DATA traffic in both directions. It passed CI run 43115216096.
 
 ## TX/RX adapter requirements
 
