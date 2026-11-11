@@ -121,41 +121,10 @@ module tb_bonded_two_lane_phy_word_node;
         .lane0_rx_frame_error(b0rf),.lane1_rx_frame_error(b1rf)
     );
 
-    always @(posedge bond_a) begin
-        if(app_valid && app_ready)
-            $display("APP beat: data=%08x keep=%b sop=%b eop=%b collecting=%b sending=%b stored=%0d reserve_ready=%b",
-                     app_data,app_keep,app_sop,app_eop,
-                     node_a.node.endpoint.tx_path.scheduler.collecting,
-                     node_a.node.endpoint.tx_path.scheduler.sending,
-                     node_a.node.endpoint.tx_path.scheduler.stored_beats,
-                     node_a.node.endpoint.tx_path.credit_accounting.tx_reserve_ready);
-        if(txerr_a)
-            $display("TXERR high: collecting=%b sending=%b stored=%0d input valid/ready=%b/%b sop/eop=%b/%b keep=%b",
-                     node_a.node.endpoint.tx_path.scheduler.collecting,
-                     node_a.node.endpoint.tx_path.scheduler.sending,
-                     node_a.node.endpoint.tx_path.scheduler.stored_beats,
-                     app_valid,app_ready,app_sop,app_eop,app_keep);
-    end
-
     reg [7:0] expected_data[0:127];
     reg [31:0] expected_sequence[0:127];
     reg expected_sop[0:127],expected_eop[0:127];
     integer expected_count=0,got=0,cycles=0,packet_number=0;
-
-    // Trace only accepted application beats; this pinpoints packet-TX input
-    // validation failures under variable-length traffic.
-    always @(posedge bond_a) begin
-        if(rst_n && app_valid && app_ready) begin
-            $display("APP beat packet=%0d data=%h keep=%h sop/eop=%b/%b collect=%b send=%b stored=%0d reserve=%b/%b bytes=%0d",
-                packet_number,app_data,app_keep,app_sop,app_eop,
-                node_a.node.endpoint.tx_path.scheduler.collecting,
-                node_a.node.endpoint.tx_path.scheduler.sending,
-                node_a.node.endpoint.tx_path.scheduler.stored_beats,
-                node_a.node.endpoint.tx_path.scheduler.credit_reserve_valid,
-                node_a.node.endpoint.tx_path.scheduler.credit_reserve_ready,
-                node_a.node.endpoint.tx_path.scheduler.prospective_packet_bytes);
-        end
-    end
 
     always @(posedge bond_b) begin
         if(!rst_n) begin
@@ -211,8 +180,6 @@ module tb_bonded_two_lane_phy_word_node;
         end
         @(negedge bond_a);
         app_valid=0;app_sop=0;app_eop=0;app_keep=0;
-        $display("submitted packet %0d length=%0d tx_ready=%b tx_packet_error=%b",
-                 packet_number,length,app_ready,txerr_a);
         if(txerr_a) $fatal(1,"TX packet scheduler rejected packet %0d length=%0d",
                            packet_number,length);
         packet_number=packet_number+1;
