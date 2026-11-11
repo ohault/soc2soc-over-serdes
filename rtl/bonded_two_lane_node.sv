@@ -33,10 +33,14 @@ module bonded_two_lane_node #(
 
     input wire lane0_rx_clk,input wire lane0_rx_rst_n,
     input wire lane0_rx_valid,output wire lane0_rx_ready,
-    input wire [7:0] lane0_rx_data,input wire lane0_rx_overflow,
+    input wire [7:0] lane0_rx_data,
+    // Sticky adapter overrun level; hold until bond_rst_n is asserted.
+    input wire lane0_rx_overflow,
     input wire lane1_rx_clk,input wire lane1_rx_rst_n,
     input wire lane1_rx_valid,output wire lane1_rx_ready,
-    input wire [7:0] lane1_rx_data,input wire lane1_rx_overflow,
+    input wire [7:0] lane1_rx_data,
+    // Sticky adapter overrun level; hold until bond_rst_n is asserted.
+    input wire lane1_rx_overflow,
 
     input wire tx_valid,output wire tx_ready,
     input wire [DATA_WIDTH-1:0] tx_data,
