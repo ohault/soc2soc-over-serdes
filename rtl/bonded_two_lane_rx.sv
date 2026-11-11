@@ -154,7 +154,7 @@ module bonded_two_lane_rx #(
     assign ctrl0_cdc_ready = ctrl_rx_valid && !select_ctrl1 && ctrl_rx_ready;
     assign ctrl1_cdc_ready = ctrl_rx_valid && select_ctrl1 && ctrl_rx_ready;
     always @(posedge bond_clk) begin
-        if(!bond_rst_n) control_rr<=0;
+        if(!control_rst_n) control_rr<=0;
         else if(ctrl_rx_valid && ctrl_rx_ready) control_rr<=~select_ctrl1;
     end
 
