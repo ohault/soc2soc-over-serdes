@@ -204,6 +204,7 @@ module tb_bonded_two_lane_phy_word_node;
             app_eop=(offset+n==length);
             app_keep=keep;
             app_data=beat;
+            #1; // Let keep/EOP-dependent credit READY settle before testing it.
             while(!app_ready) @(negedge bond_a);
             @(posedge bond_a);
             offset=offset+n;
