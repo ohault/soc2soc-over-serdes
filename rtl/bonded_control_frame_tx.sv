@@ -7,6 +7,8 @@ module bonded_control_frame_tx #(
     input wire clk,
     input wire rst,
     input wire [63:0] session_id,
+    input wire frame_start_enable,
+    input wire [31:0] frame_sequence_override,
     input wire ctrl_valid,
     output wire ctrl_ready,
     input wire [207:0] ctrl_body,
@@ -72,7 +74,7 @@ module bonded_control_frame_tx #(
         end
     endfunction
 
-    assign ctrl_ready = !rst && (state==ST_IDLE);
+    assign ctrl_ready = !rst && frame_start_enable && (state==ST_IDLE);
     assign out_valid = !rst && (state!=ST_IDLE);
     assign out_sop = out_valid && (state==ST_HEADER) && (header_index==0);
     assign out_eop = out_valid && (state==ST_CRC) && (crc_index==3);
@@ -138,12 +140,12 @@ module bonded_control_frame_tx #(
             frame_error<=0;
         end else begin
             if(state==ST_IDLE && ctrl_valid && ctrl_ready) begin
-                if(session_id==0 || next_frame_sequence==32'hffff_ffff ||
+                if(session_id==0 || frame_sequence_override==32'hffff_ffff ||
                    !control_body_valid(ctrl_body,ctrl_body_length)) begin
                     frame_error<=1'b1;
                 end else begin
                     active_session<=session_id;
-                    active_sequence<=next_frame_sequence;
+                    active_sequence<=frame_sequence_override;
                     body_length<=ctrl_body_length;
                     for(i=0;i<26;i=i+1)
                         if(i<ctrl_body_length)
@@ -177,7 +179,7 @@ module bonded_control_frame_tx #(
                     ST_CRC: begin
                         if(crc_index==3) begin
                             state<=ST_IDLE;
-                            next_frame_sequence<=next_frame_sequence+1'b1;
+                            next_frame_sequence<=frame_sequence_override+1'b1;
                         end else crc_index<=crc_index+1'b1;
                     end
                     default: state<=ST_IDLE;
