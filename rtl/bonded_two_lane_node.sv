@@ -32,10 +32,10 @@ module bonded_two_lane_node #(
 
     input wire lane0_rx_clk,input wire lane0_rx_rst_n,
     input wire lane0_rx_valid,output wire lane0_rx_ready,
-    input wire [7:0] lane0_rx_data,input wire lane0_rx_sop,input wire lane0_rx_eop,
+    input wire [7:0] lane0_rx_data,
     input wire lane1_rx_clk,input wire lane1_rx_rst_n,
     input wire lane1_rx_valid,output wire lane1_rx_ready,
-    input wire [7:0] lane1_rx_data,input wire lane1_rx_sop,input wire lane1_rx_eop,
+    input wire [7:0] lane1_rx_data,
 
     input wire tx_valid,output wire tx_ready,
     input wire [DATA_WIDTH-1:0] tx_data,
@@ -62,6 +62,26 @@ module bonded_two_lane_node #(
     wire [31:0] local_packet_limit,remote_packet_limit;
     wire session_established;
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
+    wire lane0_framed_valid,lane0_framed_ready,lane0_framed_sop,lane0_framed_eop;
+    wire lane1_framed_valid,lane1_framed_ready,lane1_framed_sop,lane1_framed_eop;
+    wire [7:0] lane0_framed_data,lane1_framed_data;
+    wire lane0_framer_error,lane1_framer_error;
+    wire lane0_endpoint_rx_error,lane1_endpoint_rx_error;
+
+    bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane0_framer (
+        .clk(lane0_rx_clk),.rst(!bond_rst_n || !lane0_rx_rst_n),
+        .in_valid(lane0_rx_valid),.in_ready(lane0_rx_ready),.in_data(lane0_rx_data),
+        .out_valid(lane0_framed_valid),.out_ready(lane0_framed_ready),
+        .out_data(lane0_framed_data),.out_sop(lane0_framed_sop),.out_eop(lane0_framed_eop),
+        .frame_error(lane0_framer_error)
+    );
+    bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane1_framer (
+        .clk(lane1_rx_clk),.rst(!bond_rst_n || !lane1_rx_rst_n),
+        .in_valid(lane1_rx_valid),.in_ready(lane1_rx_ready),.in_data(lane1_rx_data),
+        .out_valid(lane1_framed_valid),.out_ready(lane1_framed_ready),
+        .out_data(lane1_framed_data),.out_sop(lane1_framed_sop),.out_eop(lane1_framed_eop),
+        .frame_error(lane1_framer_error)
+    );
 
     bonded_control_manager #(
         .LOCAL_PEER_ID(LOCAL_PEER_ID),.EXPECTED_PEER_ID(EXPECTED_PEER_ID),
@@ -106,15 +126,17 @@ module bonded_two_lane_node #(
         .lane1_tx_valid(lane1_tx_valid),.lane1_tx_ready(lane1_tx_ready),
         .lane1_tx_data(lane1_tx_data),.lane1_tx_sop(lane1_tx_sop),.lane1_tx_eop(lane1_tx_eop),
         .lane0_rx_clk(lane0_rx_clk),.lane0_rx_rst_n(lane0_rx_rst_n),
-        .lane0_rx_valid(lane0_rx_valid),.lane0_rx_ready(lane0_rx_ready),
-        .lane0_rx_data(lane0_rx_data),.lane0_rx_sop(lane0_rx_sop),.lane0_rx_eop(lane0_rx_eop),
+        .lane0_rx_valid(lane0_framed_valid),.lane0_rx_ready(lane0_framed_ready),
+        .lane0_rx_data(lane0_framed_data),.lane0_rx_sop(lane0_framed_sop),.lane0_rx_eop(lane0_framed_eop),
         .lane1_rx_clk(lane1_rx_clk),.lane1_rx_rst_n(lane1_rx_rst_n),
-        .lane1_rx_valid(lane1_rx_valid),.lane1_rx_ready(lane1_rx_ready),
-        .lane1_rx_data(lane1_rx_data),.lane1_rx_sop(lane1_rx_sop),.lane1_rx_eop(lane1_rx_eop),
+        .lane1_rx_valid(lane1_framed_valid),.lane1_rx_ready(lane1_framed_ready),
+        .lane1_rx_data(lane1_framed_data),.lane1_rx_sop(lane1_framed_sop),.lane1_rx_eop(lane1_framed_eop),
         .tx_packet_error(tx_packet_error),
         .lane0_tx_frame_error(lane0_tx_frame_error),.lane1_tx_frame_error(lane1_tx_frame_error),
-        .lane0_rx_frame_error(lane0_rx_frame_error),.lane1_rx_frame_error(lane1_rx_frame_error),
+        .lane0_rx_frame_error(lane0_endpoint_rx_error),.lane1_rx_frame_error(lane1_endpoint_rx_error),
         .rx_packet_error(rx_packet_error),
         .lane0_tx_frame_sequence(lane0_tx_seq),.lane1_tx_frame_sequence(lane1_tx_seq)
     );
+    assign lane0_rx_frame_error = lane0_framer_error | lane0_endpoint_rx_error;
+    assign lane1_rx_frame_error = lane1_framer_error | lane1_endpoint_rx_error;
 endmodule
