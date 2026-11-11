@@ -10,6 +10,8 @@ module bonded_wire_tx_lane #(
     input wire clk,
     input wire rst,
     input wire [63:0] session_id,
+    input wire frame_start_enable,
+    input wire [31:0] frame_sequence_override,
 
     input wire in_valid,
     output wire in_ready,
@@ -117,7 +119,7 @@ module bonded_wire_tx_lane #(
         end
     endfunction
 
-    assign in_ready = !rst && ((state==ST_IDLE) ||
+    assign in_ready = !rst && (((state==ST_IDLE) && frame_start_enable) ||
                       ((state==ST_PAYLOAD) && !payload_loaded));
     assign out_valid = !rst && ((state==ST_HEADER) || (state==ST_PREFIX) ||
                        ((state==ST_PAYLOAD) && payload_loaded) ||
@@ -183,14 +185,14 @@ module bonded_wire_tx_lane #(
             if(state==ST_IDLE && in_valid && in_ready) begin
                 if(!in_sop || !keep_is_contiguous(in_keep) ||
                    in_packet_length>4096 || in_packet_length==0 ||
-                   session_id==0 || next_frame_sequence==32'hffffffff ||
+                   session_id==0 || frame_sequence_override==32'hffffffff ||
                    (!in_eop && in_keep!={KEEP_WIDTH{1'b1}})) begin
                     frame_error<=1'b1;
                 end else begin
                     active_session<=session_id;
                     packet_sequence<=in_packet_sequence;
                     packet_length<=in_packet_length;
-                    frame_sequence<=next_frame_sequence;
+                    frame_sequence<=frame_sequence_override;
                     payload_word<=in_data;
                     payload_keep<=in_keep;
                     payload_eop<=in_eop;
@@ -241,7 +243,7 @@ module bonded_wire_tx_lane #(
                     ST_CRC: begin
                         if(crc_index==3) begin
                             state<=ST_IDLE;
-                            next_frame_sequence<=next_frame_sequence+1'b1;
+                            next_frame_sequence<=frame_sequence_override+1'b1;
                         end else crc_index<=crc_index+1'b1;
                     end
                     default: state<=ST_IDLE;
