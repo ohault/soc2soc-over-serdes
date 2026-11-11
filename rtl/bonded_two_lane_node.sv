@@ -182,7 +182,7 @@ module bonded_two_lane_node #(
         .DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),
         .TX_FIFO_DEPTH(TX_FIFO_DEPTH),.RX_FIFO_DEPTH(RX_FIFO_DEPTH),
         .REORDER_WINDOW(REORDER_WINDOW),.MAX_PACKET_BYTES(MAX_PACKET_BYTES),
-        .LANE0_ID(LANE0_ID),.LANE1_ID(LANE1_ID)
+        .LANE0_ID(LANE0_ID),.LANE1_ID(LANE1_ID),.DYNAMIC_LANE_MAP(1)
     ) endpoint (
         .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),
         .tx_session_id(SESSION_ID),.rx_expected_session_id(SESSION_ID),
