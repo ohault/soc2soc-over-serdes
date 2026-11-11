@@ -22,14 +22,15 @@ memory-mapped protocol. One SoC (the *initiator*) reads and writes the bus of th
 This branch also develops a separate, board- and SoC-agnostic packet transport
 that bonds the two physical SFP/DAC lanes into one logical full-duplex link.
 It is **not yet wired into `acorn_soc2soc.py`**, does not replace the existing
-SerWB implementation, and must be treated as experimental until its RTL
-regressions and hardware tests pass.
+SerWB implementation, and must be treated as experimental until its RTL regressions pass and hardware validation is completed.
 
 The generic RTL includes an autonomous two-lane node, HELLO/READY session
 negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
 reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
 parallel 8b/10b wrapper (`bonded_two_lane_phy_word_node`) with independent TX
-and recovered-RX clock domains. Its end-to-end two-node regression is pending CI. Board-specific SERDES primitives and clocks remain outside the
+and recovered-RX clock domains. Its end-to-end two-node regression passes in
+CI with eight variable-length packets, both lanes and application RX
+backpressure. Board-specific SERDES primitives and clocks remain outside the
 bonding core.
 
 - [Project roadmap](docs/project-roadmap.md)
