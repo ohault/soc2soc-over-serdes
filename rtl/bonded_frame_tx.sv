@@ -70,6 +70,9 @@ module bonded_frame_tx #(
                         out_sop <= (count == 0) ? in_sop : word_sop;
                         out_eop <= in_eop;
                         count <= 0;
+                        // Clear the assembly register so the next partial word
+                        // is zero-padded rather than retaining previous bytes.
+                        assembly <= {DATA_WIDTH{1'b0}};
                         word_sop <= 1'b0;
                         if (in_eop)
                             frame_open <= 1'b0;
