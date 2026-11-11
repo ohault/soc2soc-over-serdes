@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Standalone v0 CONTROL frame decoder. Validated bodies are held until consumed.
 module bonded_control_frame_rx #(
-    parameter integer LANE_ID = 0
+    parameter integer LANE_ID = 0,
+    parameter integer DYNAMIC_LANE_ID = 0
 ) (
     input wire clk,
     input wire rst,
     input wire [63:0] expected_session_id,
     input wire [31:0] expected_frame_sequence_override,
+    input wire [7:0] expected_lane_id,
     input wire in_valid,
     output wire in_ready,
     input wire [7:0] in_data,
@@ -17,6 +19,7 @@ module bonded_control_frame_rx #(
     output reg [207:0] ctrl_body,
     output reg [5:0] ctrl_body_length,
     output reg [31:0] received_frame_sequence,
+    output reg [7:0] received_lane_id,
     output reg [31:0] expected_frame_sequence,
     output reg frame_valid_pulse,
     output reg frame_error
@@ -64,7 +67,7 @@ module bonded_control_frame_rx #(
             header_crc<=16'hffff;frame_crc<=32'hffffffff;
             active_session<=0;body_length<=0;
             ctrl_body<=0;ctrl_body_length<=0;
-            received_frame_sequence<=0;expected_frame_sequence<=0;frame_valid_pulse<=0;
+            received_frame_sequence<=0;received_lane_id<=0;expected_frame_sequence<=0;frame_valid_pulse<=0;
             frame_error<=0;
         end else begin
             frame_valid_pulse<=0;
@@ -98,7 +101,8 @@ module bonded_control_frame_rx #(
                 body_length<=frame_mem[21][5:0];
                 if(frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h02 ||
-                   frame_mem[4]!=8'h00 || frame_mem[5]!=LANE_ID[7:0] ||
+                   frame_mem[4]!=8'h00 || frame_mem[5]>8'd1 ||
+                   (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff) && (frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
                    {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
                     frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session ||
@@ -117,6 +121,7 @@ module bonded_control_frame_rx #(
                             ctrl_body[207-i*8 -: 8]<=frame_mem[24+i];
                     ctrl_body_length<=frame_mem[21][5:0];
                     received_frame_sequence<=expected_frame_sequence_override;
+                    received_lane_id<=frame_mem[5];
                     expected_frame_sequence<=expected_frame_sequence_override+1'b1;
                     frame_valid_pulse<=1'b1;
                     state<=ST_OUTPUT;
