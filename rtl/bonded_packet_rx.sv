@@ -23,7 +23,13 @@ module bonded_packet_rx #(
     output wire [31:0] out_packet_sequence,
 
     output reg [31:0] expected_packet_sequence,
-    output reg packet_error
+    output reg packet_error,
+    // One-cycle event when a complete packet has entered reorder storage.
+    output reg packet_accept_valid,
+    output reg [15:0] packet_accept_bytes,
+    // One-cycle event when the application consumes a complete packet.
+    output wire packet_consume_valid,
+    output wire [15:0] packet_consume_bytes
 );
     reg [7:0] packet_mem [0:WINDOW_SIZE-1][0:MAX_PACKET_BYTES-1];
     reg [12:0] slot_length [0:WINDOW_SIZE-1];
@@ -75,6 +81,8 @@ module bonded_packet_rx #(
     assign out_sop = out_valid && (output_index==0);
     assign out_eop = out_valid && (output_index+1'b1==slot_length[output_slot]);
     assign out_packet_sequence = expected_packet_sequence;
+    assign packet_consume_valid = out_valid && out_ready && out_eop;
+    assign packet_consume_bytes = slot_length[output_slot];
 
     always @(posedge clk) begin
         if (rst) begin
@@ -86,6 +94,8 @@ module bonded_packet_rx #(
             output_index <= 0;
             expected_packet_sequence <= 0;
             packet_error <= 0;
+            packet_accept_valid <= 0;
+            packet_accept_bytes <= 0;
             for (i=0;i<LANE_COUNT;i=i+1) begin
                 lane_slot[i] <= 0;
                 lane_count[i] <= 0;
@@ -93,6 +103,7 @@ module bonded_packet_rx #(
             for (i=0;i<WINDOW_SIZE;i=i+1)
                 slot_length[i] <= 0;
         end else begin
+            packet_accept_valid <= 0;
             if (selected_valid && lane_ready[selected_lane]) begin
                 arbiter <= (selected_lane == LANE_COUNT-1) ? 0 : selected_lane + 1'b1;
                 if (lane_drop[selected_lane]) begin
@@ -117,6 +128,8 @@ module bonded_packet_rx #(
                             <= lane_data[selected_lane*8 +: 8];
                         slot_length[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] <= 1;
                         slot_valid[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] <= 1;
+                        packet_accept_valid <= 1;
+                        packet_accept_bytes <= 1;
                     end else begin
                         lane_slot[selected_lane] <= lane_packet_sequence[selected_lane*32 +: WINDOW_BITS];
                         lane_count[selected_lane] <= 1;
@@ -140,6 +153,8 @@ module bonded_packet_rx #(
                     if (lane_eop[selected_lane]) begin
                         slot_length[lane_slot[selected_lane]] <= lane_count[selected_lane] + 1'b1;
                         slot_valid[lane_slot[selected_lane]] <= 1;
+                        packet_accept_valid <= 1;
+                        packet_accept_bytes <= lane_count[selected_lane] + 1'b1;
                         slot_filling[lane_slot[selected_lane]] <= 0;
                         lane_active[selected_lane] <= 0;
                     end
