@@ -116,8 +116,9 @@ simultaneous DATA traffic in both directions. It passed CI run 43115216096.
 Keep the current byte-wide node and `bonded_phy_8b10b_adapter` as the simple
 reference/bring-up path. The parallel path is integrated through the separate
 `bonded_two_lane_phy_word_node` wrapper; it does not alter the existing byte-
-wide node or its protocol framing. The full-duplex parallel two-node simulation and malformed-symbol session
-fault test now pass. Do not claim validated full-rate hardware support until a
+wide node or its protocol framing. The full-duplex parallel two-node simulation, malformed-symbol session
+fault test, crossed-cable lane-map discovery and duplicate remote lane-ID
+rejection test now pass. Do not claim validated full-rate hardware support until a
 board-specific PHY wrapper has been synthesized, timed and tested on real
 transceivers.
 
