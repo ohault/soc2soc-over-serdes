@@ -631,6 +631,11 @@ def cmd_status(buses, args):
     for link in get_links(buses):
         link.print_status()
 
+def cmd_reset_counters(buses, args):
+    # Clear RX errors / link drops on every link (e.g. after a board connected to it was reloaded).
+    for link in get_links(buses):
+        print(f"{link.name}: " + ("counters cleared" if link.reset_counters() else "no phy_reset_counters CSR"))
+
 def cmd_autopolarity(buses, args):
     links   = get_links(buses)
     results = test_autopolarity(links)
@@ -853,7 +858,7 @@ def main():
     parser.add_argument("--stream-duration", default=10, type=int, help="Stream test duration (s, 0: skip in run).")
     parser.add_argument("--frame-words",  default=256, type=int,   help="Stream test frame length (words).")
     parser.add_argument("--throttle",     default=0, type=int,     help="Stream test RX throttle: accept one word every N+1 cycles.")
-    parser.add_argument("command", choices=["ident", "status", "autopolarity", "wiring", "prbs", "remote", "bandwidth", "stream", "run"])
+    parser.add_argument("command", choices=["ident", "status", "reset-counters", "autopolarity", "wiring", "prbs", "remote", "bandwidth", "stream", "run"])
     args = parser.parse_args()
 
     buses = open_buses(args)
@@ -868,6 +873,7 @@ def main():
             "bandwidth"    : cmd_bandwidth,
             "stream"       : cmd_stream,
             "run"          : cmd_run,
+            "reset-counters" : cmd_reset_counters,
         }[args.command](buses, args)
     finally:
         for bus in buses.values():

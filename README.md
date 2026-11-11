@@ -52,6 +52,8 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | `test/test_bench.py` | Simulation: bandwidth/latency of each scenario (one and two DAC cables). |
 | `test/test_stream.py` | Simulation: stream port with a slow consumer, and register access while a stream consumer is stalled. |
 | `test/test_programmer.py` | Board selection by host USB port: FTDI chip / programming cable detection. |
+| `board_lock.py` | Board locks for a shared bench: one lock file per board (host USB port), checked by `acorn_soc2soc.py --load`. Rules in [AGENTS.md](AGENTS.md). |
+| `test/test_board_lock.py` | Board lock owner checks and all-or-nothing acquire. |
 
 ## Installation
 

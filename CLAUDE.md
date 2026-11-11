@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Instructions for Claude
 
 ## Contributions to upstream projects

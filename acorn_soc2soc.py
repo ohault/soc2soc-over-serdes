@@ -45,6 +45,7 @@ from litex.soc.cores.clock import S7PLL
 from liteiclink.serdes.gtp_7series import GTPQuadPLL
 
 from soc2soc.serdes_link import GTPSoCLink
+import board_lock
 from soc2soc.bench       import WishboneBench
 
 # Board Polarities ---------------------------------------------------------------------------------
@@ -219,6 +220,13 @@ def main():
     parser.add_target_argument("--usb-port",     default=None,                help="Board to load/flash, by host USB port (e.g. 1-3, see /sys/bus/usb/devices), when several boards are connected (openFPGALoader only).")
     parser.set_defaults(uart_name="crossover+uartbone", bus_interconnect="crossbar")
     args = parser.parse_args()
+
+    if (args.load or args.flash) and args.usb_port is not None:
+        # Refuse to reprogram a board locked by another session (see board_lock.py and AGENTS.md).
+        try:
+            board_lock.check(args.usb_port, owner=os.environ.get("SOC2SOC_LOCK_OWNER"))
+        except board_lock.BoardLockError as e:
+            raise SystemExit(f"Error: {e}")
 
     soc = SoC2SoC(
         variant        = args.variant,

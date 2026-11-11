@@ -139,6 +139,11 @@ every power-up. With a single board connected, `--usb-port` can be omitted.
 
 ## 3. Host setup
 
+**Shared bench:** when several sessions (people or agents) use the same boards, take the lock of every
+board you use with `./board_lock.py acquire <usb ports> --owner=<name>`, release it when done, and
+leave the boards in the known state. See [AGENTS.md](../AGENTS.md). `./acorn_soc2soc.py --load
+--usb-port=<port>` refuses a board locked by another owner.
+
 Start one `litex_server` per board, **board A on port 1234 and board B on port 1235** (the defaults
 of `test_soc2soc.py`). Use the stable UART names of `/dev/serial/by-path`, which only depend on the
 host USB port. On an FT2232 baseboard the UART is interface `1.1` of the FTDI chip; an FT4232 has
