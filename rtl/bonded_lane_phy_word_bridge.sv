@@ -21,7 +21,7 @@ module bonded_lane_phy_word_bridge #(
     input wire tx_phy_ready,
     output wire [SYMBOLS_PER_WORD*8-1:0] tx_phy_data,
     output wire [SYMBOLS_PER_WORD-1:0] tx_phy_ctrl,
-    output wire tx_error,
+    output reg tx_error,
 
     input wire rx_clk,
     input wire rx_rst_n,
