@@ -172,7 +172,7 @@ module bonded_control_manager #(
                     8'h01: begin
                         if(ctrl_rx_body_length!=26 || rx_peer_id!=EXPECTED_PEER_ID ||
                            rx_lane_count!=2 || rx_profile!=PROFILE_ID ||
-                           rx_max_payload==0 || rx_max_payload>MAX_PAYLOAD) begin
+                           rx_max_payload!=MAX_PAYLOAD) begin
                             fault<=1;session_established<=0;
                         end else begin
                             hello_seen<=hello_seen | rx_lane_mask;
