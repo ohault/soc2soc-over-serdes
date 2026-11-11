@@ -28,6 +28,25 @@ module tb_bonded_two_lane_endpoint;
     wire at0v,at0s,at0e,at1v,at1s,at1e,bt0v,bt0s,bt0e,bt1v,bt1s,bt1e;
     wire [7:0] at0d,at1d,bt0d,bt1d;
     wire at0r,at1r,bt0r,bt1r;
+    wire a2b0_valid,a2b1_valid,b2a0_valid,b2a1_valid;
+    wire a2b0_ready,a2b1_ready,b2a0_ready,b2a1_ready;
+    wire [9:0] a2b0_data,a2b1_data,b2a0_data,b2a1_data;
+    bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(16)) link_a2b_lane0 (
+        .wr_clk(a_tx0),.wr_rst_n(rst_n),.wr_valid(at0v),.wr_ready(a2b0_ready),
+        .wr_data({at0e,at0s,at0d}),.rd_clk(b_rx0),.rd_rst_n(rst_n),
+        .rd_valid(a2b0_valid),.rd_ready(at0r),.rd_data(a2b0_data));
+    bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(16)) link_a2b_lane1 (
+        .wr_clk(a_tx1),.wr_rst_n(rst_n),.wr_valid(at1v),.wr_ready(a2b1_ready),
+        .wr_data({at1e,at1s,at1d}),.rd_clk(b_rx1),.rd_rst_n(rst_n),
+        .rd_valid(a2b1_valid),.rd_ready(at1r),.rd_data(a2b1_data));
+    bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(16)) link_b2a_lane0 (
+        .wr_clk(b_tx0),.wr_rst_n(rst_n),.wr_valid(bt0v),.wr_ready(b2a0_ready),
+        .wr_data({bt0e,bt0s,bt0d}),.rd_clk(a_rx0),.rd_rst_n(rst_n),
+        .rd_valid(b2a0_valid),.rd_ready(bt0r),.rd_data(b2a0_data));
+    bonded_async_fifo #(.DATA_WIDTH(10),.DEPTH(16)) link_b2a_lane1 (
+        .wr_clk(b_tx1),.wr_rst_n(rst_n),.wr_valid(bt1v),.wr_ready(b2a1_ready),
+        .wr_data({bt1e,bt1s,bt1d}),.rd_clk(a_rx1),.rd_rst_n(rst_n),
+        .rd_valid(b2a1_valid),.rd_ready(bt1r),.rd_data(b2a1_data));
     wire [31:0] at0seq,at1seq,bt0seq,bt1seq;
     wire ate,at0err,at1err,are0,are1,arerr;
     wire bte,bt0err,bt1err,bre0,bre1,brerr;
@@ -40,13 +59,13 @@ module tb_bonded_two_lane_endpoint;
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
         .rx_packet_sequence(arseq),
         .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(at0v),
-        .lane0_tx_ready(1'b1),.lane0_tx_data(at0d),.lane0_tx_sop(at0s),.lane0_tx_eop(at0e),
+        .lane0_tx_ready(a2b0_ready),.lane0_tx_data(at0d),.lane0_tx_sop(at0s),.lane0_tx_eop(at0e),
         .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(at1v),
-        .lane1_tx_ready(1'b1),.lane1_tx_data(at1d),.lane1_tx_sop(at1s),.lane1_tx_eop(at1e),
-        .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(bt0v),
-        .lane0_rx_ready(bt0r),.lane0_rx_data(bt0d),.lane0_rx_sop(bt0s),.lane0_rx_eop(bt0e),
-        .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(bt1v),
-        .lane1_rx_ready(bt1r),.lane1_rx_data(bt1d),.lane1_rx_sop(bt1s),.lane1_rx_eop(bt1e),
+        .lane1_tx_ready(a2b1_ready),.lane1_tx_data(at1d),.lane1_tx_sop(at1s),.lane1_tx_eop(at1e),
+        .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(b2a0_valid),
+        .lane0_rx_ready(bt0r),.lane0_rx_data(b2a0_data[7:0]),.lane0_rx_sop(b2a0_data[8]),.lane0_rx_eop(b2a0_data[9]),
+        .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(b2a1_valid),
+        .lane1_rx_ready(bt1r),.lane1_rx_data(b2a1_data[7:0]),.lane1_rx_sop(b2a1_data[8]),.lane1_rx_eop(b2a1_data[9]),
         .tx_packet_error(ate),.lane0_tx_frame_error(at0err),.lane1_tx_frame_error(at1err),
         .lane0_rx_frame_error(are0),.lane1_rx_frame_error(are1),.rx_packet_error(arerr),
         .lane0_tx_frame_sequence(at0seq),.lane1_tx_frame_sequence(at1seq)
@@ -60,13 +79,13 @@ module tb_bonded_two_lane_endpoint;
         .rx_valid(brv),.rx_ready(1'b1),.rx_data(brd),.rx_sop(brs),.rx_eop(bre),
         .rx_packet_sequence(brseq),
         .lane0_tx_clk(b_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(bt0v),
-        .lane0_tx_ready(1'b1),.lane0_tx_data(bt0d),.lane0_tx_sop(bt0s),.lane0_tx_eop(bt0e),
+        .lane0_tx_ready(b2a0_ready),.lane0_tx_data(bt0d),.lane0_tx_sop(bt0s),.lane0_tx_eop(bt0e),
         .lane1_tx_clk(b_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(bt1v),
-        .lane1_tx_ready(1'b1),.lane1_tx_data(bt1d),.lane1_tx_sop(bt1s),.lane1_tx_eop(bt1e),
-        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(at0v),
-        .lane0_rx_ready(at0r),.lane0_rx_data(at0d),.lane0_rx_sop(at0s),.lane0_rx_eop(at0e),
-        .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(at1v),
-        .lane1_rx_ready(at1r),.lane1_rx_data(at1d),.lane1_rx_sop(at1s),.lane1_rx_eop(at1e),
+        .lane1_tx_ready(b2a1_ready),.lane1_tx_data(bt1d),.lane1_tx_sop(bt1s),.lane1_tx_eop(bt1e),
+        .lane0_rx_clk(b_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a2b0_valid),
+        .lane0_rx_ready(at0r),.lane0_rx_data(a2b0_data[7:0]),.lane0_rx_sop(a2b0_data[8]),.lane0_rx_eop(a2b0_data[9]),
+        .lane1_rx_clk(b_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a2b1_valid),
+        .lane1_rx_ready(at1r),.lane1_rx_data(a2b1_data[7:0]),.lane1_rx_sop(a2b1_data[8]),.lane1_rx_eop(a2b1_data[9]),
         .tx_packet_error(bte),.lane0_tx_frame_error(bt0err),.lane1_tx_frame_error(bt1err),
         .lane0_rx_frame_error(bre0),.lane1_rx_frame_error(bre1),.rx_packet_error(brerr),
         .lane0_tx_frame_sequence(bt0seq),.lane1_tx_frame_sequence(bt1seq)
