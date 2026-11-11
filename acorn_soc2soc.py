@@ -21,6 +21,9 @@
 #   ./acorn_soc2soc.py --build
 #   ./acorn_soc2soc.py --load --usb-port=1-3     # Board A (host USB port, see README).
 #   ./acorn_soc2soc.py --load --usb-port=1-5     # Board B.
+#
+# --with-stream adds a bidirectional 32-bit stream port with flow control on each link, next to
+# register access (a stream tester is connected to it, see soc2soc/stream.py for your own logic).
 
 from migen import *
 
@@ -96,6 +99,7 @@ class SoC2SoC(SoCCore):
         refclk_freq      = 125e6,
         with_crc         = False,
         burst_depth      = 64,
+        with_stream      = False,
         mailbox_size     = 0x2000,
         with_bench       = True,
         with_led_chaser  = False,
@@ -104,6 +108,8 @@ class SoC2SoC(SoCCore):
         platform.add_extension(sqrl_acorn.litex_acorn_baseboard_mini, prepend=True)
 
         roles = " / ".join(f"SFP{n}: {r}" for n, r in sfp_roles.items())
+        if with_stream:
+            roles += " / stream"
         kwargs.setdefault("ident", f"LiteX SoC2SoC over SerDes on Acorn Baseboard Mini ({roles})")
         kwargs.setdefault("ident_version", True)
         # Crossbar interconnect: with SFP0 <-> SFP1 on the same board, the target link executes the
@@ -149,6 +155,8 @@ class SoC2SoC(SoCCore):
                 rx_polarity  = rx_polarity,
                 with_crc     = with_crc,
                 burst_depth  = burst_depth,
+                with_stream        = with_stream,
+                with_stream_tester = with_stream,
             )
             self.add_module(name=f"sfp{n}", module=link)
             link.add_timing_constraints(platform, self.crg.cd_sys.clk)
@@ -197,6 +205,7 @@ def main():
     parser.add_target_argument("--refclk-freq",  default=125e6,  type=float,  help="GTP QPLL reference clock frequency (from fabric PLL).")
     parser.add_target_argument("--with-crc",     action="store_true",         help="Enable SerWB CRC (must match on both sides).")
     parser.add_target_argument("--burst-depth",  default=64, type=int,   help="SerWB burst depth: consecutive writes coalesced per packet (1-256, must match on both sides).")
+    parser.add_target_argument("--with-stream",  action="store_true",         help="Add a stream port with flow control (+ stream tester) on each link, next to register access (must match on both sides).")
     parser.add_target_argument("--no-bench",     action="store_true",         help="Disable the bandwidth/latency bench (Wishbone traffic generator).")
     for n in [0, 1]:
         tx, rx = SFP_POLARITIES[n]
@@ -220,6 +229,7 @@ def main():
         refclk_freq    = args.refclk_freq,
         with_crc       = args.with_crc,
         burst_depth    = args.burst_depth,
+        with_stream    = args.with_stream,
         with_bench     = not args.no_bench,
         **parser.soc_argdict
     )

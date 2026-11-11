@@ -28,6 +28,7 @@ from litex.soc.interconnect.csr import *
 from liteiclink.serdes.gtp_7series import GTP
 from soc2soc.link           import SerDesLinkPHY
 from soc2soc.serwb_prefetch import SERWBCorePrefetch
+from soc2soc.stream         import SerWBStreamPort, StreamTester
 
 # Remote Window ------------------------------------------------------------------------------------
 
@@ -71,6 +72,9 @@ class GTPSoCLink(LiteXModule):
     - ``phy``   : SerDes link layer (status CSRs).
     - ``core``  : SerWB core, ``core.bus`` is a Wishbone Slave (initiator) or Master (target).
     - ``window``: RemoteWindow (initiator only), ``window.bus`` to add as a local SoC Bus Slave.
+    - ``stream``: SerWBStreamPort (``with_stream``), ``stream.sink`` (to remote) / ``stream.source``
+                  (from remote), both in the sys clock domain. Must be enabled on both sides.
+    - ``stream_tester``: StreamTester connected to the stream port (``with_stream_tester``).
     """
     def __init__(self, name, qpll, pads, sys_clk_freq, role,
         qpll_reset    = True,
@@ -79,7 +83,10 @@ class GTPSoCLink(LiteXModule):
         with_crc      = False,
         burst_depth   = 64,
         default_page  = 0xf,
-        window_size   = 0x1000_0000):
+        window_size   = 0x1000_0000,
+        with_stream        = False,
+        with_stream_tester = False,
+        stream_kwargs      = {}):
         assert role in ["initiator", "target"]
         self.role  = role
         self.cd_tx = cd_tx = f"{name}_tx"
@@ -132,11 +139,28 @@ class GTPSoCLink(LiteXModule):
         # -----------
         # SerWB naming: "slave" core = Wishbone Slave on the initiator side, "master" core = Wishbone
         # Master on the target side.
+        crc_max_words = None
+        if with_stream:
+            # Largest packets: SerWB bursts (burst_depth + 2) or stream packets (header + words).
+            crc_max_words = max(16, burst_depth + 2, stream_kwargs.get("max_packet_words", 64) + 1)
         self.core = core = SERWBCorePrefetch(phy, sys_clk_freq,
-            mode        = {"initiator": "slave", "target": "master"}[role],
-            with_crc    = with_crc,
-            burst_depth = burst_depth, # SerWB write coalescing / read response size (both sides).
+            mode          = {"initiator": "slave", "target": "master"}[role],
+            with_crc      = with_crc,
+            crc_max_words = crc_max_words,
+            burst_depth   = burst_depth, # SerWB write coalescing / read response size (both sides).
         )
+
+        # Stream Port.
+        # ------------
+        if with_stream:
+            self.stream = SerWBStreamPort(core, ready=phy.init.ready, **stream_kwargs)
+            self.stream.add_csr()
+            if with_stream_tester:
+                self.stream_tester = StreamTester()
+                self.comb += [
+                    self.stream_tester.source.connect(self.stream.sink),
+                    self.stream.source.connect(self.stream_tester.sink),
+                ]
 
         # Remote Window (Initiator).
         # --------------------------

@@ -16,6 +16,7 @@ reload, and the test tool detects the cabling by itself.
 | [4](#4-scenario-1-sfp0--sfp1-on-each-board) | Scenario 1: A.SFP0 ⇄ A.SFP1 (and B.SFP0 ⇄ B.SFP1) | 1 DAC per board |
 | [5](#5-scenarios-2-and-3-between-boards) | Scenarios 2 and 3: A.SFP0 ⇄ B.SFP1 (and B.SFP0 ⇄ A.SFP1) | 2 boards, 1 or 2 DACs |
 | [6](#6-optional-line-rate-and-crc) | Optional: other line rates, CRC | as above |
+| [7](#7-optional-stream-port) | Optional: stream port (`--with-stream`) | as above |
 
 The [cabling](#cabling) rules come first. [Troubleshooting](#troubleshooting) and a
 [results template](#results-template) are at the end.
@@ -314,6 +315,58 @@ at that rate is a limitation of the board's clocking, not necessarily a bug.
 `--with-crc` slows the receiver down (CRC checking): the link layer flow control keeps it lossless,
 at a lower bandwidth.
 
+## 7. Optional: stream port
+
+These tests need gateware built with `--with-stream`, on all boards:
+
+```sh
+./acorn_soc2soc.py --with-stream --build
+```
+
+Load it as in 2.2. With such gateware, `run` also includes a **Stream** step, so the tests below
+are only needed to look at one point in detail. They work on whatever is cabled, in any scenario:
+each cable carries a stream in both directions.
+
+First check that `status` shows the stream lines for each connected SFP. `Stream TX credits` must
+be non-zero once the link is ready: that is the RX buffer space advertised by the remote.
+
+### 7.1 Throughput and integrity
+
+```sh
+./test_soc2soc.py --boards=AB stream --stream-duration=30
+```
+
+All stream directions run at the same time.
+
+**Pass:**
+- **Errors:** `0 errors, 0 frame errors` on every direction, every second.
+- **Throughput:** close to the link payload. At 2.5 Gbps that is about 235 MB/s per direction
+  (about 95 % of the 248 MB/s link capacity). This figure is expected, not yet measured on
+  hardware.
+- **At the end:** `stream RX overflows: 0` for every SFP.
+
+### 7.2 Flow control with a slow consumer
+
+```sh
+./test_soc2soc.py --boards=AB stream --stream-duration=30 --throttle=3
+```
+
+The receivers now accept one word every 4 sys cycles: 100 MB/s at 100 MHz.
+
+**Pass:**
+- **Throughput** drops to about 100 MB/s: the senders are slowed down by the credits.
+- **Integrity:** still `0 errors, 0 frame errors`, and `stream RX overflows: 0`.
+
+### 7.3 Register access while the stream is stalled
+
+1. Start a very slow stream consumer:
+   ```sh
+   ./test_soc2soc.py --boards=AB stream --stream-duration=60 --throttle=60000
+   ```
+2. While it runs, run `./test_soc2soc.py --boards=AB remote` from a second terminal.
+
+**Pass:** `remote` still passes. The stream is almost stopped, but register access is not blocked.
+
 ## Reference figures
 
 Measured on hardware between boards A and B (one cable), 4M accesses per run, one access in flight
@@ -360,6 +413,8 @@ read with prefetch, measured).
 | `remote`: "link not ready, skipping" | The link is down: fix `status` first. |
 | `remote`: reads return `0xffffffff` but writes work (scenario 1) | Bus deadlock: the gateware was built with `--bus-interconnect=shared`. Rebuild with the default (`crossbar`). |
 | `remote`: wrong data or a bus error | Check `SerWB overflows` / `RX errors` in `status`. |
+| `stream`: "No stream port on both ends of a cable" | The gateware was built without `--with-stream` on one of the boards. Build all boards with it. |
+| `stream`: errors or frame errors | Check `RX errors` / `Link drops` in `status` (a link loss truncates frames). |
 | `litex_server` gets no response | Wrong UART (use `/dev/serial/by-path`, interface `1.1`), or the board is not loaded. Check that LED0 blinks. |
 | `--usb-port`: `No USB device on port` | The board is not on that host port: list the ports as in 2.2. |
 | Simulation fails with `AttributeError: 'NoneType' object has no attribute 'eq'` in your own designs | Stale GitHub Migen: install the official one (see [Migen version](../README.md#migen-version)). |
@@ -393,4 +448,7 @@ Copy this into an issue or pull request comment to record a test campaign.
 | 5    | 2 run (wiring / status / PRBS / remote / bandwidth) | 2.5G | | |
 | 5    | 3 run (wiring / status / PRBS / remote / bandwidth) | 2.5G | | |
 | 6    | Line rate / CRC variants | | | |
+| 7.1  | Stream throughput (MB/s) / errors | 2.5G | | |
+| 7.2  | Stream with --throttle=3 | 2.5G | | |
+| 7.3  | Register access with stalled stream | 2.5G | | |
 ```

@@ -43,12 +43,14 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 |------|-------------|
 | `acorn_soc2soc.py` | LiteX target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |
 | `soc2soc/link.py` | SerDes link layer: 32-bit stream over a 2-byte 8b/10b transceiver, link-up handshake, error detection. Can be used as a SerWB PHY. |
-| `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window. |
+| `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window + optional stream port. |
+| `soc2soc/stream.py` | `SerWBStreamPort`: bidirectional 32-bit stream with credit-based flow control, next to register access. `StreamTester`: counter generator/checker. |
 | `soc2soc/serwb_prefetch.py` | SerWB native slave with read prefetch (same protocol, used on the initiator side). |
 | `soc2soc/bench.py` | `WishboneBench`: Wishbone traffic generator to measure bandwidth and latency from the FPGA. |
-| `test_soc2soc.py` | Host utility (through `litex_server`): `ident`, `status`, `autopolarity`, `wiring`, `prbs`, `remote`, `bandwidth`, `run` (full sequence with report). |
+| `test_soc2soc.py` | Host utility (through `litex_server`): `ident`, `status`, `autopolarity`, `wiring`, `prbs`, `remote`, `bandwidth`, `stream`, `run` (full sequence with report). |
 | `test/test_link.py` | Simulation: two link layers back to back with SerWB on top (byte misalignment, CRC and error recovery cases, single-SoC bus deadlock). |
 | `test/test_bench.py` | Simulation: bandwidth/latency of each scenario (one and two DAC cables). |
+| `test/test_stream.py` | Simulation: stream port with a slow consumer, and register access while a stream consumer is stalled. |
 
 ## Installation
 
@@ -81,6 +83,8 @@ Useful options:
   link must use the same line rate.
 - `--with-crc`: adds a CRC to SerWB packets; corrupted packets are dropped and counted. Set it on
   both ends of a link.
+- `--with-stream`: adds a stream port with flow control on each link, next to register access, with
+  a stream tester connected to it. See [Stream port](#stream-port). Set it on all boards.
 - `--burst-depth`: the default is `64`. Consecutive writes coalesced in one SerWB packet. Set the
   same value on both ends of a link.
 - `--sys-clk-freq`: the default is `100e6`. `125e6` gives more bandwidth (see Throughput);
@@ -154,6 +158,37 @@ affected. The block is discarded on any write or non-sequential read. It is off 
 Accesses fail with a bus error while the link is down, so they never stall the bus. In loopback
 (scenario 1), don't map the window onto the window itself: that access would loop forever.
 
+### Stream port
+
+Register access (READ/WRITE through the window) suits control: configuring the remote SoC and
+reading its status. For data, `--with-stream` adds a **stream port** on each link:
+
+```
+  SoC A  sink   ─▶ ═══ SerWB port 1 ═══ ─▶ source  SoC B
+         source ◀─ ═══ SerWB port 1 ═══ ◀─ sink
+                     (port 0: register access, unchanged)
+```
+
+- **Bidirectional and symmetric.** Each side has a `sink` (data to the remote) and a `source`
+  (data from the remote): 32-bit words with `last` for frame boundaries, in the sys clock domain.
+  The stream port is independent of the initiator/target role, and follows the cable: A.SFP0 ⇄
+  B.SFP1 streams both ways.
+- **Credit-based flow control.** The receiver advertises the free space in its RX buffer (512
+  words), and the sender only sends what fits. A slow consumer slows the sender down, with no data
+  loss. A stopped consumer stops the stream but **never blocks register access**, because received
+  stream data never stalls the link.
+- **Packets.** Data is sent in packets of up to 64 words, plus a header word and the SerWB
+  framing, so about 95 % of the link payload carries stream data. A packet is sent as soon as it is
+  full, when `last` is seen, or after 64 idle cycles.
+- **Link loss.** Data not yet sent is dropped, and a frame in flight can be truncated. The sink is
+  stalled until the link is back. Data already received stays in the RX buffer.
+
+In the Acorn target, the stream port is connected to a `StreamTester`: a counter generator plus a
+checker with a configurable consumer speed. `test_soc2soc.py stream` (also part of `run`) uses it to
+measure throughput and check integrity. To connect your own logic instead, use `link.stream.sink`
+and `link.stream.source` of the `GTPSoCLink` (`soc.links[n]`) and build without the tester
+(`with_stream_tester=False`).
+
 ### Polarity
 
 The Acorn and the baseboard swap some P/N pairs.
@@ -208,6 +243,7 @@ reading DAC/module EEPROMs, and passive DACs need no TX_DISABLE control.
 ```sh
 python3 -m unittest test.test_link -v    # Link layer + SerWB.
 python3 -m unittest test.test_bench -v   # Bandwidth/latency of each scenario (one and two DAC cables).
+python3 -m unittest test.test_stream -v  # Stream port (credit-based flow control).
 ```
 
 ### Migen version

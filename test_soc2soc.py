@@ -19,6 +19,7 @@
 #   litex_server --uart --uart-port=/dev/serial/by-path/<board B UART> --bind-port=1235
 #   ./test_soc2soc.py --boards=AB run --report=results.md   # Full test sequence on what is connected.
 #   ./test_soc2soc.py --boards=AB autopolarity | wiring | status | prbs | remote | bandwidth
+#   ./test_soc2soc.py --boards=AB stream                      # Stream ports (gateware built with --with-stream).
 
 import time
 import random
@@ -34,6 +35,8 @@ PRBS_PAUSE = 0b100
 STATUS_READY     = (1 << 0)
 STATUS_RX_OK     = (1 << 1)
 STATUS_REMOTE_OK = (1 << 2)
+STATUS_LOCAL_PAUSE  = (1 << 3)
+STATUS_REMOTE_PAUSE = (1 << 4)
 
 WINDOW_SIZE = 0x1000_0000
 
@@ -54,6 +57,10 @@ class SFPLink:
 
     def reg(self, name):
         return getattr(self.bus.regs, f"sfp{self.n}_{name}")
+
+    @property
+    def has_stream(self):
+        return hasattr(self.bus.regs, f"sfp{self.n}_stream_tester_control")
 
     @property
     def role(self):
@@ -122,8 +129,14 @@ class SFPLink:
         print(f"  RX overflow      : {self.reg('phy_rx_overflow').read()}")
         print(f"  Link drops       : {self.reg('phy_link_drops').read()}")
         print(f"  SerWB overflows  : {self.reg('core_rx_overflows').read()}")
+        print(f"  Pause loc/remote : {int(bool(status & STATUS_LOCAL_PAUSE))} / {int(bool(status & STATUS_REMOTE_PAUSE))}")
         if self.role == "initiator":
             print(f"  Window page      : 0x{self.reg('window_page').read():x}")
+        if self.has_stream:
+            print(f"  Stream TX credits: {self.reg('stream_tx_credits').read()}")
+            print(f"  Stream RX level  : {self.reg('stream_rx_level').read()}")
+            print(f"  Stream TX/RX     : {self.reg('stream_tx_words').read()} / {self.reg('stream_rx_words').read()} words")
+            print(f"  Stream overflows : {self.reg('stream_rx_overflows').read()}")
 
     def rx_reset(self):
         self.reg("serdes_rx_enable").write(0)
@@ -503,6 +516,73 @@ def test_bandwidth(buses, paths, length, linerate, log=print):
             log(f"  {'aggregate':28s} {mode:7s}: {total:8.2f} MB/s ({total*8:7.1f} Mbit/s)")
     return results
 
+# Stream (see soc2soc/stream.py) -------------------------------------------------------------------
+
+def test_stream(directions, duration=10, frame_words=256, throttle=0, log=print):
+    """Stream test with the gateware stream testers (counter generator/checker) on (tx, rx)
+    directions, all at the same time. Returns {"tx->rx": dict(mbps, words, errors, frame_errors)}
+    and the RX overflows of each link."""
+    directions = [(tx, rx) for tx, rx in directions if tx.has_stream and rx.has_stream]
+    links = list({l.name: l for d in directions for l in d}.values())
+    # Configure (frame length must be the same on both sides).
+    for l in links:
+        l.reg("stream_tester_control").write(0)
+        l.reg("stream_tester_frame_words").write(frame_words)
+        l.reg("stream_tester_rx_throttle").write(throttle)
+    def counters(l):
+        return {k: l.reg(f"stream_tester_{k}").read() for k in ["rx_words", "rx_errors", "rx_frame_errors"]}
+    start = {l.name: counters(l) for l in links}
+    # Enable checkers, then generators.
+    for l in links:
+        l.reg("stream_tester_control").write(0b10)
+    for l in links:
+        l.reg("stream_tester_control").write(0b11)
+    log(f"Running stream test for {duration}s (frame: {frame_words} words, RX throttle: {throttle})...")
+    t_start = time.time()
+    last    = {l.name: (start[l.name]["rx_words"], t_start) for l in links}
+    elapsed = 0.0
+    try:
+        while elapsed < duration:
+            time.sleep(1.0)
+            elapsed += 1.0
+            line = []
+            for tx, rx in directions:
+                c = counters(rx)
+                now = time.time()
+                rate = ((c["rx_words"] - last[rx.name][0]) % 2**32)*4/(now - last[rx.name][1])/1e6
+                last[rx.name] = (c["rx_words"], now)
+                errors       = (c["rx_errors"]       - start[rx.name]["rx_errors"])       % 2**32
+                frame_errors = (c["rx_frame_errors"] - start[rx.name]["rx_frame_errors"]) % 2**32
+                line.append(f"{tx.name}->{rx.name}: {rate:6.1f} MB/s, {errors} errors, {frame_errors} frame errors")
+            log(f"{elapsed:5.1f}s | " + " | ".join(line))
+    except KeyboardInterrupt:
+        pass
+    # Throughput over the timed window, then stop generators, let the data in flight drain (checked
+    # for errors too) and stop checkers.
+    t_end = time.time()
+    timed = {l.name: l.reg("stream_tester_rx_words").read() for l in links}
+    for l in links:
+        l.reg("stream_tester_control").write(0b10)
+    time.sleep(0.1)
+    end = {l.name: counters(l) for l in links}
+    for l in links:
+        l.reg("stream_tester_control").write(0)
+    results = {}
+    for tx, rx in directions:
+        words = (end[rx.name]["rx_words"] - start[rx.name]["rx_words"]) % 2**32
+        results[f"{tx.name}->{rx.name}"] = dict(
+            mbps         = ((timed[rx.name] - start[rx.name]["rx_words"]) % 2**32)*4/(t_end - t_start)/1e6,
+            words        = words,
+            errors       = (end[rx.name]["rx_errors"]       - start[rx.name]["rx_errors"])       % 2**32,
+            frame_errors = (end[rx.name]["rx_frame_errors"] - start[rx.name]["rx_frame_errors"]) % 2**32,
+        )
+    overflows = {l.name: l.reg("stream_rx_overflows").read() for l in links}
+    for name, r in results.items():
+        log(f"{name}: {r['mbps']:.1f} MB/s average, {r['words']} words, {r['errors']} errors, {r['frame_errors']} frame errors")
+    for name, o in overflows.items():
+        log(f"{name}: stream RX overflows: {o}")
+    return results, overflows
+
 # Commands -----------------------------------------------------------------------------------------
 
 def cmd_ident(buses, args):
@@ -534,6 +614,15 @@ def cmd_remote(buses, args):
         print("No initiator -> target cable detected.")
         return
     test_remote(wiring.paths, length=args.length)
+
+def cmd_stream(buses, args):
+    wiring = get_wiring(buses)
+    directions = [(tx, rx) for tx, rx in wiring.directions if tx.has_stream and rx.has_stream]
+    if not directions:
+        print("No stream port on both ends of a cable (build with --with-stream).")
+        return
+    test_stream(directions, duration=args.stream_duration, frame_words=args.frame_words,
+        throttle=args.throttle)
 
 def cmd_bandwidth(buses, args):
     wiring = get_wiring(buses)
@@ -620,6 +709,22 @@ def cmd_run(buses, args):
     else:
         step("Bandwidth", None, "disabled (--bench-length=0)" if not args.bench_length else "no initiator -> target cable")
 
+    section("Stream")
+    stream_directions = [(tx, rx) for tx, rx in wiring.directions if tx.has_stream and rx.has_stream]
+    if stream_directions and args.stream_duration:
+        notes, ok = [], True
+        # Full speed, then slow consumer (flow control).
+        for throttle in [0, 3]:
+            res, overflows = test_stream(stream_directions, duration=args.stream_duration,
+                frame_words=args.frame_words, throttle=throttle)
+            ok &= all(r["words"] > 0 and r["errors"] == 0 and r["frame_errors"] == 0 for r in res.values())
+            ok &= all(o == 0 for o in overflows.values())
+            notes.append(f"throttle {throttle}: " + ", ".join(
+                f"{n}: {r['mbps']:.1f} MB/s, {r['errors']}/{r['frame_errors']} errors" for n, r in res.items()))
+        step("Stream", ok, "; ".join(notes))
+    else:
+        step("Stream", None, "gateware without --with-stream" if not stream_directions else "disabled (--stream-duration=0)")
+
     section("Final status")
     status = {link.name: test_status(link, args.linerate, log=print) for link in cable_links}
     step("Final status", all(ok for ok, _ in status.values()),
@@ -701,7 +806,10 @@ def main():
     parser.add_argument("--length",       default=256, type=int,   help="Remote mailbox test length (words).")
     parser.add_argument("--bench-length", default=2**22, type=int, help="Bandwidth test length (32-bit accesses per run, 0: skip in run).")
     parser.add_argument("--report",       default=None,            help="run: write a Markdown results report to this file.")
-    parser.add_argument("command", choices=["ident", "status", "autopolarity", "wiring", "prbs", "remote", "bandwidth", "run"])
+    parser.add_argument("--stream-duration", default=10, type=int, help="Stream test duration (s, 0: skip in run).")
+    parser.add_argument("--frame-words",  default=256, type=int,   help="Stream test frame length (words).")
+    parser.add_argument("--throttle",     default=0, type=int,     help="Stream test RX throttle: accept one word every N+1 cycles.")
+    parser.add_argument("command", choices=["ident", "status", "autopolarity", "wiring", "prbs", "remote", "bandwidth", "stream", "run"])
     args = parser.parse_args()
 
     buses = open_buses(args)
@@ -714,6 +822,7 @@ def main():
             "prbs"         : cmd_prbs,
             "remote"       : cmd_remote,
             "bandwidth"    : cmd_bandwidth,
+            "stream"       : cmd_stream,
             "run"          : cmd_run,
         }[args.command](buses, args)
     finally:
