@@ -64,3 +64,9 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_async_fifo -o /tmp/tb_async_fifo \
             rtl/bonded_async_fifo.sv rtl/tb_bonded_async_fifo.sv
           vvp /tmp/tb_async_fifo
+
+      - name: Compile and run two-lane CDC integration testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_two_lane_cdc -o /tmp/tb_two_lane_cdc \
+            rtl/bonded_async_fifo.sv rtl/bonded_two_lane_cdc.sv rtl/tb_bonded_two_lane_cdc.sv
+          vvp /tmp/tb_two_lane_cdc
