@@ -193,3 +193,9 @@ jobs:
             rtl/bonded_wire_rx_demux.sv rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv \
             rtl/bonded_session_gate.sv rtl/tb_bonded_two_lane_node.sv
           vvp /tmp/tb_two_lane_node
+
+      - name: Compile and run RX demux session-abort recovery testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_wire_rx_demux -o /tmp/tb_rx_demux \
+            rtl/bonded_wire_rx_demux.sv rtl/tb_bonded_wire_rx_demux.sv
+          vvp /tmp/tb_rx_demux
