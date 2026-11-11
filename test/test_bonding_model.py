@@ -212,7 +212,9 @@ class BondedReceiverTests(unittest.TestCase):
 
 class EndToEndCreditTests(unittest.TestCase):
     def test_sender_waits_for_initial_peer_credit_grant(self):
-        sender = BondedSender(BondConfig(lane_count=2))
+        sender = BondedSender(BondConfig(
+            lane_count=2, rx_buffer_bytes=64, rx_buffer_packets=2
+        ))
         for lane in range(2):
             sender.set_lane_up(lane, True)
         sender.establish_session(
@@ -225,7 +227,10 @@ class EndToEndCreditTests(unittest.TestCase):
 
     def test_byte_and_packet_credits_both_apply_backpressure(self):
         sender = BondedSender(
-            BondConfig(lane_count=1, tx_queue_depth=4)
+            BondConfig(
+                lane_count=1, tx_queue_depth=4,
+                rx_buffer_bytes=5, rx_buffer_packets=2,
+            )
         )
         bring_up(sender, 1)
         sender.update_remote_credits(byte_limit=5, packet_limit=2)
@@ -238,7 +243,9 @@ class EndToEndCreditTests(unittest.TestCase):
         self.assertEqual(sender.next_sequence, 2)
 
     def test_cumulative_credit_updates_are_idempotent_and_monotonic(self):
-        sender = BondedSender(BondConfig(lane_count=1))
+        sender = BondedSender(BondConfig(
+            lane_count=1, rx_buffer_bytes=8, rx_buffer_packets=2
+        ))
         bring_up(sender, 1)
         sender.update_remote_credits(100, 10)
         sender.update_remote_credits(100, 10)  # Duplicate update.
