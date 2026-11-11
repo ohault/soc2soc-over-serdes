@@ -13,6 +13,7 @@ module bonded_two_lane_rx #(
     input wire bond_rst_n,
     input wire control_rst_n,
     input wire [63:0] expected_session_id,
+    input wire session_rx_reset_toggle,
 
     input wire lane0_clk, input wire lane0_rst_n,
     input wire lane0_valid, output wire lane0_ready,
