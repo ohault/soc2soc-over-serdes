@@ -41,9 +41,10 @@ is an integration option, not a dependency of the bonding core.
    implemented in RTL.
 3. A control fault is sticky; automatic restart/re-negotiation after lane
    recovery is not yet implemented.
-4. The physical node boundary is currently one byte per lane clock. The board
-adapter must provide buffering and assert `laneN_rx_overflow` if it loses
-recovered bytes before they reach the node. The
+4. The physical node boundary is currently one byte per lane clock. The board adapter must provide buffering and assert the sticky
+`laneN_rx_overflow` input if it loses recovered bytes before they reach the
+node; this indication is synchronized into the bonding clock and drops the
+session. The
    transceiver user-side width and achievable line rate have not been validated.
    A wide/parallel framer and PHY gearbox may be required for high-rate SFP+.
 5. The RX framer validates the header CRC before trusting frame length and can
