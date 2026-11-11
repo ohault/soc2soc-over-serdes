@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
+// Exercises the packet scheduler using two lanes and mixed packet lengths.
 module tb_bonded_packet_tx;
     localparam integer W=32, K=4, LANES=2;
     reg clk=0;
