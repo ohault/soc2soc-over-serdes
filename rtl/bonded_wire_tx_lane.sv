@@ -117,11 +117,11 @@ module bonded_wire_tx_lane #(
         end
     endfunction
 
-    assign in_ready = (state==ST_IDLE) ||
-                      ((state==ST_PAYLOAD) && !payload_loaded);
-    assign out_valid = (state==ST_HEADER) || (state==ST_PREFIX) ||
+    assign in_ready = !rst && ((state==ST_IDLE) ||
+                      ((state==ST_PAYLOAD) && !payload_loaded));
+    assign out_valid = !rst && ((state==ST_HEADER) || (state==ST_PREFIX) ||
                        ((state==ST_PAYLOAD) && payload_loaded) ||
-                       (state==ST_CRC);
+                       (state==ST_CRC));
     assign out_sop = out_valid && (state==ST_HEADER) && (header_index==0);
     assign out_eop = out_valid && (state==ST_CRC) && (crc_index==3);
 
