@@ -78,7 +78,9 @@ class BondedEndToEndTests(unittest.TestCase):
             # Use short payloads within the configured maximum.
             payload = payload[:8]
             lane, packet = sender.send(payload)
-            control_a.enqueue_data(lane, packet.sequence, packet.payload)
+            adapter_packet = sender.take_tx(lane)
+            self.assertEqual(adapter_packet, packet)
+            control_a.enqueue_data(lane, adapter_packet.sequence, adapter_packet.payload)
             frame = control_a.next_frame(lane)
             self.assertEqual(frame.frame_type, FrameType.DATA)
             # Exercise the actual byte codec on the data path.
@@ -110,7 +112,9 @@ class BondedEndToEndTests(unittest.TestCase):
 
         lane, next_packet = sender.send(b"refill")
         self.assertEqual(next_packet.sequence, 2)
-        control_a.enqueue_data(lane, next_packet.sequence, next_packet.payload)
+        adapter_packet = sender.take_tx(lane)
+        self.assertEqual(adapter_packet, next_packet)
+        control_a.enqueue_data(lane, adapter_packet.sequence, adapter_packet.payload)
         data_frame = decode_frame(encode_frame(control_a.next_frame(lane)))
         sequence, payload = decode_data_body(data_frame.body)
         self.assertEqual(receiver.receive(1 - lane, BondPacket(SESSION, sequence, payload)), 1)
