@@ -115,7 +115,7 @@ module bonded_wire_rx_lane #(
                    {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
                    rx_count!=(24+{frame_mem[20],frame_mem[21]}+4) ||
                    {tail3,tail2,tail1,tail0}!=~frame_crc ||
-                   expected_frame_sequence==32'hffffffff) begin
+                   expected_frame_sequence_override==32'hffffffff) begin
                     frame_error<=1; state<=ST_IDLE; rx_count<=0;
                 end else begin
                     out_packet_sequence<={frame_mem[24],frame_mem[25],frame_mem[26],frame_mem[27]};
