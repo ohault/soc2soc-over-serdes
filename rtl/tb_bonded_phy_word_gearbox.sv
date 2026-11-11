@@ -9,9 +9,6 @@ module tb_bonded_phy_word_gearbox;
  reg in_valid=0,in_sop=0,in_eop=0;
  reg [7:0] in_data=0;
  wire in_ready;
- wire packed_valid,packed_ready,packed_sop;
- wire [31:0] packed_data;
- wire [3:0] packed_keep;
  wire tx_phy_valid,tx_phy_ready;
  wire [31:0] tx_phy_data;
  wire [3:0] tx_phy_ctrl;
@@ -19,35 +16,28 @@ module tb_bonded_phy_word_gearbox;
  wire rx_phy_valid,rx_phy_ready;
  wire [31:0] rx_phy_data;
  wire [3:0] rx_phy_ctrl;
- wire rx_word_valid,rx_word_ready,rx_word_sop;
- wire [31:0] rx_word_data;
- wire [3:0] rx_word_keep;
- wire rx_overflow,rx_symbol_error;
- wire out_valid,out_sop,out_error;
+ wire rx_byte_valid,rx_byte_sop,rx_fault;
+ wire out_valid,out_sop;
  wire [7:0] out_data;
  reg [7:0] expected[0:12];
  integer received=0;
  integer cycles=0;
 
- bonded_byte_to_phy_word #(.SYMBOLS_PER_WORD(4)) packer(
-  .clk(clk),.rst(rst),.byte_valid(in_valid),.byte_ready(in_ready),
-  .byte_data(in_data),.byte_sop(in_sop),.byte_eop(in_eop),
-  .word_valid(packed_valid),.word_ready(packed_ready),
-  .word_data(packed_data),.word_keep(packed_keep),.word_sop(packed_sop),
-  .packet_error(out_error));
-
- bonded_phy_8b10b_word_adapter #(.SYMBOLS_PER_WORD(4),.RX_FIFO_DEPTH(4),
-  .RX_PHY_STALLABLE(1)) phy(
-  .tx_clk(clk),.tx_rst(rst),.rx_clk(rx_clk),.rx_rst(rst),
-  .tx_valid(packed_valid),.tx_ready(packed_ready),.tx_data(packed_data),
-  .tx_keep(packed_keep),.tx_sop(packed_sop),
+ bonded_phy_8b10b_lane_adapter #(.SYMBOLS_PER_WORD(4),.RX_FIFO_DEPTH(4),
+  .RX_PHY_STALLABLE(1)) lane_adapter(
+  .tx_clk(clk),.tx_rst(rst),
+  .tx_byte_valid(in_valid),.tx_byte_ready(in_ready),.tx_byte_data(in_data),
+  .tx_byte_sop(in_sop),.tx_byte_eop(in_eop),
   .tx_phy_valid(tx_phy_valid),.tx_phy_ready(tx_phy_ready),
   .tx_phy_data(tx_phy_data),.tx_phy_ctrl(tx_phy_ctrl),.tx_error(tx_error),
+  .rx_clk(rx_clk),.rx_rst(rst),
   .rx_phy_valid(rx_phy_valid),.rx_phy_ready(rx_phy_ready),
   .rx_phy_data(rx_phy_data),.rx_phy_ctrl(rx_phy_ctrl),
-  .rx_valid(rx_word_valid),.rx_ready(rx_word_ready),
-  .rx_data(rx_word_data),.rx_keep(rx_word_keep),.rx_sop(rx_word_sop),
-  .rx_overflow(rx_overflow),.rx_symbol_error(rx_symbol_error));
+  .rx_byte_valid(rx_byte_valid),.rx_byte_ready(out_ready),
+  .rx_byte_data(out_data),.rx_byte_sop(rx_byte_sop),.rx_fault(rx_fault));
+
+ assign out_valid=rx_byte_valid;
+ assign out_sop=rx_byte_sop;
 
  // A dual-clock FIFO models the independent recovered RX clock domain
  // of a real SERDES. No TX READY signal is combinationally tied to RX READY.
@@ -57,12 +47,6 @@ module tb_bonded_phy_word_gearbox;
   .rd_clk(rx_clk),.rd_rst_n(!rst),.rd_valid(rx_phy_valid),.rd_ready(rx_phy_ready),
   .rd_data({rx_phy_ctrl,rx_phy_data}));
 
- bonded_phy_word_to_byte #(.SYMBOLS_PER_WORD(4)) unpacker(
-  .clk(rx_clk),.rst(rst),
-  .word_valid(rx_word_valid),.word_ready(rx_word_ready),
-  .word_data(rx_word_data),.word_keep(rx_word_keep),.word_sop(rx_word_sop),
-  .byte_valid(out_valid),.byte_ready(out_ready),.byte_data(out_data),
-  .byte_sop(out_sop),.word_error());
 
  reg out_ready=0;
  always @(posedge rx_clk) begin
@@ -113,7 +97,7 @@ module tb_bonded_phy_word_gearbox;
 
   wait(received==13);
   repeat(4) @(posedge rx_clk);
-  if(out_error || tx_error || rx_overflow || rx_symbol_error || !in_ready)
+  if(tx_error || rx_fault || !in_ready)
    $fatal(1,"unexpected error/overflow in integrated gearbox loopback");
   $display("PASS: byte/word packing, PHY comma removal, control-valued payload bytes and backpressure");
   $finish;
