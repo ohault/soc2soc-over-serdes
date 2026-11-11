@@ -368,10 +368,13 @@ module tb_bonded_two_lane_phy_word_node;
         if(active_a || active_b || !fault_a || !fault_b)
             $fatal(1,"sticky lane fault cleared without a coordinated reset");
 
-        // Keep the PHY clocks and async symbol FIFOs running while resetting
-        // only the bonding/control domains. This verifies that the bridge
-        // flushes stale lane words and can re-arm on fresh HELLO/READY frames.
-        @(negedge bond_a);bond_rst_n=0;
+        // A coordinated recovery resets both the physical lane FIFOs and
+        // the bonding/control domains. The separate bridge session-flush
+        // regression above covers stale continuation handling without a PHY
+        // reset; this node-level test verifies the complete reinitialization.
+        @(negedge bond_a);bond_rst_n=0;phy_rst_n=0;
+        repeat(6) @(posedge bond_a);
+        @(negedge a_tx0);phy_rst_n=1;
         repeat(6) @(posedge bond_a);
         @(negedge bond_a);bond_rst_n=1;
         cycles=0;
