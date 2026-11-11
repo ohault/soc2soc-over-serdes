@@ -20,7 +20,7 @@ module tb_bonded_two_lane_endpoint;
     reg av=0,asop=0,aeop=0,bv=0,bsop=0,beop=0;
     reg [31:0] ad=0,bd=0;
     reg [3:0] ak=0,bk=0;
-    wire ardy,brdy;
+    wire ardy,brdy,session_a,session_b;
     wire arv,ars,are,brv,brs,bre;
     wire [7:0] ard,brd;
     wire [31:0] arseq,brseq;
@@ -54,7 +54,7 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_a (
         .bond_clk(bond_a),.bond_rst_n(rst_n),.tx_session_id(64'hA11CE),
-        .rx_expected_session_id(64'hB0B),
+        .rx_expected_session_id(64'hB0B),.session_established(rst_n),.session_active(session_a),
         .tx_valid(av),.tx_ready(ardy),.tx_data(ad),.tx_keep(ak),.tx_sop(asop),.tx_eop(aeop),
         .rx_valid(arv),.rx_ready(1'b1),.rx_data(ard),.rx_sop(ars),.rx_eop(are),
         .rx_packet_sequence(arseq),
@@ -74,7 +74,7 @@ module tb_bonded_two_lane_endpoint;
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_b (
         .bond_clk(bond_b),.bond_rst_n(rst_n),.tx_session_id(64'hB0B),
-        .rx_expected_session_id(64'hA11CE),
+        .rx_expected_session_id(64'hA11CE),.session_established(rst_n),.session_active(session_b),
         .tx_valid(bv),.tx_ready(brdy),.tx_data(bd),.tx_keep(bk),.tx_sop(bsop),.tx_eop(beop),
         .rx_valid(brv),.rx_ready(1'b1),.rx_data(brd),.rx_sop(brs),.rx_eop(bre),
         .rx_packet_sequence(brseq),
@@ -133,7 +133,7 @@ module tb_bonded_two_lane_endpoint;
             @(posedge bond_a); timeout=timeout+1;
         end
         repeat(5) @(posedge bond_a);
-        if(acount!=2 || bcount!=2 || ate || bte || at0err || at1err ||
+        if(!session_a || !session_b || acount!=2 || bcount!=2 || ate || bte || at0err || at1err ||
            bt0err || bt1err || are0 || are1 || bre0 || bre1 || arerr || brerr)
             $fatal(1,"full-duplex endpoint failed A=%0d B=%0d txerr=%b/%b rxerr=%b/%b",
                    acount,bcount,ate,bte,arerr,brerr);
