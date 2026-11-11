@@ -28,8 +28,13 @@ For each lane, the node accepts only:
 - `laneN_rx_data[7:0]`
 
 There are no physical SOP/EOP inputs. A per-lane synchronous elastic FIFO
-(`bonded_sync_byte_fifo`, configurable depth) absorbs parser stalls. The
-`bonded_wire_rx_framer` then:
+(`bonded_sync_byte_fifo`, configurable depth) absorbs parser stalls. Its
+sticky `overflow` diagnostic is asserted if a byte is presented while the
+FIFO is full; the autonomous node propagates this through the lane RX frame
+error output. A continuous serial receiver cannot pause the cable, so the
+board adapter must either buffer the recovered bytes itself until the node
+accepts them or treat this overflow as a lane/session fault. It must never
+silently discard a byte and continue. The `bonded_wire_rx_framer` then:
 
 1. Searches the raw byte stream for the v0 magic/version/type prefix.
 2. Captures the 24-byte header.
@@ -51,9 +56,9 @@ parts, while preserving the byte-stream contract:
 - TX serialization and any required line coding.
 - A reliable `lane_up` indication based on PLL/CDR lock, byte alignment and
   the chosen physical error policy.
-- Error/overflow handling: a PHY error that can invalidate byte framing must
-  drop the lane/session or reset the framer so the receiver does not continue
-  parsing a corrupted byte count.
+- Error/overflow handling: a PHY error, node RX elastic FIFO overflow or
+  byte-alignment loss must drop the lane/session or reset the framer so the
+  receiver does not continue parsing a corrupted byte count.
 
 The core currently assumes an error-free byte stream between such reset/error
 events. It does not yet provide an arbitrary byte-deletion recovery protocol
