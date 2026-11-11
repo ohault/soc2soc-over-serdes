@@ -3,17 +3,20 @@
 // the complete frame, header CRC-16 and frame CRC-32C have been validated.
 module bonded_wire_rx_lane #(
     parameter integer LANE_ID = 0,
-    parameter integer MAX_PAYLOAD = 4096
+    parameter integer MAX_PAYLOAD = 4096,
+    parameter integer DYNAMIC_LANE_ID = 0
 ) (
     input wire clk, input wire rst,
     input wire [63:0] expected_session_id,
     input wire [31:0] expected_frame_sequence_override,
+    input wire [7:0] expected_lane_id,
     input wire in_valid, output wire in_ready,
     input wire [7:0] in_data, input wire in_sop, input wire in_eop,
     output wire out_valid, input wire out_ready,
     output wire [7:0] out_data, output wire out_sop, output wire out_eop,
     output reg [31:0] out_packet_sequence,
     output reg [31:0] out_frame_sequence,
+    output reg [7:0] out_lane_id,
     output reg [31:0] expected_frame_sequence,
     output reg frame_error, output reg frame_valid_pulse
 );
@@ -61,7 +64,7 @@ module bonded_wire_rx_lane #(
             tail0<=0; tail1<=0; tail2<=0; tail3<=0;
             header_crc<=16'hffff; frame_crc<=32'hffffffff;
             payload_length<=0; output_index<=0; active_session<=0;
-            out_packet_sequence<=0; out_frame_sequence<=0;
+            out_packet_sequence<=0; out_frame_sequence<=0; out_lane_id<=0;
             expected_frame_sequence<=0; frame_error<=0; frame_valid_pulse<=0;
         end else begin
             frame_valid_pulse<=0;
@@ -105,7 +108,8 @@ module bonded_wire_rx_lane #(
             if(state==ST_CHECK) begin
                 if(frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 ||
-                   frame_mem[4]!=8'h00 || frame_mem[5]!=LANE_ID[7:0] ||
+                   frame_mem[4]!=8'h00 || frame_mem[5]>8'd1 ||
+                   (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff) && (frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
                    {frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
                     frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=active_session ||
@@ -120,6 +124,7 @@ module bonded_wire_rx_lane #(
                 end else begin
                     out_packet_sequence<={frame_mem[24],frame_mem[25],frame_mem[26],frame_mem[27]};
                     out_frame_sequence<=expected_frame_sequence_override;
+                    out_lane_id<=frame_mem[5];
                     expected_frame_sequence<=expected_frame_sequence_override+1'b1;
                     payload_length<={frame_mem[20],frame_mem[21]}-16'd4;
                     output_index<=0; frame_valid_pulse<=1;
