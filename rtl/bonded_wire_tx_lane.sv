@@ -46,6 +46,15 @@ module bonded_wire_tx_lane #(
     reg payload_eop;
     reg payload_loaded;
     reg [KEEP_WIDTH-1:0] payload_byte_index;
+    reg [12:0] payload_bytes_seen;
+    function [3:0] keep_count(input [KEEP_WIDTH-1:0] keep);
+        integer n;
+        begin
+            keep_count=0;
+            for(n=0;n<KEEP_WIDTH;n=n+1)
+                keep_count=keep_count+keep[n];
+        end
+    endfunction
 
     function [15:0] crc16_byte(input [15:0] crc_in,input [7:0] data);
         integer k;
@@ -166,6 +175,7 @@ module bonded_wire_tx_lane #(
             payload_eop<=0;
             payload_loaded<=0;
             payload_byte_index<=0;
+            payload_bytes_seen<=0;
             next_frame_sequence<=0;
             frame_error<=0;
         end else begin
@@ -185,6 +195,10 @@ module bonded_wire_tx_lane #(
                     payload_eop<=in_eop;
                     payload_loaded<=1'b1;
                     payload_byte_index<=0;
+                    payload_bytes_seen<=keep_count(in_keep);
+                    if ((in_eop && keep_count(in_keep)!=in_packet_length) ||
+                        (!in_eop && keep_count(in_keep)>=in_packet_length))
+                        frame_error<=1'b1;
                     header_index<=0;
                     prefix_index<=0;
                     crc_index<=0;
@@ -244,6 +258,10 @@ module bonded_wire_tx_lane #(
                     payload_eop<=in_eop;
                     payload_loaded<=1'b1;
                     payload_byte_index<=0;
+                    payload_bytes_seen<=payload_bytes_seen+keep_count(in_keep);
+                    if ((in_eop && payload_bytes_seen+keep_count(in_keep)!=packet_length) ||
+                        (!in_eop && payload_bytes_seen+keep_count(in_keep)>=packet_length))
+                        frame_error<=1'b1;
                 end
             end
         end
