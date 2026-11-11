@@ -53,7 +53,30 @@ module tb_bonded_frame_rx;
         expect_byte(8'h89,0,1);
         @(negedge clk);
         if (out_valid) $fatal(1,"RX output not empty");
-        $display("PASS: RX byte order, partial KEEP, SOP/EOP and backpressure");
+        // A partial KEEP is legal only on the EOP beat.
+        send_beat(32'h000000aa,4'h1,1,0);
+        @(negedge clk);
+        if (out_valid) $fatal(1,"RX accepted partial KEEP without EOP");
+
+        // Recover on a fresh SOP after malformed input.
+        send_beat(32'h000000bb,4'h1,1,1);
+        expect_byte(8'hbb,1,1);
+        @(negedge clk);
+        if (out_valid) $fatal(1,"RX recovery left stale output");
+
+        // Reset while a frame is open; post-reset continuation must be rejected.
+        send_beat(32'h44332211,4'hf,1,0);
+        @(negedge clk); rst=1;
+        repeat(2) @(posedge clk);
+        @(negedge clk); rst=0;
+        send_beat(32'h00000055,4'h1,0,1);
+        @(negedge clk);
+        if (out_valid) $fatal(1,"RX accepted continuation across reset");
+
+        // A new complete frame after reset must still work.
+        send_beat(32'h000000cc,4'h1,1,1);
+        expect_byte(8'hcc,1,1);
+        $display("PASS: RX ordering, KEEP, SOP/EOP, backpressure, malformed recovery and reset");
         $finish;
     end
 endmodule
