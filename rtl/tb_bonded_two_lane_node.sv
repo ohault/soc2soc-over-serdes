@@ -128,7 +128,11 @@ module tb_bonded_two_lane_node;
   repeat(3) @(posedge bond_a);
   if(active_a || !fault_a)
    $fatal(1,"PHY RX overrun did not invalidate the bonded session");
-  $display("PASS: autonomous two-node HELLO/READY, both DATA lanes, independent clocks and PHY-overrun fault");
+  wait(node_a.lane0_session_drop_pulse);
+  @(posedge a_rx0); #1;
+  if(node_a.lane0_framer.state!==3'd0 || node_a.lane0_rx_local_reset)
+   $fatal(1,"session-drop event did not flush the raw RX framer");
+  $display("PASS: autonomous two-node HELLO/READY, both DATA lanes, independent clocks and PHY-overrun flush");
   $finish;
  end
  initial begin #500000;$fatal(1,"timeout active=%b/%b fault=%b/%b",active_a,active_b,fault_a,fault_b);end
