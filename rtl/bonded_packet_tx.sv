@@ -88,7 +88,8 @@ module bonded_packet_tx #(
             final_keep <= 0;
         end else begin
             if (tx_valid && tx_ready) begin
-                if (stored_beats >= MAX_PACKET_BEATS ||\n                    (!collecting && !tx_sop) || (collecting && tx_sop) ||
+                if (stored_beats >= MAX_PACKET_BEATS ||
+                    (!collecting && !tx_sop) || (collecting && tx_sop) ||
                     tx_keep == 0 ||
                     ((tx_keep & (tx_keep + 1'b1)) != 0) ||
                     (!tx_eop && tx_keep != {KEEP_WIDTH{1'b1}})) begin
