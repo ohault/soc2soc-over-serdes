@@ -115,11 +115,12 @@ session-scoped DATA path.
 A session drop is synchronized into each recovered RX clock domain and flushes
 that lane's raw-byte elastic FIFO and frame-boundary parser. The CONTROL
 manager and CONTROL decoders remain alive so the control plane is not reset
-with the DATA path. Before session establishment, DATA is held reset or
-discarded by the RX demultiplexer, while HELLO/READY can still traverse both
-physical lanes. A DATA frame already selected when the session drops is
-aborted at the frame arbiter; an in-progress CONTROL frame is not aborted by
-the DATA reset.
+with the DATA path. Before session establishment, DATA is held reset or discarded by the RX
+demultiplexer, while HELLO/READY can still traverse both physical lanes. A
+DATA-only datapath reset does not reset the CONTROL encoder or decoder. A
+session-drop flush at the shared raw-byte RX boundary can discard a partially
+received physical frame of either type; the CONTROL decoder remains alive and
+resynchronizes on the next SOP.
 
 For v0, both peers must be provisioned with the same non-zero session ID.
 The manager currently assumes the peer's physical lane IDs map directly to
