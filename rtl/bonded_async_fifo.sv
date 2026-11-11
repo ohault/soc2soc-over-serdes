@@ -3,9 +3,9 @@
 // Gray-coded pointer synchronizers. DEPTH must be a power of two >= 4.
 //
 // Reset contract: assert wr_rst_n and rd_rst_n together to flush the FIFO.
-// Deassertion may be asynchronous at the pins; each domain uses the reset
-// synchronously in its own clocked process. The surrounding design must keep
-// traffic disabled until both domains have left reset.
+// Assertion is asynchronous; deassertion is synchronized independently into
+// each clock domain. The surrounding design must keep traffic disabled until
+// both domains have left reset.
 module bonded_async_fifo #(
     parameter integer DATA_WIDTH = 32,
     parameter integer DEPTH = 16,
@@ -28,6 +28,21 @@ module bonded_async_fifo #(
     reg [DATA_WIDTH-1:0] mem [0:DEPTH-1];
     reg [PTR_WIDTH-1:0] wr_bin, wr_gray;
     reg [PTR_WIDTH-1:0] rd_bin, rd_gray;
+
+    (* async_reg = "true" *) reg [1:0] wr_reset_sync;
+    (* async_reg = "true" *) reg [1:0] rd_reset_sync;
+    wire wr_local_rst_n = wr_reset_sync[1];
+    wire rd_local_rst_n = rd_reset_sync[1];
+
+    always @(posedge wr_clk or negedge wr_rst_n) begin
+        if (!wr_rst_n) wr_reset_sync <= 2'b00;
+        else wr_reset_sync <= {wr_reset_sync[0], 1'b1};
+    end
+
+    always @(posedge rd_clk or negedge rd_rst_n) begin
+        if (!rd_rst_n) rd_reset_sync <= 2'b00;
+        else rd_reset_sync <= {rd_reset_sync[0], 1'b1};
+    end
 
     (* async_reg = "true" *) reg [PTR_WIDTH-1:0] rd_gray_sync1, rd_gray_sync2;
     (* async_reg = "true" *) reg [PTR_WIDTH-1:0] wr_gray_sync1, wr_gray_sync2;
@@ -57,8 +72,8 @@ module bonded_async_fifo #(
             $error("ADDR_WIDTH must be at least two");
     end
 
-    always @(posedge wr_clk or negedge wr_rst_n) begin
-        if (!wr_rst_n) begin
+    always @(posedge wr_clk or negedge wr_local_rst_n) begin
+        if (!wr_local_rst_n) begin
             wr_bin <= 0;
             wr_gray <= 0;
             rd_gray_sync1 <= 0;
@@ -75,8 +90,8 @@ module bonded_async_fifo #(
         end
     end
 
-    always @(posedge rd_clk or negedge rd_rst_n) begin
-        if (!rd_rst_n) begin
+    always @(posedge rd_clk or negedge rd_local_rst_n) begin
+        if (!rd_local_rst_n) begin
             rd_bin <= 0;
             rd_gray <= 0;
             wr_gray_sync1 <= 0;
