@@ -58,12 +58,12 @@ module tb_bonded_width_adapter;
 
         // A four-byte frame remains a partial 64-bit output beat.
         send(32'h000000aa,4'h1,1,1);
-        expect(64'h00000000000000aa,8'h01,1,1);
+        check_output(64'h00000000000000aa,8'h01,1,1);
 
         // Invalid zero KEEP is dropped; a new valid frame recovers.
         send(32'h00000000,4'h0,1,1);
         send(32'h000000bb,4'h1,1,1);
-        expect(64'h00000000000000bb,8'h01,1,1);
+        check_output(64'h00000000000000bb,8'h01,1,1);
 
         $display("PASS: 32-to-64 width conversion, KEEP, framing and backpressure");
         $finish;
