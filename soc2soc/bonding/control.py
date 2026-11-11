@@ -160,6 +160,8 @@ class BondedControlPlane:
             raise ValueError("new_session_id must be a non-zero 64-bit integer")
         if new_session_id in self._used_session_ids:
             raise ControlPlaneError("session identifier has already been used by this endpoint")
+        if self.config.expected_peer_id is not None and self.config.peer_id > self.config.expected_peer_id:
+            raise ControlPlaneError("only the lower peer_id endpoint may initiate a new session")
         if not all(self.lanes_up):
             raise ControlSessionDown("all configured lanes must be up before restart")
         if self.fault_reason is None:
@@ -179,6 +181,48 @@ class BondedControlPlane:
         self._control = [deque() for _ in range(self.config.lane_count)]
         self._data = [deque() for _ in range(self.config.lane_count)]
         self.start(now_cycles)
+    def _consider_peer_session(self, ingress_lane: int, frame: Frame) -> None:
+        """Adopt a fresh session proposed by the configured lower-ID peer."""
+        if len(frame.body) != 26 or frame.body[0] != ControlOpcode.HELLO:
+            return
+        try:
+            peer_id, lane_count, profile_id, max_payload, rx_bytes, rx_packets = struct.unpack(
+                ">QBHHQI", frame.body[1:]
+            )
+        except struct.error:
+            return
+        if self.config.expected_peer_id is not None and peer_id != self.config.expected_peer_id:
+            return
+        if peer_id >= self.config.peer_id:
+            return
+        if frame.session_id == 0 or frame.session_id in self._used_session_ids:
+            return
+        if not all(self.lanes_up):
+            return
+        if lane_count != self.config.lane_count or profile_id != self.config.profile_id:
+            return
+        if max_payload < 1 or max_payload > self.config.max_payload:
+            return
+        self._adopt_peer_session(frame.session_id)
+
+    def _adopt_peer_session(self, new_session_id: int) -> None:
+        """Adopt the initiator's epoch and restart HELLO/READY on all lanes."""
+        self.session_id = new_session_id
+        self._used_session_ids.add(new_session_id)
+        self.fault_reason = None
+        self._hello_seen = [False] * self.config.lane_count
+        self._ready_seen = [False] * self.config.lane_count
+        self.peer_lane_by_local = [None] * self.config.lane_count
+        self._frame_sequence = [0] * self.config.lane_count
+        self.remote_credit_bytes = 0
+        self.remote_credit_packets = 0
+        self.remote_max_payload = None
+        self._pending_ping = None
+        self._next_ping_nonce = 1
+        self._control = [deque() for _ in range(self.config.lane_count)]
+        self._data = [deque() for _ in range(self.config.lane_count)]
+        self.start(self._last_tick)
+
     def receive(self, ingress_lane: int, frame: Frame) -> None:
         """Consume a decoded CONTROL frame received on a local physical lane."""
         self._check_lane(ingress_lane)
@@ -187,7 +231,12 @@ class BondedControlPlane:
         if frame.frame_type != FrameType.CONTROL:
             raise ControlPlaneError("control plane received a non-CONTROL frame")
         if frame.session_id != self.session_id:
-            return  # stale frame from a previous session; never changes state
+            # Only the configured lower-ID peer may propose a new epoch.
+            # A HELLO from any other session is otherwise stale or non-authoritative.
+            if frame.body and frame.body[0] == ControlOpcode.HELLO:
+                self._consider_peer_session(ingress_lane, frame)
+            if frame.session_id != self.session_id:
+                return
         if frame.lane_id >= self.config.lane_count:
             self._fault("peer advertised an out-of-range lane identity")
             raise ControlNegotiationError(self.fault_reason)
