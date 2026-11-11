@@ -54,10 +54,13 @@ module bonded_lane_frame_arbiter (
                     (!ctrl_valid && data_valid && !data_sop))
                     protocol_error <= 1'b1;
             end
-            if (out_valid && selected==SEL_IDLE && out_sop)
+            // Do not lock a source merely because its SOP is visible: VALID
+            // may be stalled for many cycles. Selection occurs only when the
+            // SOP beat is actually transferred (VALID && READY).
+            if (out_valid && out_ready && selected==SEL_IDLE && out_sop)
                 selected <= control_active ? SEL_CONTROL : SEL_DATA;
             if (out_valid && out_ready) begin
-                if (out_sop && selected!=SEL_IDLE && !((selected==SEL_IDLE)))
+                if (out_sop && selected!=SEL_IDLE)
                     protocol_error <= 1'b1;
                 if (out_eop) begin
                     selected <= SEL_IDLE;
