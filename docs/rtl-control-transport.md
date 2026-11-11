@@ -55,6 +55,13 @@ a round-robin merger preserves the physical ingress-lane index for the
 control-plane consumer. DATA and CONTROL decoders share one expected frame
 sequence counter per physical lane.
 
+The autonomous node wrapper also includes the physical byte-stream boundary:
+`bonded_sync_byte_fifo` absorbs non-stallable PHY receive bytes and
+`bonded_wire_rx_framer` reconstructs SOP/EOP from the v0 header and validates
+header CRC-16 before trusting the body length. The two-node simulation sends
+only raw 8-bit bytes across its virtual cables; SOP/EOP are not carried over
+the link. See `docs/physical-byte-stream-interface.md`.
+
 The full-duplex endpoint exposes a CONTROL transmit ready/valid interface
 (`ctrl_tx_valid/ready/body/body_length`) and a CONTROL receive ready/valid
 interface (`ctrl_rx_valid/ready/body/body_length/lane`). TX broadcasts each
