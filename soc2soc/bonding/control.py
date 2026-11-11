@@ -79,6 +79,8 @@ class BondedControlPlane:
 
     def __init__(self, config: ControlConfig):
         self.config = config
+        self.session_id = config.session_id
+        self._used_session_ids = {config.session_id}
         self.lanes_up = [False] * config.lane_count
         self.peer_lane_by_local: list[Optional[int]] = [None] * config.lane_count
         self._hello_seen = [False] * config.lane_count
@@ -149,6 +151,34 @@ class BondedControlPlane:
         for lane in range(self.config.lane_count):
             self._queue_control(lane, ControlOpcode.HELLO, body)
 
+    def restart(self, new_session_id: int, now_cycles: int = 0) -> None:
+        """Start a fresh session after a fault; session identifiers are never reused."""
+        self._check_cycle(now_cycles)
+        if not isinstance(new_session_id, int) or isinstance(new_session_id, bool):
+            raise TypeError("new_session_id must be an integer")
+        if not 0 < new_session_id < (1 << 64):
+            raise ValueError("new_session_id must be a non-zero 64-bit integer")
+        if new_session_id in self._used_session_ids:
+            raise ControlPlaneError("session identifier has already been used by this endpoint")
+        if not all(self.lanes_up):
+            raise ControlSessionDown("all configured lanes must be up before restart")
+        if self.fault_reason is None:
+            raise ControlPlaneError("restart is only valid after the current session has faulted")
+        self.session_id = new_session_id
+        self._used_session_ids.add(new_session_id)
+        self.fault_reason = None
+        self._hello_seen = [False] * self.config.lane_count
+        self._ready_seen = [False] * self.config.lane_count
+        self.peer_lane_by_local = [None] * self.config.lane_count
+        self._frame_sequence = [0] * self.config.lane_count
+        self.remote_credit_bytes = 0
+        self.remote_credit_packets = 0
+        self.remote_max_payload = None
+        self._pending_ping = None
+        self._next_ping_nonce = 1
+        self._control = [deque() for _ in range(self.config.lane_count)]
+        self._data = [deque() for _ in range(self.config.lane_count)]
+        self.start(now_cycles)
     def receive(self, ingress_lane: int, frame: Frame) -> None:
         """Consume a decoded CONTROL frame received on a local physical lane."""
         self._check_lane(ingress_lane)
@@ -156,7 +186,7 @@ class BondedControlPlane:
             raise ControlSessionDown(f"control frame arrived on down lane {ingress_lane}")
         if frame.frame_type != FrameType.CONTROL:
             raise ControlPlaneError("control plane received a non-CONTROL frame")
-        if frame.session_id != self.config.session_id:
+        if frame.session_id != self.session_id:
             return  # stale frame from a previous session; never changes state
         if frame.lane_id >= self.config.lane_count:
             self._fault("peer advertised an out-of-range lane identity")
@@ -315,12 +345,12 @@ class BondedControlPlane:
         if self._control[lane]:
             opcode, fields = self._control[lane].popleft()
             body = encode_control_body(opcode, fields)
-            frame = Frame(FrameType.CONTROL, lane, self.config.session_id,
+            frame = Frame(FrameType.CONTROL, lane, self.session_id,
                           self._frame_sequence[lane], body)
         elif self.session_ready and self._data[lane]:
             sequence, payload = self._data[lane].popleft()
             body = encode_data_body(sequence, payload)
-            frame = Frame(FrameType.DATA, lane, self.config.session_id,
+            frame = Frame(FrameType.DATA, lane, self.session_id,
                           self._frame_sequence[lane], body)
         else:
             return None
