@@ -81,10 +81,21 @@ module tb_bonded_two_lane_node;
   .session_active(active_b),.control_fault(fault_b),.rx_credit_error(credit_b),
   .tx_packet_error(txerr_b),.rx_packet_error(rxerr_b),
   .lane0_tx_frame_error(b0te),.lane1_tx_frame_error(b1te),.lane0_rx_frame_error(b0re),.lane1_rx_frame_error(b1re));
- integer got=0,cycles=0;
+ integer got=0,cycles=0,data_frames_lane0=0,data_frames_lane1=0;
+ always @(posedge b_rx0)
+  if(node_b.endpoint.rx_path.lane0_decoder.frame_valid_pulse)
+   data_frames_lane0=data_frames_lane0+1;
+ always @(posedge b_rx1)
+  if(node_b.endpoint.rx_path.lane1_decoder.frame_valid_pulse)
+   data_frames_lane1=data_frames_lane1+1;
  always @(posedge bond_b) if(brxv) begin
-  if(got==0 && (!brs || brd!==8'haa || bre)) $fatal(1,"B packet byte 0");
-  if(got==1 && (brs || brd!==8'hbb || !bre)) $fatal(1,"B packet byte 1");
+  case(got)
+   0: if(!brs || brd!==8'haa || bre || brseq!==0) $fatal(1,"B packet 0 byte 0");
+   1: if(brs || brd!==8'hbb || !bre || brseq!==0) $fatal(1,"B packet 0 byte 1");
+   2: if(!brs || brd!==8'hcc || bre || brseq!==1) $fatal(1,"B packet 1 byte 0");
+   3: if(brs || brd!==8'hdd || !bre || brseq!==1) $fatal(1,"B packet 1 byte 1");
+   default: $fatal(1,"unexpected extra B packet byte");
+  endcase
   got=got+1;
  end
  initial begin
@@ -98,17 +109,26 @@ module tb_bonded_two_lane_node;
   @(posedge bond_a);@(negedge bond_a);atxv=0;ats=0;ate=0;
   cycles=0;
   while(got<2 && cycles<5000) begin @(posedge bond_b);cycles=cycles+1;end
+  if(got!=2 || data_frames_lane0!=1 || data_frames_lane1!=0)
+   $fatal(1,"first autonomous packet was not delivered on lane 0");
+  // The packet scheduler round-robins the next complete packet onto lane 1.
+  @(negedge bond_a);atxv=1;ats=1;ate=1;atk=4'b0011;atxd=32'h0000ddcc;
+  #1;while(!atxr) begin @(negedge bond_a);#1;end
+  @(posedge bond_a);@(negedge bond_a);atxv=0;ats=0;ate=0;
+  cycles=0;
+  while(got<4 && cycles<5000) begin @(posedge bond_b);cycles=cycles+1;end
   repeat(5) @(posedge bond_b);
-  if(got!=2 || fault_a || fault_b || credit_a || credit_b || txerr_a || rxerr_b ||
+  if(got!=4 || data_frames_lane0!=1 || data_frames_lane1!=1 ||
+     fault_a || fault_b || credit_a || credit_b || txerr_a || rxerr_b ||
      a0te || a1te || b0re || b1re)
-   $fatal(1,"autonomous bonded DATA failed got=%0d",got);
+   $fatal(1,"autonomous bonded DATA failed got=%0d lane_frames=%0d/%0d",got,data_frames_lane0,data_frames_lane1);
   // A byte loss reported by the PHY adapter is treated as lane-down and
   // invalidates the active session rather than allowing corrupted framing.
   @(negedge bond_a);a0_overflow=1;
   repeat(3) @(posedge bond_a);
   if(active_a || !fault_a)
    $fatal(1,"PHY RX overrun did not invalidate the bonded session");
-  $display("PASS: autonomous two-node HELLO/READY, independent clocks, DATA and PHY-overrun fault");
+  $display("PASS: autonomous two-node HELLO/READY, both DATA lanes, independent clocks and PHY-overrun fault");
   $finish;
  end
  initial begin #500000;$fatal(1,"timeout active=%b/%b fault=%b/%b",active_a,active_b,fault_a,fault_b);end
