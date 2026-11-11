@@ -248,18 +248,25 @@ class BondedSender(_Session):
         total bytes/packets accepted during this session, not current free space.
         """
         self._require_ready()
-        if byte_limit <= self.remote_credit_bytes and packet_limit <= self.remote_credit_packets:
-            # A delayed cumulative snapshot may leave one counter unchanged;
-            # ignore the entire stale pair atomically.
-            return
-        if byte_limit < self.remote_credit_bytes or packet_limit < self.remote_credit_packets:
-            raise PacketRejected("inconsistent remote credit update moved one limit backwards")
-        if byte_limit < self._reserved_tx_bytes:
+        if not isinstance(byte_limit, int) or not isinstance(packet_limit, int):
+            raise TypeError("credit limits must be integers")
+        if byte_limit < 0 or packet_limit < 0:
+            raise ValueError("credit limits must be non-negative")
+
+        # The two cumulative counters are independent monotonic dimensions.
+        # Control updates may be reordered across lanes: an older byte limit
+        # can legitimately accompany a newer packet limit (or vice versa).
+        # Merge each dimension independently instead of rejecting the pair.
+        new_byte_limit = max(self.remote_credit_bytes, byte_limit)
+        new_packet_limit = max(self.remote_credit_packets, packet_limit)
+
+        if new_byte_limit < self._reserved_tx_bytes:
             raise PacketRejected("remote byte-credit limit is below bytes already reserved")
-        if packet_limit < self._reserved_tx_packets:
+        if new_packet_limit < self._reserved_tx_packets:
             raise PacketRejected("remote packet-credit limit is below packets already reserved")
-        self.remote_credit_bytes = byte_limit
-        self.remote_credit_packets = packet_limit
+
+        self.remote_credit_bytes = new_byte_limit
+        self.remote_credit_packets = new_packet_limit
 
     def _on_session_established(self) -> None:
         self.next_sequence = 0
