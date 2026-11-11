@@ -146,14 +146,14 @@ module bonded_two_lane_node #(
     wire lane0_endpoint_rx_error,lane1_endpoint_rx_error;
 
     bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane0_framer (
-        .clk(lane0_rx_clk),.rst(!lane0_rx_local_rst_n),
+        .clk(lane0_rx_clk),.rst(lane0_rx_local_reset),
         .in_valid(lane0_raw_valid),.in_ready(lane0_raw_ready),.in_data(lane0_raw_data),
         .out_valid(lane0_framed_valid),.out_ready(lane0_framed_ready),
         .out_data(lane0_framed_data),.out_sop(lane0_framed_sop),.out_eop(lane0_framed_eop),
         .frame_error(lane0_framer_error)
     );
     bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane1_framer (
-        .clk(lane1_rx_clk),.rst(!lane1_rx_local_rst_n),
+        .clk(lane1_rx_clk),.rst(lane1_rx_local_reset),
         .in_valid(lane1_raw_valid),.in_ready(lane1_raw_ready),.in_data(lane1_raw_data),
         .out_valid(lane1_framed_valid),.out_ready(lane1_framed_ready),
         .out_data(lane1_framed_data),.out_sop(lane1_framed_sop),.out_eop(lane1_framed_eop),
