@@ -47,7 +47,8 @@ module bonded_wire_tx_lane #(
     reg payload_loaded;
     reg [KEEP_WIDTH-1:0] payload_byte_index;
     reg [12:0] payload_bytes_seen;
-    function [3:0] keep_count(input [KEEP_WIDTH-1:0] keep);
+    localparam integer KEEP_COUNT_WIDTH = (KEEP_WIDTH < 1) ? 1 : $clog2(KEEP_WIDTH+1);
+    function [KEEP_COUNT_WIDTH-1:0] keep_count(input [KEEP_WIDTH-1:0] keep);
         integer n;
         begin
             keep_count=0;
