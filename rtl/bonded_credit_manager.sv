@@ -38,6 +38,15 @@ module bonded_credit_manager #(
     wire [32:0] rx_packets_sum = {1'b0,rx_accepted_packets} + 33'd1;
     wire [64:0] consume_bytes_sum = {1'b0,rx_consumed_bytes} + rx_consume_bytes;
     wire [32:0] consume_packets_sum = {1'b0,rx_consumed_packets} + 33'd1;
+    // A one-byte packet can become visible immediately after its admission
+    // pulse. Permit its acceptance and application-consumption events to be
+    // accounted on the same clock edge.
+    wire [64:0] accepted_bytes_with_current =
+        {1'b0,rx_accepted_bytes} +
+        ((rx_accept_valid && rx_accept_ready) ? rx_accept_bytes : 16'd0);
+    wire [32:0] accepted_packets_with_current =
+        {1'b0,rx_accepted_packets} +
+        ((rx_accept_valid && rx_accept_ready) ? 33'd1 : 33'd0);
 
     assign tx_reserve_ready = (tx_bytes_sum[64] == 1'b0) &&
         (tx_packets_sum[32] == 1'b0) &&
@@ -88,8 +97,8 @@ module bonded_credit_manager #(
             if (rx_consume_valid) begin
                 if ((consume_bytes_sum[64] == 1'b0) &&
                     (consume_packets_sum[32] == 1'b0) &&
-                    (consume_bytes_sum[63:0] <= rx_accepted_bytes) &&
-                    (consume_packets_sum[31:0] <= rx_accepted_packets)) begin
+                    (consume_bytes_sum <= accepted_bytes_with_current) &&
+                    (consume_packets_sum <= accepted_packets_with_current)) begin
                     rx_consumed_bytes <= consume_bytes_sum[63:0];
                     rx_consumed_packets <= consume_packets_sum[31:0];
                 end else begin
