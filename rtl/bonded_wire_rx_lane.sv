@@ -73,7 +73,7 @@ module bonded_wire_rx_lane #(
                         frame_mem[0]<=in_data;
                         tail0<=in_data; tail1<=0; tail2<=0; tail3<=0;
                         header_crc<=crc16_byte(16'hffff,in_data);
-                        frame_crc<=crc32c_byte(32'hffffffff,in_data);
+                        frame_crc<=32'hffffffff;
                         active_session<=expected_session_id;
                     end
                 end else begin
