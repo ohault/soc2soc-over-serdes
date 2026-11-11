@@ -255,3 +255,11 @@ jobs:
             rtl/bonded_phy_word_to_byte.sv rtl/bonded_lane_phy_word_bridge.sv \
             rtl/bonded_two_lane_phy_word_node.sv rtl/tb_bonded_two_lane_phy_word_node.sv
           vvp /tmp/tb_two_lane_phy_node
+
+      - name: Compile and run PHY bridge session-flush recovery regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_lane_phy_session_flush -o /tmp/tb_phy_session_flush \
+            rtl/bonded_byte_to_phy_word.sv rtl/bonded_phy_8b10b_word_adapter.sv \
+            rtl/bonded_phy_word_to_byte.sv rtl/bonded_lane_phy_word_bridge.sv \
+            rtl/tb_bonded_lane_phy_session_flush.sv
+          vvp /tmp/tb_phy_session_flush
