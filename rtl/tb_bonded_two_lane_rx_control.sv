@@ -28,13 +28,13 @@ module tb_bonded_two_lane_rx_control;
   .out_sop(tx_sop),.out_eop(tx_eop),.next_frame_sequence(tx_seq),.frame_error(tx_error));
  assign tx_out_ready=lane0_ready;
  bonded_two_lane_rx #(.FIFO_DEPTH(16),.REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) dut(
-  .bond_rst_n(rst_n),.control_rst_n(rst_n),.expected_session_id(64'h0123456789abcdef),
+  .bond_rst_n(rst_n),.control_rst_n(rst_n),.expected_session_id(64'h0123456789abcdef),.session_rx_reset_toggle(1'b0),
   .lane0_clk(lane0_clk),.lane0_rst_n(rst_n),.lane0_valid(tx_out_valid),.lane0_ready(lane0_ready),
   .lane0_data(tx_data),.lane0_sop(tx_sop),.lane0_eop(tx_eop),
   .lane1_clk(lane1_clk),.lane1_rst_n(rst_n),.lane1_valid(1'b0),.lane1_ready(lane1_ready),
   .lane1_data(8'd0),.lane1_sop(1'b0),.lane1_eop(1'b0),
   .bond_clk(bond_clk),.ctrl_rx_valid(ctrl_rx_valid),.ctrl_rx_ready(1'b1),
-  .ctrl_rx_body(ctrl_rx_body),.ctrl_rx_body_length(ctrl_rx_length),.ctrl_rx_lane(ctrl_rx_lane),
+  .ctrl_rx_body(ctrl_rx_body),.ctrl_rx_body_length(ctrl_rx_length),.ctrl_rx_session_id(),.ctrl_rx_lane(ctrl_rx_lane),
   .local_byte_limit(local_bytes),.local_packet_limit(local_packets),.credit_error(credit_error),
   .out_valid(rx_valid),.out_ready(1'b1),.out_data(rx_data),.out_sop(rx_sop),.out_eop(rx_eop),
   .out_packet_sequence(rx_seq),.lane0_frame_error(lane0_error),.lane1_frame_error(lane1_error),
