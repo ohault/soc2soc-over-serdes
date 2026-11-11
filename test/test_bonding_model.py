@@ -273,6 +273,33 @@ class EndToEndCreditTests(unittest.TestCase):
         self.assertEqual(receiver.credit_update(), (13, 3))
         self.assertEqual(receiver.queued_rx_bytes, 0)
 
+    def test_sender_and_receiver_exchange_credits_end_to_end(self):
+        config = BondConfig(
+            lane_count=1,
+            max_packet_bytes=4,
+            rx_buffer_bytes=4,
+            rx_buffer_packets=1,
+            tx_queue_depth=2,
+        )
+        sender = BondedSender(config)
+        receiver = BondedReceiver(config)
+        bring_up(sender, 1)
+        bring_up(receiver, 1)
+
+        # Seed sender from the receiver's initial grant.
+        sender.update_remote_credits(*receiver.credit_update())
+        lane, packet = sender.send(b"full")
+        self.assertEqual(receiver.receive(lane, sender.take_tx(lane)), 1)
+        self.assertIsNone(sender.send(b"x"))
+
+        # Capacity is not returned merely because the lane adapter accepted
+        # or the receiver accepted the packet. It is returned on app consume.
+        self.assertEqual(receiver.take_rx(), b"full")
+        sender.update_remote_credits(*receiver.credit_update())
+        lane, packet = sender.send(b"next")
+        self.assertEqual(packet.sequence, 1)
+        self.assertEqual(receiver.receive(lane, sender.take_tx(lane)), 1)
+
     def test_receiver_accounts_for_packets_in_flight_until_credit_is_returned(self):
         receiver = BondedReceiver(
             BondConfig(
