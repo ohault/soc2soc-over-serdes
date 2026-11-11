@@ -282,9 +282,22 @@ module tb_bonded_two_lane_phy_word_node;
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        if(!active_a || !active_b || fault_a || fault_b)
+        if(!active_a || !active_b || fault_a || fault_b) begin
+            $display("HELLO diag PHY RX=%b%b/%b%b wire RX=%b%b/%b%b wire TX=%b%b/%b%b lane_up=%b%b/%b%b",
+                a1rxerr,a0rxerr,b1rxerr,b0rxerr,a1rf,a0rf,b1rf,b0rf,
+                a1tf,a0tf,b1tf,b0tf,lane1_up_a,lane0_up_a,lane1_up_b,lane0_up_b);
+            $display("HELLO diag map A=%b:%0d/%b:%0d B=%b:%0d/%b:%0d",
+                node_a.node.endpoint.rx_path.lane0_mapping_valid,
+                node_a.node.endpoint.rx_path.lane0_remote_lane_id,
+                node_a.node.endpoint.rx_path.lane1_mapping_valid,
+                node_a.node.endpoint.rx_path.lane1_remote_lane_id,
+                node_b.node.endpoint.rx_path.lane0_mapping_valid,
+                node_b.node.endpoint.rx_path.lane0_remote_lane_id,
+                node_b.node.endpoint.rx_path.lane1_mapping_valid,
+                node_b.node.endpoint.rx_path.lane1_remote_lane_id);
             $fatal(1,"parallel PHY HELLO/READY failed active=%b/%b fault=%b/%b",
                    active_a,active_b,fault_a,fault_b);
+        end
 
         // Exercise SOP/EOP positions on short and multiword packets, including
         // partial final words and payload bytes equal to K28.5/K28.0 values.
