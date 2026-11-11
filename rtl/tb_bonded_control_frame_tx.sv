@@ -45,6 +45,8 @@ module tb_bonded_control_frame_tx;
  initial begin
    repeat(3) @(posedge clk); rst=0;
    send_credit();
+   // Let the encoder's nonblocking final-byte sequence update settle.
+   @(negedge clk);
    if(captured[0]!=8'h53 || captured[1]!=8'h42 || captured[3]!=8'h02 ||
       captured[5]!=8'h01 || captured[7]!=8'h18)
       $fatal(1,"CONTROL header mismatch");
