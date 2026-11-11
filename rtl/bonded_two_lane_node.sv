@@ -6,6 +6,7 @@ module bonded_two_lane_node #(
     parameter integer KEEP_WIDTH=DATA_WIDTH/8,
     parameter integer TX_FIFO_DEPTH=64,
     parameter integer RX_FIFO_DEPTH=64,
+    parameter integer RX_ELASTIC_DEPTH=64,
     parameter integer REORDER_WINDOW=4,
     parameter integer MAX_PACKET_BYTES=4096,
     parameter integer LANE0_ID=0,
@@ -66,6 +67,21 @@ module bonded_two_lane_node #(
     wire lane1_framed_valid,lane1_framed_ready,lane1_framed_sop,lane1_framed_eop;
     wire [7:0] lane0_framed_data,lane1_framed_data;
     wire lane0_framer_error,lane1_framer_error;
+    wire lane0_raw_valid,lane0_raw_ready,lane1_raw_valid,lane1_raw_ready;
+    wire [7:0] lane0_raw_data,lane1_raw_data;
+
+    bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane0_rx_elastic (
+        .clk(lane0_rx_clk),.rst(!bond_rst_n || !lane0_rx_rst_n),
+        .in_valid(lane0_raw_valid),.in_ready(lane0_raw_ready),.in_data(lane0_raw_data),
+        .out_valid(lane0_raw_valid),.out_ready(lane0_raw_ready),.out_data(lane0_raw_data),
+        .full(),.empty()
+    );
+    bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane1_rx_elastic (
+        .clk(lane1_rx_clk),.rst(!bond_rst_n || !lane1_rx_rst_n),
+        .in_valid(lane1_raw_valid),.in_ready(lane1_raw_ready),.in_data(lane1_raw_data),
+        .out_valid(lane1_raw_valid),.out_ready(lane1_raw_ready),.out_data(lane1_raw_data),
+        .full(),.empty()
+    );
     wire lane0_endpoint_rx_error,lane1_endpoint_rx_error;
 
     bonded_wire_rx_framer #(.MAX_FRAME_BODY(MAX_PACKET_BYTES+4)) lane0_framer (
