@@ -212,3 +212,9 @@ jobs:
             rtl/bonded_control_frame_tx.sv rtl/bonded_wire_rx_framer.sv \
             rtl/tb_bonded_wire_rx_framer.sv
           vvp /tmp/tb_wire_framer
+
+      - name: Compile and run generic 8b10b PHY byte adapter regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_phy_8b10b_adapter -o /tmp/tb_phy_8b10b \
+            rtl/bonded_phy_8b10b_adapter.sv rtl/tb_bonded_phy_8b10b_adapter.sv
+          vvp /tmp/tb_phy_8b10b
