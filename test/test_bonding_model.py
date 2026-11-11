@@ -116,6 +116,14 @@ class BondedReceiverTests(unittest.TestCase):
         with self.assertRaises(SessionDown):
             self.receiver.receive(0, self.packet(0))
 
+    def test_later_out_of_order_packet_does_not_extend_gap_timeout(self):
+        self.receiver.receive(1, self.packet(1))
+        self.receiver.tick(6)
+        self.receiver.receive(0, self.packet(2))
+        with self.assertRaises(SessionFault):
+            self.receiver.tick(4)
+        self.assertFalse(self.receiver.session_ready)
+
     def test_lane_loss_drops_session_and_clears_pending_packets(self):
         self.receiver.receive(1, self.packet(1))
         self.receiver.set_lane_up(0, False)
