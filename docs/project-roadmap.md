@@ -73,9 +73,9 @@ receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
 **Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
-[43116928108](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43116928108)
+[43117263747](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43117263747)
 completed successfully for commit
-`662e7faa74e23e7a47e62a94c990a47e29ec161c`. Both the Python reference-model
+`dc0e46f6ece177cd11c9df483a8758a7f7069970`. Both the Python reference-model
 and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
@@ -87,8 +87,8 @@ local RX1 receives remote TX0. Dynamic remote lane-ID discovery allows the
 HELLO/READY and DATA paths to operate with that cable arrangement. A separate
 regression verifies duplicate remote lane IDs are rejected and invalidates the
 session rather than silently treating the two physical paths as one lane. The node-level
-test also covers lane-down supervision, coordinated FIFO/bond reset and
-session re-arm; the per-lane bridge test covers stale continuation discard
+tests also cover one-sided lane loss, remote PING/PONG timeout, sticky-fault
+behavior, coordinated FIFO/bond reset and session re-arm; the per-lane bridge test covers stale continuation discard
 without resetting the physical channel FIFO.
 
 This is digital simulation evidence only. It does not model analogue SERDES
@@ -96,9 +96,7 @@ behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Test asymmetric one-sided lane loss followed by remote heartbeat-timeout
-   recovery; current tests cover symmetric lane loss and sticky-fault behavior.
-2. Add a fresh per-session epoch so stale complete frames cannot be accepted
+1. Add a fresh per-session epoch so stale complete frames cannot be accepted
    after a coordinated reset; the current bridge flush only discards stale
    continuation words until the next SOP.
 3. Implement the first board-specific SERDES wrapper, beginning with the
