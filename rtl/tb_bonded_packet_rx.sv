@@ -45,11 +45,9 @@ module tb_bonded_packet_rx;
             lane_data[lane*8 +: 8]=data;
             lane_packet_sequence[lane*32 +: 32]=seq;
             lane_sop[lane]=sop; lane_eop[lane]=eop;
-            while(!lane_ready[lane]) @(negedge clk);
-            @(posedge clk);
+            do @(posedge clk); while(!lane_ready[lane]);
             @(negedge clk);
             lane_valid[lane]=0; lane_sop[lane]=0; lane_eop[lane]=0;
-            $display("DEBUG lane=%0d seq=%0d data=%02x err=%b active=%b fill=%b valid=%b exp=%0d",lane,seq,data,packet_error,dut.lane_active,dut.slot_filling,dut.slot_valid,expected_packet_sequence);
         end
     endtask
     initial begin
