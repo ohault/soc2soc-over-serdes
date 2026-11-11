@@ -149,6 +149,16 @@ class BondedControlPlane:
         opcode = ControlOpcode(frame.body[0])
         fields = frame.body[1:]
 
+        # Once a physical connection has been mapped during HELLO, every
+        # subsequent control frame on it must retain that peer lane identity.
+        if opcode not in (ControlOpcode.HELLO, ControlOpcode.READY):
+            mapped_peer_lane = self.peer_lane_by_local[ingress_lane]
+            if mapped_peer_lane is None:
+                raise ControlPlaneError("control frame received before lane mapping")
+            if frame.lane_id != mapped_peer_lane:
+                self._fault("control frame arrived with unexpected peer lane identity")
+                raise ControlNegotiationError(self.fault_reason)
+
         if opcode == ControlOpcode.HELLO:
             self._receive_hello(ingress_lane, frame.lane_id, fields)
         elif opcode == ControlOpcode.READY:
@@ -190,11 +200,16 @@ class BondedControlPlane:
         ]:
             self._fault("duplicate peer lane mapping")
             raise ControlNegotiationError(self.fault_reason)
+        already_seen = self._hello_seen[local_lane]
         self.peer_lane_by_local[local_lane] = peer_lane
         self._hello_seen[local_lane] = True
         self.remote_max_payload = max_payload if self.remote_max_payload is None else min(self.remote_max_payload, max_payload)
         self.remote_credit_bytes = max(self.remote_credit_bytes, rx_bytes)
         self.remote_credit_packets = max(self.remote_credit_packets, rx_packets)
+        if already_seen:
+            # Duplicate HELLO is idempotent: refresh monotonic grants but do
+            # not enqueue an unbounded stream of duplicate READY responses.
+            return
         ready_fields = struct.pack(">QBH", self.config.peer_id, self.config.lane_count, self.config.profile_id)
         self._queue_control(local_lane, ControlOpcode.READY, ready_fields)
 
