@@ -33,7 +33,7 @@ module tb_bonded_wire_tx_lane;
     always @(posedge clk) begin
         if (!rst && out_valid && out_ready) begin
             if (got>=35 || out_data !== expected[got]) begin
-                $display("byte mismatch index=%0d got=%02x expected=%02x frame_crc=%08x header_crc=%04x",got,out_data,expected[got],dut.frame_crc,dut.header_crc);
+                $display("byte mismatch index=%0d got=%02x expected=%02x frame_crc=%08x header_crc=%04x state=%0d crc_index=%0d mux=%02x",got,out_data,expected[got],dut.frame_crc,dut.header_crc,dut.state,dut.crc_index,dut.byte_mux);
                 $fatal(1);
             end
             if (out_sop !== (got==0) || out_eop !== (got==34)) begin
