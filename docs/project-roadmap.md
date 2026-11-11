@@ -20,7 +20,8 @@ is an integration option, not a dependency of the bonding core.
 | RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
 | Autonomous two-lane node | Composed | No externally forced session-active signal |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
-| Board-specific transceiver adapters | Not started | Requires transceiver primitive, reference clock and line-rate decisions |
+| Generic 8b/10b symbol adapter | Implemented; regression added | 2/4 symbols per PHY word, K28.5 idles, byte FIFO and error reporting |
+| Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
 ## Current top-level RTL
@@ -76,9 +77,10 @@ it does not transmit SOP/EOP sidebands over the link.
    and session reset during a frame.
 3. Implement RTL lane-map discovery and deterministic session-ID election,
    then add automatic recovery after a lane fault.
-4. Decide the physical transceiver interface width and clocking strategy.
-   The current 8-bit byte datapath is a functional integration boundary, not
-   proof of 10-Gb/s-class throughput.
+4. Connect the generic 8b/10b symbol adapter to each board's decoded PHY
+   interface. The current one-byte-per-PHY-word mode is a bring-up mode, not
+   full transceiver bandwidth; a multi-byte-per-cycle core is still required
+   for full-rate 10-Gb/s-class operation.
 5. Implement the first board-specific SERDES adapter, then validate the same
    bonding core on the second FPGA board.
 6. Only after the generic transport is stable, add PCIe and USB protocol
