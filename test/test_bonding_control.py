@@ -87,7 +87,7 @@ class ControlPlaneTests(unittest.TestCase):
         exchange_hello_and_ready(a, b)
         a.enqueue_credit(100, 4, lane=0)
         a.enqueue_credit(120, 5, lane=0)
-        self.assertEqual(a.control_queue_depths[0], 0)  # replaceable credit slot
+        self.assertEqual(a.control_queue_depths[0], 1)  # one coalesced CREDIT slot
         frame = a.next_frame(0)
         self.assertEqual(frame.body[0], ControlOpcode.CREDIT)
         self.assertEqual(int.from_bytes(frame.body[1:9], "big"), 120)
