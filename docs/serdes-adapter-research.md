@@ -60,7 +60,10 @@ The SOM uses a Gowin GW5AST-LV138FPG676A. The documented device resources
 include eight high-speed transceivers rated up to 12.5 Gb/s. The dock provides
 two SFP+ cages. The board block diagram routes the two SFP+ cages to SERDES
 Quad Q1; Q0 is used for the PCIe x4 interface. Two MS5351 clock generators
-provide SERDES reference clocks.
+provide SERDES reference clocks. Sipeed's reference-clock instructions expose
+100 MHz, 125 MHz and 156.25 MHz differential output examples, and select which
+MS5351 to configure with the onboard debugger's UART command `pll_switch 0`
+or `pll_switch 1`.
 
 The Gowin Customized PHY IP documentation is particularly relevant:
 
@@ -78,7 +81,11 @@ The Gowin Customized PHY IP documentation is particularly relevant:
 
 The first adapter should use the Gowin IP as a PHY boundary only. It should
 export decoded data, recovered RX clock, TX user clock, byte/control
-indications, PLL/CDR lock and error status. The generic node must not depend
+indications, PLL/CDR lock and error status. The PHY guide describes a FIFO-style
+user interface: TX writes are qualified by a FIFO write enable/full flag, and
+RX data is read with an enable and a documented valid latency. The board
+wrapper must translate those semantics into the generic adapter's
+ready/valid interface; they are not direct ready/valid ports. The generic node must not depend
 on the Gowin IP's internal FIFO or channel-bonding controls.
 
 References:
