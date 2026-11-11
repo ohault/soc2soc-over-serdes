@@ -255,8 +255,11 @@ class EndToEndCreditTests(unittest.TestCase):
         sender.update_remote_credits(90, 10)   # One unchanged, one stale.
         self.assertEqual(sender.remote_credit_bytes, 100)
         self.assertEqual(sender.remote_credit_packets, 10)
-        with self.assertRaises(PacketRejected):
-            sender.update_remote_credits(99, 10)
+        # A delayed byte limit is stale, but the equal packet limit is valid;
+        # merge semantics retain the newer byte limit without faulting.
+        sender.update_remote_credits(99, 10)
+        self.assertEqual(sender.remote_credit_bytes, 100)
+        self.assertEqual(sender.remote_credit_packets, 10)
 
     def test_reordered_credit_updates_merge_each_counter_independently(self):
         sender = BondedSender(BondConfig(
