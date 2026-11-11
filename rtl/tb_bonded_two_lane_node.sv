@@ -90,10 +90,10 @@ module tb_bonded_two_lane_node;
    data_frames_lane1=data_frames_lane1+1;
  always @(posedge bond_b) if(brxv) begin
   case(got)
-   0: if(!brs || brd!==8'haa || bre || brseq!==0) $fatal(1,"B packet 0 byte 0");
-   1: if(brs || brd!==8'hbb || !bre || brseq!==0) $fatal(1,"B packet 0 byte 1");
-   2: if(!brs || brd!==8'hcc || bre || brseq!==1) $fatal(1,"B packet 1 byte 0");
-   3: if(brs || brd!==8'hdd || !bre || brseq!==1) $fatal(1,"B packet 1 byte 1");
+   0: if(!brs || brxd!==8'haa || bre || brseq!==0) $fatal(1,"B packet 0 byte 0");
+   1: if(brs || brxd!==8'hbb || !bre || brseq!==0) $fatal(1,"B packet 0 byte 1");
+   2: if(!brs || brxd!==8'hcc || bre || brseq!==1) $fatal(1,"B packet 1 byte 0");
+   3: if(brs || brxd!==8'hdd || !bre || brseq!==1) $fatal(1,"B packet 1 byte 1");
    default: $fatal(1,"unexpected extra B packet byte");
   endcase
   got=got+1;
