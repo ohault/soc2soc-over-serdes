@@ -32,7 +32,13 @@ module tb_bonded_credit_manager;
    av=1;ab=60;#1;if(!ar)$fatal(1,"returned byte/packet credit unavailable");tick;
    av=0;cv=1;cb=101;tick;cv=0;
    if(!err)$fatal(1,"over-consumption was not flagged");
-   $display("PASS: independent cumulative byte/packet credits, exact limits, returns and overrun detection");
+   // A newly admitted short packet may be consumed immediately on the
+   // following cycle while the admission pulse is still being accounted.
+   rst=1; tick; rst=0; av=1;ab=1;cv=1;cb=1;tick;
+   av=0;cv=0;
+   if(err || acc_b!=1 || used_b!=1 || acc_p!=1 || used_p!=1)
+       $fatal(1,"simultaneous admission/consumption accounting failed");
+   $display("PASS: independent cumulative byte/packet credits, exact limits, returns, overrun and simultaneous events");
    $finish;
  end
 endmodule
