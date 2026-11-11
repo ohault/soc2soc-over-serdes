@@ -53,7 +53,7 @@ words carry two bytes.
 
 The RX adapter removes control characters and emits data words with a keep
 mask and SOP indication. An idle comma word has no data bytes and is not
-reported as an SOP. The v0 header length and CRC determine the logical EOP; The wire parser still validates the v0 header CRC,
+reported as an SOP. The v0 header length and CRC determine the logical EOP. The wire parser still validates the v0 header CRC,
 length and frame CRC; the PHY comma does not replace protocol-level checks.
 
 ## TX/RX adapter requirements
