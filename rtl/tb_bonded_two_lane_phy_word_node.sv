@@ -35,22 +35,24 @@ module tb_bonded_two_lane_phy_word_node;
     wire [31:0] a0_rxd,a1_rxd,b0_rxd,b1_rxd;
     wire [3:0] a0_rxc,a1_rxc,b0_rxc,b1_rxc;
 
+    // Cross the two physical paths: local RX0 receives remote TX1 and vice
+    // versa. The RX side must discover the remote lane IDs from frame headers.
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab0(
         .wr_clk(a_tx0),.wr_rst_n(phy_rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
-        .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx0),.rd_rst_n(phy_rst_n),
-        .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
+        .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx1),.rd_rst_n(phy_rst_n),
+        .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab1(
         .wr_clk(a_tx1),.wr_rst_n(phy_rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
-        .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx1),.rd_rst_n(phy_rst_n),
-        .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
+        .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx0),.rd_rst_n(phy_rst_n),
+        .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba0(
         .wr_clk(b_tx0),.wr_rst_n(phy_rst_n),.wr_valid(b0_txv),.wr_ready(b0_txr),
-        .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx0),.rd_rst_n(phy_rst_n),
-        .rd_valid(a0_rxv),.rd_ready(a0_fifo_rx_ready),.rd_data({a0_rxc,a0_rxd}));
+        .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx1),.rd_rst_n(phy_rst_n),
+        .rd_valid(a1_rxv),.rd_ready(a1_rxr),.rd_data({a1_rxc,a1_rxd}));
     bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba1(
         .wr_clk(b_tx1),.wr_rst_n(phy_rst_n),.wr_valid(b1_txv),.wr_ready(b1_txr),
-        .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx1),.rd_rst_n(phy_rst_n),
-        .rd_valid(a1_rxv),.rd_ready(a1_rxr),.rd_data({a1_rxc,a1_rxd}));
+        .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx0),.rd_rst_n(phy_rst_n),
+        .rd_valid(a0_rxv),.rd_ready(a0_fifo_rx_ready),.rd_data({a0_rxc,a0_rxd}));
 
     reg app_valid=0,app_sop=0,app_eop=0;
     reg [31:0] app_data=0;
