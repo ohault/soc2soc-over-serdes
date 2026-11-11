@@ -95,6 +95,7 @@ module bonded_packet_rx #(
         end else begin
             if (selected_valid && lane_ready[selected_lane]) begin
                 arbiter <= (selected_lane == LANE_COUNT-1) ? 0 : selected_lane + 1'b1;
+                $display("DUTDBG lane=%0d sop=%b eop=%b seq=%0d expected=%0d active=%b slot=%0d valid=%b filling=%b",selected_lane,lane_sop[selected_lane],lane_eop[selected_lane],lane_packet_sequence[selected_lane*32 +: 32],expected_packet_sequence,lane_active[selected_lane],lane_packet_sequence[selected_lane*32 +: WINDOW_BITS],slot_valid[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]],slot_filling[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]]);
                 if (lane_drop[selected_lane]) begin
                     if (lane_eop[selected_lane]) lane_drop[selected_lane] <= 0;
                 end else if (lane_sop[selected_lane]) begin
