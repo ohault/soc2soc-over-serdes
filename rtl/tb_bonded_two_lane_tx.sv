@@ -107,9 +107,17 @@ module tb_bonded_two_lane_tx;
         end
         repeat(4) @(posedge bond_clk);
         if(got0!=6 || got1!=2 || packet_error || l0err || l1err || d0err || d1err ||
-           l0seq!=1 || l1seq!=1 || d0expected!=1 || d1expected!=1)
+           l0seq!=1 || l1seq!=1 || d0expected!=1 || d1expected!=1) begin
+            $display("lane1 detail: data_err=%b ctrl_err=%b arb_err=%b data_state=%0d data_valid=%b data_sop=%b data_keep=%h data_len=%0d data_seq=%h frame_seq=%h",
+                dut.encoder1.data_frame_error,dut.encoder1.control_frame_error,
+                dut.encoder1.arbiter_protocol_error,dut.encoder1.data_encoder.state,
+                dut.encoder1.data_valid,dut.encoder1.data_sop,dut.encoder1.data_keep,
+                dut.encoder1.data_packet_length,dut.encoder1.data_packet_sequence,
+                dut.encoder1.shared_frame_sequence);
+            $display("seq counters: tx0=%0d tx1=%0d rx0=%0d rx1=%0d",l0seq,l1seq,d0expected,d1expected);
             $fatal(1,"TX loopback failed got=%0d/%0d sched=%b wire=%b/%b rx=%b/%b",
                    got0,got1,packet_error,l0err,l1err,d0err,d1err);
+        end
         $display("PASS: multi-beat two-lane TX, CDC, wire CRC and downstream stalls");
         $finish;
     end
