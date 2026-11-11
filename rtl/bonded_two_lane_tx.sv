@@ -106,6 +106,7 @@ module bonded_two_lane_tx #(
 
     bonded_wire_tx_lane #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
         .clk(lane0_clk),.rst(!bond_rst_n || !lane0_rst_n),.session_id(session_id),
+        .frame_start_enable(1'b1),.frame_sequence_override(lane0_frame_sequence),
         .in_valid(fifo0_rd_valid),.in_ready(enc0_in_ready),
         .in_data(fifo0_out[DATA_WIDTH-1:0]),
         .in_keep(fifo0_out[DATA_WIDTH +: KEEP_WIDTH]),
@@ -119,6 +120,7 @@ module bonded_two_lane_tx #(
     );
     bonded_wire_tx_lane #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE1_ID)) encoder1 (
         .clk(lane1_clk),.rst(!bond_rst_n || !lane1_rst_n),.session_id(session_id),
+        .frame_start_enable(1'b1),.frame_sequence_override(lane1_frame_sequence),
         .in_valid(fifo1_rd_valid),.in_ready(enc1_in_ready),
         .in_data(fifo1_out[DATA_WIDTH-1:0]),
         .in_keep(fifo1_out[DATA_WIDTH +: KEEP_WIDTH]),
