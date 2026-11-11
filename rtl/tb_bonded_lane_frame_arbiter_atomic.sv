@@ -27,8 +27,8 @@ module tb_bonded_lane_frame_arbiter_atomic;
     default: $fatal(1,"extra byte");
    endcase
    seen=seen+1;
-   if(data_ready) begin data_index=data_index+1; data_byte=data_byte+1; if(data_index==3)data_valid=0; end
-   if(ctrl_ready) begin ctrl_index=ctrl_index+1; ctrl_byte=ctrl_byte+1; if(ctrl_index==2)ctrl_valid=0; end
+   if(data_ready) begin data_index<=data_index+1'b1; data_byte<=data_byte+1'b1; if(data_index==2)data_valid<=0; end
+   if(ctrl_ready) begin ctrl_index<=ctrl_index+1'b1; ctrl_byte<=ctrl_byte+1'b1; if(ctrl_index==1)ctrl_valid<=0; end
   end
  end
  initial begin
