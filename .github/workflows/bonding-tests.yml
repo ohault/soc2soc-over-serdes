@@ -190,7 +190,7 @@ jobs:
             rtl/bonded_wire_tx_lane.sv rtl/bonded_wire_rx_lane.sv \
             rtl/bonded_control_frame_tx.sv rtl/bonded_control_frame_rx.sv \
             rtl/bonded_control_queue.sv rtl/bonded_lane_frame_arbiter.sv rtl/bonded_lane_tx_mux.sv \
-            rtl/bonded_wire_rx_demux.sv rtl/bonded_wire_rx_framer.sv rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv \
+            rtl/bonded_wire_rx_demux.sv rtl/bonded_wire_rx_framer.sv rtl/bonded_sync_byte_fifo.sv rtl/bonded_two_lane_cdc.sv rtl/bonded_packet_rx.sv \
             rtl/bonded_session_gate.sv rtl/tb_bonded_two_lane_node.sv
           vvp /tmp/tb_two_lane_node
 
