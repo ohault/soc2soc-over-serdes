@@ -229,7 +229,7 @@ module bonded_wire_tx_lane #(
                     end
                     ST_PAYLOAD: begin
                         frame_crc<=crc32c_byte(frame_crc,byte_mux);
-                        if(payload_byte_index+1'b1 >= payload_keep) begin
+                        if(payload_byte_index+1'b1 >= keep_count(payload_keep)) begin
                             payload_loaded<=1'b0;
                             payload_byte_index<=0;
                             if(payload_eop) begin
