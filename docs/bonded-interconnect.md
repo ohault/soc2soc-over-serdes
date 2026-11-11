@@ -161,12 +161,13 @@ Packet-level striping will not guarantee that two lanes are perfectly utilised f
 
 ### 5.4 Flow control and buffering
 
-- The logical interface applies backpressure when aggregate TX or RX capacity is exhausted.
-- Per-lane TX backpressure must be respected; never assume a lane can accept a word just because it is up.
+- The logical interface applies backpressure when aggregate TX capacity is exhausted.
+- Each lane has an independent, finite TX queue. A full lane is skipped by the packet scheduler while other lanes remain eligible.
+- If every lane queue is full, the logical sender does not accept the packet; the caller must retain it and retry. A rejected enqueue must not consume a sequence number.
+- The adapter-facing dequeue operation represents acceptance by that lane adapter, not wire transmission or remote acknowledgement.
 - Reassembly/reorder buffers have explicit finite capacities and high-water marks.
-- The first implementation may use a conservative global pause/backpressure policy rather than per-lane credits.
-- If the underlying lane service supports pause, the adapter may use it to prevent its RX FIFO from overflowing. The bonding core must still account for data already in flight after a pause request.
-- Define and test the maximum number of words/packets that can be in flight when backpressure takes effect.
+- This reference-model step covers local per-lane TX queue capacity and aggregate sender backpressure. It does **not yet** model remote receiver capacity, a wire-level credit protocol, or the number of packets already in flight after a remote pause.
+- Those remote-flow-control semantics must be specified before RTL. The model must eventually distinguish local queue space, lane-adapter acceptance, physical transmission, and remote receive-buffer availability.
 
 The current `SerDesLinkPHY` has a per-lane pause mechanism and an RX buffer. This can help the first adapter, but it is not a substitute for aggregate buffering and ordering.
 
