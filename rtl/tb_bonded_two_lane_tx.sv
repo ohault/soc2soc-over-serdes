@@ -26,7 +26,7 @@ module tb_bonded_two_lane_tx;
 
     bonded_two_lane_tx #(.DATA_WIDTH(32),.FIFO_DEPTH(16),.MAX_PACKET_BYTES(64),
                          .LANE0_ID(0),.LANE1_ID(1)) dut (
-        .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),.session_id(session_id),
+        .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),.control_rst_n(bond_rst_n),.session_id(session_id),
         .remote_byte_limit(64'd16384),.remote_packet_limit(32'd64),
         .ctrl_valid(1'b0),.ctrl_ready(),.ctrl_body(208'd0),.ctrl_body_length(6'd0),
         .tx_valid(tx_valid),.tx_ready(tx_ready),.tx_data(tx_data),.tx_keep(tx_keep),
