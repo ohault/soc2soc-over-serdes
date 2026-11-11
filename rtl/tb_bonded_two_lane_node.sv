@@ -125,7 +125,10 @@ module tb_bonded_two_lane_node;
   // A byte loss reported by the PHY adapter is treated as lane-down and
   // invalidates the active session rather than allowing corrupted framing.
   @(negedge bond_a);a0_overflow=1;
-  repeat(3) @(posedge bond_a);
+  // The overflow crosses two synchronizer stages before the control manager
+  // observes lane-down; sample after the following active clock edge.
+  repeat(4) @(posedge bond_a);
+  @(negedge bond_a); #1;
   if(active_a || !fault_a)
    $fatal(1,"PHY RX overrun did not invalidate the bonded session");
   wait(node_a.lane0_session_drop_pulse);
