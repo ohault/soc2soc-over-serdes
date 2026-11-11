@@ -64,7 +64,7 @@ class WireCodecTests(unittest.TestCase):
         with self.assertRaises(WireError):
             decode_frame(bytes(frame))
         frame = bytearray(encode_frame(Frame(FrameType.DATA, 0, 1, 0, encode_data_body(0, b"x"))))
-        frame[25] ^= 1
+        frame[28] ^= 1
         with self.assertRaises(WireError):
             decode_frame(bytes(frame))
 
