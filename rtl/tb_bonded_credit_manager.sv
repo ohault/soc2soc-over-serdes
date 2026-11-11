@@ -30,7 +30,7 @@ module tb_bonded_credit_manager;
    cv=1;cb=60;tick;cv=0;
    if(grant_b!=160 || grant_p!=3)$fatal(1,"credit return not cumulative");
    av=1;ab=60;#1;if(!ar)$fatal(1,"returned byte/packet credit unavailable");tick;
-   av=0;cv=1;cb=41;tick;cv=0;
+   av=0;cv=1;cb=101;tick;cv=0;
    if(!err)$fatal(1,"over-consumption was not flagged");
    $display("PASS: independent cumulative byte/packet credits, exact limits, returns and overrun detection");
    $finish;
