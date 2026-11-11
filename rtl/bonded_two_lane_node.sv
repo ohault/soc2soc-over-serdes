@@ -61,8 +61,20 @@ module bonded_two_lane_node #(
         if(MAX_PAYLOAD!=MAX_PACKET_BYTES) $error("v0 peer payload limit must match MAX_PACKET_BYTES");
     end
 
-    wire [1:0] lane_up={lane1_up && !lane1_rx_overflow,
-                       lane0_up && !lane0_rx_overflow};
+    (* async_reg = "true" *) reg [1:0] lane_up_sync1,lane_up_sync2;
+    (* async_reg = "true" *) reg [1:0] lane_overflow_sync1,lane_overflow_sync2;
+    always @(posedge bond_clk or negedge bond_rst_n) begin
+        if(!bond_rst_n) begin
+            lane_up_sync1<=0;lane_up_sync2<=0;
+            lane_overflow_sync1<=0;lane_overflow_sync2<=0;
+        end else begin
+            lane_up_sync1<={lane1_up,lane0_up};
+            lane_up_sync2<=lane_up_sync1;
+            lane_overflow_sync1<={lane1_rx_overflow,lane0_rx_overflow};
+            lane_overflow_sync2<=lane_overflow_sync1;
+        end
+    end
+    wire [1:0] lane_up=lane_up_sync2 & ~lane_overflow_sync2;
     wire ctrl_tx_valid,ctrl_tx_ready,ctrl_rx_valid,ctrl_rx_ready,ctrl_rx_lane;
     wire [207:0] ctrl_tx_body,ctrl_rx_body;
     wire [5:0] ctrl_tx_length,ctrl_rx_length;
