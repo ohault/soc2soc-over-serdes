@@ -29,7 +29,7 @@ module tb_bonded_control_frame_tx;
    body[135:104]=32'h00000020;
    body_len=13;
    @(negedge clk);ctrl_valid=1;
-   do @(posedge clk); while(!ctrl_ready);
+   @(posedge clk);
    @(negedge clk);ctrl_valid=0;
    count=0;
    while(count<41) begin
@@ -51,8 +51,6 @@ module tb_bonded_control_frame_tx;
    if(captured[8]!=8'h01 || captured[15]!=8'hef ||
       captured[16]!=0 || captured[19]!=0)
       $fatal(1,"session/frame sequence mismatch");
-   if(captured[20]!=0 || captured[21]!=13 ||
-      captured[22]!=8'h??) begin end
    c16=16'hffff;
    for(i=0;i<22;i=i+1)c16=crc16_byte(c16,captured[i]);
    if(captured[22]!=(c16>>8) || captured[23]!=(c16&8'hff))
