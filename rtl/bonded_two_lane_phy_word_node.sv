@@ -71,6 +71,7 @@ module bonded_two_lane_phy_word_node #(
     wire lane1_byte_rx_valid,lane1_byte_rx_ready;
     wire [7:0] lane1_byte_rx_data;
     wire lane0_rx_overflow,lane1_rx_overflow;
+    wire lane0_rx_fault,lane1_rx_fault;
     wire lane0_rx_symbol_error,lane1_rx_symbol_error;
     wire lane0_rx_gearbox_error,lane1_rx_gearbox_error;
 
@@ -96,10 +97,10 @@ module bonded_two_lane_phy_word_node #(
         .lane1_tx_eop(lane1_byte_tx_eop),
         .lane0_rx_clk(lane0_rx_clk),.lane0_rx_rst_n(lane0_rx_rst_n),
         .lane0_rx_valid(lane0_byte_rx_valid),.lane0_rx_ready(lane0_byte_rx_ready),
-        .lane0_rx_data(lane0_byte_rx_data),.lane0_rx_overflow(lane0_rx_overflow),
+        .lane0_rx_data(lane0_byte_rx_data),.lane0_rx_overflow(lane0_rx_fault),
         .lane1_rx_clk(lane1_rx_clk),.lane1_rx_rst_n(lane1_rx_rst_n),
         .lane1_rx_valid(lane1_byte_rx_valid),.lane1_rx_ready(lane1_byte_rx_ready),
-        .lane1_rx_data(lane1_byte_rx_data),.lane1_rx_overflow(lane1_rx_overflow),
+        .lane1_rx_data(lane1_byte_rx_data),.lane1_rx_overflow(lane1_rx_fault),
         .tx_valid(tx_valid),.tx_ready(tx_ready),.tx_data(tx_data),.tx_keep(tx_keep),
         .tx_sop(tx_sop),.tx_eop(tx_eop),
         .rx_valid(rx_valid),.rx_ready(rx_ready),.rx_data(rx_data),
@@ -156,6 +157,8 @@ module bonded_two_lane_phy_word_node #(
         .rx_gearbox_error(lane1_rx_gearbox_error)
     );
 
-    assign lane0_phy_rx_error=lane0_rx_overflow | lane0_rx_symbol_error | lane0_rx_gearbox_error;
-    assign lane1_phy_rx_error=lane1_rx_overflow | lane1_rx_symbol_error | lane1_rx_gearbox_error;
+    assign lane0_rx_fault=lane0_rx_overflow | lane0_rx_symbol_error | lane0_rx_gearbox_error;
+    assign lane1_rx_fault=lane1_rx_overflow | lane1_rx_symbol_error | lane1_rx_gearbox_error;
+    assign lane0_phy_rx_error=lane0_rx_fault;
+    assign lane1_phy_rx_error=lane1_rx_fault;
 endmodule
