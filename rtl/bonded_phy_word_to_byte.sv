@@ -24,6 +24,7 @@ module bonded_phy_word_to_byte #(
     reg held_sop;
     reg [COUNT_WIDTH-1:0] byte_index;
     reg [COUNT_WIDTH-1:0] byte_count;
+    reg [COUNT_WIDTH-1:0] held_count;
     integer i;
     reg keep_bad;
 
@@ -39,7 +40,6 @@ module bonded_phy_word_to_byte #(
     assign byte_sop=byte_valid && held_sop && (byte_index==0);
     wire byte_pop=byte_valid && byte_ready;
     wire last_byte=(byte_index+1'b1>=held_count);
-    reg [COUNT_WIDTH-1:0] held_count;
     assign word_ready=!rst && (!holding || (byte_pop && last_byte));
 
     always @(posedge clk) begin
