@@ -70,3 +70,9 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_two_lane_cdc -o /tmp/tb_two_lane_cdc \
             rtl/bonded_async_fifo.sv rtl/bonded_two_lane_cdc.sv rtl/tb_bonded_two_lane_cdc.sv
           vvp /tmp/tb_two_lane_cdc
+
+      - name: Compile and run packet-level round-robin TX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_packet_tx -o /tmp/tb_packet_tx \
+            rtl/bonded_packet_tx.sv rtl/tb_bonded_packet_tx.sv
+          vvp /tmp/tb_packet_tx
