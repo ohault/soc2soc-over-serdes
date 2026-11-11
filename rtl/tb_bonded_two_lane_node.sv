@@ -15,6 +15,7 @@ module tb_bonded_two_lane_node;
  always #8.2 b_rx0=~b_rx0;
  always #12.4 b_rx1=~b_rx1;
  reg rst_n=0;
+ reg a0_overflow=0;
  wire a0txv,a0txs,a0txe,a1txv,a1txs,a1txe,b0txv,b0txs,b0txe,b1txv,b1txs,b1txe;
  wire [7:0] a0txd,a1txd,b0txd,b1txd;
  wire a0txr,a1txr,b0txr,b1txr;
@@ -58,7 +59,7 @@ module tb_bonded_two_lane_node;
   .bond_clk(bond_a),.bond_rst_n(rst_n),.lane0_up(1'b1),.lane1_up(1'b1),
   .lane0_tx_clk(a_tx0),.lane0_tx_rst_n(rst_n),.lane0_tx_valid(a0txv),.lane0_tx_ready(a0txr),.lane0_tx_data(a0txd),
   .lane1_tx_clk(a_tx1),.lane1_tx_rst_n(rst_n),.lane1_tx_valid(a1txv),.lane1_tx_ready(a1txr),.lane1_tx_data(a1txd),
-  .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a0rxv),.lane0_rx_ready(a0rxr),.lane0_rx_data(a0rxd),.lane0_rx_overflow(1'b0),
+  .lane0_rx_clk(a_rx0),.lane0_rx_rst_n(rst_n),.lane0_rx_valid(a0rxv),.lane0_rx_ready(a0rxr),.lane0_rx_data(a0rxd),.lane0_rx_overflow(a0_overflow),
   .lane1_rx_clk(a_rx1),.lane1_rx_rst_n(rst_n),.lane1_rx_valid(a1rxv),.lane1_rx_ready(a1rxr),.lane1_rx_data(a1rxd),.lane1_rx_overflow(1'b0),
   .tx_valid(atxv),.tx_ready(atxr),.tx_data(atxd),.tx_keep(atk),.tx_sop(ats),.tx_eop(ate),
   .rx_valid(arxv),.rx_ready(1'b1),.rx_data(arxd),.rx_sop(ars),.rx_eop(are),.rx_packet_sequence(arseq),
@@ -100,7 +101,13 @@ module tb_bonded_two_lane_node;
   if(got!=2 || fault_a || fault_b || credit_a || credit_b || txerr_a || rxerr_b ||
      a0te || a1te || b0re || b1re)
    $fatal(1,"autonomous bonded DATA failed got=%0d",got);
-  $display("PASS: autonomous two-node HELLO/READY, two-lane control, credits and DATA delivery");
+  // A byte loss reported by the PHY adapter is treated as lane-down and
+  // invalidates the active session rather than allowing corrupted framing.
+  @(negedge bond_a);a0_overflow=1;
+  repeat(3) @(posedge bond_a);
+  if(active_a || !fault_a)
+   $fatal(1,"PHY RX overrun did not invalidate the bonded session");
+  $display("PASS: autonomous two-node HELLO/READY, independent clocks, DATA and PHY-overrun fault");
   $finish;
  end
  initial begin #500000;$fatal(1,"timeout active=%b/%b fault=%b/%b",active_a,active_b,fault_a,fault_b);end
