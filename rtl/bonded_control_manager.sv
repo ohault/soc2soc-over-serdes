@@ -187,8 +187,9 @@ module bonded_control_manager #(
                             fault<=1;session_established<=0;
                         end else begin
                             ready_seen<=ready_seen | rx_lane_mask;
-                            if((ready_seen | rx_lane_mask)==2'b11 && ready_sent &&
-                               hello_sent && (hello_seen | rx_lane_mask)==2'b11)
+                            if((ready_seen | rx_lane_mask)==2'b11 &&
+                               (ready_sent || (tx_handshake && ctrl_tx_body[207:200]==8'h02)) &&
+                               hello_sent && hello_seen==2'b11)
                                 session_established<=1;
                         end
                     end
