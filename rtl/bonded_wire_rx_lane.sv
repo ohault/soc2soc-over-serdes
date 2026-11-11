@@ -77,7 +77,16 @@ module bonded_wire_rx_lane #(
                         active_session<=expected_session_id;
                     end
                 end else begin
-                    if(in_sop || rx_count>=MAX_FRAME) begin
+                    if(in_sop) begin
+                        // A fresh SOP is an explicit resynchronization point:
+                        // discard the truncated frame and start collecting anew.
+                        frame_error<=1; state<=ST_COLLECT; rx_count<=1;
+                        frame_mem[0]<=in_data;
+                        tail0<=in_data; tail1<=0; tail2<=0; tail3<=0;
+                        header_crc<=crc16_byte(16'hffff,in_data);
+                        frame_crc<=32'hffffffff;
+                        active_session<=expected_session_id;
+                    end else if(rx_count>=MAX_FRAME) begin
                         frame_error<=1; state<=ST_IDLE; rx_count<=0;
                     end else begin
                         frame_mem[rx_count]<=in_data;
