@@ -44,3 +44,12 @@ jobs:
           iverilog -g2012 -Wall -s tb_bonded_frame_rx -o /tmp/tb_frame_rx \
             rtl/bonded_frame_rx.sv rtl/tb_bonded_frame_rx.sv
           vvp /tmp/tb_frame_rx
+
+      - name: Compile and run configurable-width stream testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_stream_width -o /tmp/tb_stream_width \
+            rtl/bonded_stream_tx.sv rtl/tb_bonded_stream_width.sv
+          vvp /tmp/tb_stream_width
+      - name: Compile configurable-width RX module
+        run: |
+          iverilog -g2012 -Wall -tnull rtl/bonded_stream_rx.sv
