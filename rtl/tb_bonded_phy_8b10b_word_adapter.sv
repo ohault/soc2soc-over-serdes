@@ -63,7 +63,7 @@ module tb_bonded_phy_8b10b_word_adapter;
   if(txpd4!==32'h88776655 || txpc4!==4'b0000)
    $fatal(1,"four-symbol continuation packing incorrect");
   txk4=4'b0011;txd4=32'h0000bbaa;#1;
-  if(txpd4!==32'h1c1c bbaa || txpc4!==4'b1100)
+  if(txpd4!==32'h1c1cbbaa || txpc4!==4'b1100)
    $fatal(1,"four-symbol partial word packing incorrect");
 
   // PHY FIFO backpressure must hold the input word until it can be accepted.
