@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Board/SoC-agnostic adapter between a byte stream and a decoded 8b/10b
-// PHY word containing two or four symbols. One data byte is carried in
-// symbol 0 is a K28.5 alignment comma; symbol 1 carries data or K28.0
-// empty; remaining symbols are zero-valued data fillers. This is a bring-up adapter,
-// not a full-rate multi-byte datapath.
+// PHY word containing two or four symbols. Symbol 0 is a K28.5 alignment
+// comma; symbol 1 carries data or K28.0 empty; remaining symbols are zero-
+// valued data fillers. This is a bring-up adapter, not a full-rate datapath.
 module bonded_phy_8b10b_adapter #(
     parameter integer SYMBOLS_PER_WORD=2,
     parameter integer RX_FIFO_DEPTH=64,
