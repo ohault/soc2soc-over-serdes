@@ -10,7 +10,8 @@ module bonded_two_lane_endpoint #(
     parameter integer REORDER_WINDOW = 4,
     parameter integer MAX_PACKET_BYTES = 4096,
     parameter integer LANE0_ID = 0,
-    parameter integer LANE1_ID = 1
+    parameter integer LANE1_ID = 1,
+    parameter integer DYNAMIC_LANE_MAP = 0
 ) (
     input wire bond_clk,
     input wire bond_rst_n,
@@ -94,7 +95,8 @@ module bonded_two_lane_endpoint #(
     bonded_two_lane_tx #(
         .DATA_WIDTH(DATA_WIDTH), .KEEP_WIDTH(KEEP_WIDTH),
         .FIFO_DEPTH(TX_FIFO_DEPTH), .MAX_PACKET_BYTES(MAX_PACKET_BYTES),
-        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
+        .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID),
+        .DYNAMIC_LANE_MAP(DYNAMIC_LANE_MAP)
     ) tx_path (
         .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n), .control_rst_n(bond_rst_n),
         .session_id(tx_session_id),
