@@ -13,7 +13,7 @@ module tb_bonded_phy_8b10b_word_adapter;
 
  bonded_phy_8b10b_word_adapter #(.SYMBOLS_PER_WORD(4),.RX_FIFO_DEPTH(2),
   .RX_PHY_STALLABLE(1)) dut4(
-  .clk(clk),.rst(rst),
+  .tx_clk(clk),.tx_rst(rst),.rx_clk(clk),.rx_rst(rst),
   .tx_valid(txv4),.tx_ready(txr4),.tx_data(txd4),.tx_keep(txk4),.tx_sop(txsop4),
   .tx_phy_valid(txpv4),.tx_phy_ready(txpr4),.tx_phy_data(txpd4),.tx_phy_ctrl(txpc4),.tx_error(txerr4),
   .rx_phy_valid(rxpv4),.rx_phy_ready(rxpr4),.rx_phy_data(rxpd4),.rx_phy_ctrl(rxpc4),
@@ -29,7 +29,7 @@ module tb_bonded_phy_8b10b_word_adapter;
 
  bonded_phy_8b10b_word_adapter #(.SYMBOLS_PER_WORD(2),.RX_FIFO_DEPTH(2),
   .RX_PHY_STALLABLE(0)) dut2(
-  .clk(clk),.rst(rst),
+  .tx_clk(clk),.tx_rst(rst),.rx_clk(clk),.rx_rst(rst),
   .tx_valid(txv2),.tx_ready(txr2),.tx_data(txd2),.tx_keep(txk2),.tx_sop(txsop2),
   .tx_phy_valid(txpv2),.tx_phy_ready(txpr2),.tx_phy_data(txpd2),.tx_phy_ctrl(txpc2),.tx_error(txerr2),
   .rx_phy_valid(rxpv2),.rx_phy_ready(rxpr2),.rx_phy_data(rxpd2),.rx_phy_ctrl(rxpc2),
