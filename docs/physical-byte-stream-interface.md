@@ -34,7 +34,9 @@ standard ready/valid semantics. A continuous serial receiver cannot pause
 the cable, so the board adapter must buffer recovered bytes until the node
 accepts them. If the adapter's own receive buffer overruns or a byte is lost,
 it must assert the corresponding `laneN_rx_overflow` input; the autonomous
-node propagates this through the lane RX frame error output. It must never
+node propagates this through the lane RX frame error output and synchronizes
+the overrun into the bonding clock domain as a lane-down event, invalidating
+the current session. It must never
 silently discard a byte and continue. The `bonded_wire_rx_framer` then:
 
 1. Searches the raw byte stream for the v0 magic/version/type prefix.
@@ -56,7 +58,8 @@ parts, while preserving the byte-stream contract:
 - A stable 8-bit byte order and no silent byte loss or duplication.
 - TX serialization and any required line coding.
 - A reliable `lane_up` indication based on PLL/CDR lock, byte alignment and
-  the chosen physical error policy.
+  the chosen physical error policy. The node synchronizes this status into
+  its bonding clock domain.
 - Error/overflow handling: a PHY error, adapter RX-buffer overflow
   (`laneN_rx_overflow`) or byte-alignment loss must drop the lane/session or reset the framer so the
   receiver does not continue parsing a corrupted byte count.
