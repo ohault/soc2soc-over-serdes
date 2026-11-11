@@ -14,7 +14,7 @@ module tb_bonded_wire_rx_lane;
     wire [31:0] out_packet_sequence,out_frame_sequence,expected_frame_sequence;
     wire frame_error,frame_valid_pulse;
     bonded_wire_rx_lane #(.LANE_ID(1),.MAX_PAYLOAD(4096)) dut (
-        .clk(clk),.rst(rst),.expected_session_id(expected_session_id),
+        .clk(clk),.rst(rst),.expected_session_id(expected_session_id),.expected_frame_sequence_override(32'd0),
         .in_valid(in_valid),.in_ready(in_ready),.in_data(in_data),
         .in_sop(in_sop),.in_eop(in_eop),
         .out_valid(out_valid),.out_ready(out_ready),.out_data(out_data),
