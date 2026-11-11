@@ -84,7 +84,7 @@ module bonded_wire_rx_lane #(
                         if(rx_count<22)
                             header_crc<=crc16_byte(header_crc,in_data);
                         if(rx_count>=4)
-                            frame_crc<=crc32c_byte(frame_crc,tail0);
+                            frame_crc<=crc32c_byte(frame_crc,tail3);
                         tail0<=tail1; tail1<=tail2; tail2<=tail3; tail3<=in_data;
                         rx_count<=rx_count+1'b1;
                         if(in_eop) state<=ST_CHECK;
@@ -104,7 +104,7 @@ module bonded_wire_rx_lane #(
                    {frame_mem[20],frame_mem[21]}<4 ||
                    {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
                    rx_count!=(24+{frame_mem[20],frame_mem[21]}+4) ||
-                   {tail0,tail1,tail2,tail3}!=~frame_crc ||
+                   {tail3,tail2,tail1,tail0}!=~frame_crc ||
                    expected_frame_sequence==32'hffffffff) begin
                     frame_error<=1; state<=ST_IDLE; rx_count<=0;
                 end else begin
