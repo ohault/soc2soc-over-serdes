@@ -1,6 +1,6 @@
 # Bonded SerDes transport — v0 wire protocol
 
-Status: proposed implementation contract for review. This document specifies protocol semantics and a candidate byte-level encoding; it does not claim that a wire codec or RTL exists yet.
+Status: v0 protocol proposal with a pure-Python reference frame codec. The codec implements the byte envelope and structural validation; it is not RTL, does not implement session negotiation or control scheduling, and is not yet frozen as a hardware interoperability standard.
 
 ## 1. Scope and invariants
 
