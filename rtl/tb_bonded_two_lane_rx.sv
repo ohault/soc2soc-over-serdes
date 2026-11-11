@@ -25,14 +25,14 @@ module tb_bonded_two_lane_rx;
     wire [31:0] local_packet_limit;
 
     bonded_two_lane_rx #(.FIFO_DEPTH(64),.REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) dut(
-        .bond_rst_n(bond_rst_n),.control_rst_n(bond_rst_n),.expected_session_id(expected_session_id),
+        .bond_rst_n(bond_rst_n),.control_rst_n(bond_rst_n),.expected_session_id(expected_session_id),.session_rx_reset_toggle(1'b0),
         .lane0_clk(lane0_clk),.lane0_rst_n(lane0_rst_n),
         .lane0_valid(lane0_valid),.lane0_ready(lane0_ready),.lane0_data(lane0_data),
         .lane0_sop(lane0_sop),.lane0_eop(lane0_eop),
         .lane1_clk(lane1_clk),.lane1_rst_n(lane1_rst_n),
         .lane1_valid(lane1_valid),.lane1_ready(lane1_ready),.lane1_data(lane1_data),
         .lane1_sop(lane1_sop),.lane1_eop(lane1_eop),
-        .bond_clk(bond_clk),.ctrl_rx_valid(),.ctrl_rx_ready(1'b1),.ctrl_rx_body(),.ctrl_rx_body_length(),.ctrl_rx_lane(),.local_byte_limit(local_byte_limit),
+        .bond_clk(bond_clk),.ctrl_rx_valid(),.ctrl_rx_ready(1'b1),.ctrl_rx_body(),.ctrl_rx_body_length(),.ctrl_rx_session_id(),.ctrl_rx_lane(),.local_byte_limit(local_byte_limit),
         .local_packet_limit(local_packet_limit),.credit_error(credit_error),
         .out_valid(out_valid),.out_ready(out_ready),
         .out_data(out_data),.out_sop(out_sop),.out_eop(out_eop),
