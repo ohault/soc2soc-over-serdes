@@ -251,7 +251,8 @@ class EndToEndCreditTests(unittest.TestCase):
         bring_up(sender, 1)
         sender.update_remote_credits(100, 10)
         sender.update_remote_credits(100, 10)  # Duplicate update.
-        sender.update_remote_credits(80, 9)    # Stale update.
+        sender.update_remote_credits(80, 9)    # Both counters stale.
+        sender.update_remote_credits(90, 10)   # One unchanged, one stale.
         self.assertEqual(sender.remote_credit_bytes, 100)
         self.assertEqual(sender.remote_credit_packets, 10)
         with self.assertRaises(PacketRejected):
