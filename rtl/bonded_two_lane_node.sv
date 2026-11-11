@@ -75,19 +75,20 @@ module bonded_two_lane_node #(
     wire [7:0] lane0_framed_data,lane1_framed_data;
     wire lane0_framer_error,lane1_framer_error;
     wire lane0_raw_valid,lane0_raw_ready,lane1_raw_valid,lane1_raw_ready;
+    wire lane0_elastic_overflow,lane1_elastic_overflow;
     wire [7:0] lane0_raw_data,lane1_raw_data;
 
     bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane0_rx_elastic (
         .clk(lane0_rx_clk),.rst(!bond_rst_n || !lane0_rx_rst_n),
         .in_valid(lane0_rx_valid),.in_ready(lane0_rx_ready),.in_data(lane0_rx_data),
         .out_valid(lane0_raw_valid),.out_ready(lane0_raw_ready),.out_data(lane0_raw_data),
-        .full(),.empty()
+        .full(),.empty(),.overflow(lane0_elastic_overflow)
     );
     bonded_sync_byte_fifo #(.DEPTH(RX_ELASTIC_DEPTH)) lane1_rx_elastic (
         .clk(lane1_rx_clk),.rst(!bond_rst_n || !lane1_rx_rst_n),
         .in_valid(lane1_rx_valid),.in_ready(lane1_rx_ready),.in_data(lane1_rx_data),
         .out_valid(lane1_raw_valid),.out_ready(lane1_raw_ready),.out_data(lane1_raw_data),
-        .full(),.empty()
+        .full(),.empty(),.overflow(lane1_elastic_overflow)
     );
     wire lane0_endpoint_rx_error,lane1_endpoint_rx_error;
 
@@ -160,6 +161,6 @@ module bonded_two_lane_node #(
         .rx_packet_error(rx_packet_error),
         .lane0_tx_frame_sequence(lane0_tx_seq),.lane1_tx_frame_sequence(lane1_tx_seq)
     );
-    assign lane0_rx_frame_error = lane0_framer_error | lane0_endpoint_rx_error;
-    assign lane1_rx_frame_error = lane1_framer_error | lane1_endpoint_rx_error;
+    assign lane0_rx_frame_error = lane0_elastic_overflow | lane0_framer_error | lane0_endpoint_rx_error;
+    assign lane1_rx_frame_error = lane1_elastic_overflow | lane1_framer_error | lane1_endpoint_rx_error;
 endmodule
