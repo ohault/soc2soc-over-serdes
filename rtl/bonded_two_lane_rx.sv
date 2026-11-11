@@ -38,7 +38,7 @@ module bonded_two_lane_rx #(
 );
     localparam integer CDC_WIDTH = 42;
     initial begin
-        if(LANE0_ID==LANE1_ID)
+        if(!DYNAMIC_LANE_MAP && LANE0_ID==LANE1_ID)
             $error("LANE0_ID and LANE1_ID must be distinct");
     end
     wire data0_valid,data0_ready,data0_sop,data0_eop;
