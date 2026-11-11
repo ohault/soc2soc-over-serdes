@@ -58,9 +58,12 @@ module tb_bonded_control_frame_tx;
    c32=32'hffffffff;
    for(i=0;i<37;i=i+1)c32=crc32_byte(c32,captured[i]);
    c32=~c32;
-   if(captured[37]!=(c32>>24) || captured[38]!=(c32>>16) ||
-      captured[39]!=(c32>>8) || captured[40]!=c32)
+   if(captured[37]!=((c32>>24)&8'hff) || captured[38]!=((c32>>16)&8'hff) ||
+      captured[39]!=((c32>>8)&8'hff) || captured[40]!=(c32&8'hff))
       $fatal(1,"frame CRC32C mismatch");
+   if(captured[24]!=8'h03 || captured[25]!=0 || captured[32]!=8'h10 ||
+      captured[33]!=0 || captured[34]!=0 || captured[35]!=0 || captured[36]!=8'h20)
+      $fatal(1,"CREDIT body byte order/fields mismatch");
    if(next_seq!=1 || frame_error)$fatal(1,"sequence/error status mismatch");
    // Invalid opcode is accepted as an input transaction but never emitted.
    @(negedge clk); body=0;body[207:200]=8'hff;body_len=1;ctrl_valid=1;
