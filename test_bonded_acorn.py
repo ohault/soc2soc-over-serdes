@@ -26,15 +26,20 @@ PACKET_BYTES = 64
 
 def open_buses(args):
     buses = {}
-    for board in args.boards:
-        csr_csv = args.csr_csv_b if board == "B" and args.csr_csv_b else args.csr_csv
-        bus = RemoteClient(
-            host=args.host,
-            port=args.port_a if board == "A" else args.port_b,
-            csr_csv=csr_csv,
-        )
-        bus.open()
-        buses[board] = bus
+    try:
+        for board in args.boards:
+            csr_csv = args.csr_csv_b if board == "B" and args.csr_csv_b else args.csr_csv
+            bus = RemoteClient(
+                host=args.host,
+                port=args.port_a if board == "A" else args.port_b,
+                csr_csv=csr_csv,
+            )
+            bus.open()
+            buses[board] = bus
+    except Exception:
+        for bus in buses.values():
+            bus.close()
+        raise
     return buses
 
 
@@ -143,8 +148,8 @@ def main():
         if abs(a_tx - b_rx) > 1 or abs(b_tx - a_rx) > 1:
             print("FAIL: peer TX/RX packet deltas do not match.")
             return 1
-        if any(snap["status"] & ERROR_MASK for snap in after.values()):
-            print("FAIL: tester or PHY error latched during the measurement.")
+        if any(not healthy(snap) for snap in after.values()):
+            print("FAIL: a peer lost its bonded session or reported a tester/PHY error.")
             return 1
         print("PASS: both peers exchanged and checked matching packet counts.")
         return 0
