@@ -172,8 +172,9 @@ The future `soc2soc/bonded_tang.py` wrapper should:
 
 - Confirm the MS5351 output connected to SERDES Q1_REFCLK0/1 from the board
   schematic and choose the actual frequency.
-- Generate the Gowin IP with 20-bit internal width, 1:4 ratio, 8b/10b encode
-  and decode enabled, and RX word alignment enabled.
+- Generate the Gowin IP with 20-bit internal width and the selected 1:2
+  (40/44-bit) or 1:4 (80/88-bit) ratio, with 8b/10b encode/decode enabled and
+  RX word alignment enabled.
 - Confirm the generated IP's exact port names, polarity and reset sequencing.
 - Confirm that `rx_valid_o` is exactly three RX clock cycles after an
   accepted read request in the generated IP version.
