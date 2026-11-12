@@ -75,14 +75,14 @@ class BondedAcornSoC(SoC2SoC):
             local_peer_id=peer_id,
             remote_peer_id=expected_peer_id,
         )
+        self.comb += self.tester.tx.connect(self.bonded.sink)
+        self.comb += self.bonded.source.connect(self.tester.rx)
         self.comb += [
-            self.tester.tx.connect(self.bonded.sink),
-            self.bonded.source.connect(self.tester.rx),
             self.sfp_leds[0].eq(self.bonded.lane_up[0]),
             self.sfp_leds[1].eq(self.bonded.lane_up[1]),
         ]
 
-        self._bond_status = CSRStatus(5, description="Bonded status: session active, control fault, lane 0 up, lane 1 up, packet tester error.")
+        self._bond_status = CSRStatus(9, description="Bonded status: session active, control fault, lane 0 up, lane 1 up, packet tester error, two PHY RX errors and two GTP decoder errors.")
         self._bond_tx_packets = CSRStatus(32, description="Bidirectional test packets transmitted.")
         self._bond_rx_packets = CSRStatus(32, description="Bidirectional test packets received and checked.")
         self.comb += [
@@ -92,6 +92,10 @@ class BondedAcornSoC(SoC2SoC):
                 self.bonded.lane_up[0],
                 self.bonded.lane_up[1],
                 self.tester.error,
+                self.bonded.phy_rx_error[0],
+                self.bonded.phy_rx_error[1],
+                self.bonded.gtp_rx_invalid[0],
+                self.bonded.gtp_rx_invalid[1],
             )),
             self._bond_tx_packets.status.eq(self.tester.tx_packets),
             self._bond_rx_packets.status.eq(self.tester.rx_packets),
