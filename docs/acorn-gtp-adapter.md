@@ -122,8 +122,9 @@ are:
 
 The target `acorn_bonded.py` reuses the existing Acorn CRG and shared QPLL,
 but leaves the legacy SerWB GTP links uninstantiated. It creates the two GTP
-channels through `AcornBondedSerdes` and leaves the application packet stream
-idle so the automatic HELLO/READY session can be checked first.
+channels through `AcornBondedSerdes` and connects a bidirectional fixed-size
+packet pattern generator/checker. Traffic starts after the HELLO/READY session
+has been active for a short settling interval.
 
 Build one image per peer with complementary identities and the same initial
 session seed:
@@ -142,8 +143,10 @@ by dynamic remote lane-ID discovery. The default polarity values are inherited
 from the existing Acorn target and may need to be verified with PRBS.
 
 LED1 and LED2 indicate local lane readiness; LED3 remains the QPLL lock
-indicator. The `bond_status` CSR reports session-active, control-fault and
-both local lane-up bits. This image does not yet generate application DATA
-packets; a packet traffic generator/checker is the next board-target step.
+indicator. The `bond_status` CSR reports session-active, control-fault, both
+local lane-up bits, packet-test errors, PHY errors and GTP decoder errors.
+The `bond_tx_packets` and `bond_rx_packets` CSRs expose packet counts. Each
+board sends 64-byte packets whose contents depend on its peer ID and packet
+counter; the opposite board checks every received byte and packet boundary.
 
 No board-specific wrapper is hardware-validated by this document.
