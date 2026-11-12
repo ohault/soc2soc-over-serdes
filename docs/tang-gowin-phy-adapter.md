@@ -112,8 +112,9 @@ after **three RX clock cycles**, and `rx_valid_o` indicates when
 `rx_data_o` is valid. The read request and data-valid pulse are therefore
 not a same-cycle ready/valid handshake.
 
-Use the generic `rtl/bonded_phy_fifo_read_adapter.sv` between the Gowin RX
-FIFO and the lane bridge:
+Use the combined `rtl/bonded_gowin_phy_fifo_adapter.sv` between the Gowin
+PHY FIFO and the lane bridge. It instantiates the generic read adapter and
+symbol mapper internally:
 
 - `fifo_empty` = Gowin RX FIFO empty flag, or the almost-empty flag if that
   is the only safe read guard exposed by the generated IP (as in the Sipeed
