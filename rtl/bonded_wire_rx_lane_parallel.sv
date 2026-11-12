@@ -1,0 +1,171 @@
+// SPDX-License-Identifier: BSD-2-Clause
+// Parallel-word v0 DATA frame decoder. Buffers a complete frame and releases
+// payload only after header CRC-16, frame CRC-32C and sequence/session checks.
+module bonded_wire_rx_lane_parallel #(
+    parameter integer DATA_WIDTH=32,
+    parameter integer KEEP_WIDTH=DATA_WIDTH/8,
+    parameter integer LANE_ID=0,
+    parameter integer MAX_PAYLOAD=4096,
+    parameter integer DYNAMIC_LANE_ID=0
+) (
+    input wire clk, input wire rst,
+    input wire [63:0] expected_session_id,
+    input wire [31:0] expected_frame_sequence_override,
+    input wire [7:0] expected_lane_id,
+    input wire in_valid, output wire in_ready,
+    input wire [DATA_WIDTH-1:0] in_data,
+    input wire [KEEP_WIDTH-1:0] in_keep,
+    input wire in_sop, input wire in_eop,
+    output wire out_valid, input wire out_ready,
+    output reg [DATA_WIDTH-1:0] out_data,
+    output reg [KEEP_WIDTH-1:0] out_keep,
+    output wire out_sop, output wire out_eop,
+    output reg [31:0] out_packet_sequence,
+    output reg [31:0] out_frame_sequence,
+    output reg [7:0] out_lane_id,
+    output reg [31:0] expected_frame_sequence,
+    output reg frame_error, output reg frame_valid_pulse
+);
+    localparam integer WORD_BYTES=DATA_WIDTH/8;
+    localparam integer MAX_FRAME=24+4+MAX_PAYLOAD+4;
+    localparam [1:0] ST_IDLE=0, ST_COLLECT=1, ST_CHECK=2, ST_OUTPUT=3;
+    reg [1:0] state;
+    reg [7:0] frame_mem[0:MAX_FRAME-1];
+    reg [12:0] rx_count;
+    reg [12:0] output_index;
+    reg [12:0] payload_length;
+    reg [15:0] header_crc_calc;
+    reg [31:0] frame_crc_calc;
+    reg [31:0] frame_sequence_received;
+    integer byte_count;
+    integer i;
+
+    function keep_contiguous(input [KEEP_WIDTH-1:0] keep);
+        begin keep_contiguous=(keep!=0)&&((keep&(keep+1'b1))==0); end
+    endfunction
+    function integer count_keep(input [KEEP_WIDTH-1:0] keep);
+        integer n;
+        begin count_keep=0; for(n=0;n<KEEP_WIDTH;n=n+1) count_keep=count_keep+keep[n]; end
+    endfunction
+    function [15:0] crc16_byte(input [15:0] ci,input [7:0] d);
+        integer k; reg [15:0] c;
+        begin c=ci^{d,8'h00}; for(k=0;k<8;k=k+1)c=c[15]?((c<<1)^16'h1021):(c<<1); crc16_byte=c; end
+    endfunction
+    function [31:0] crc32_byte(input [31:0] ci,input [7:0] d);
+        integer k; reg [31:0] c;
+        begin c=ci^d; for(k=0;k<8;k=k+1)c=c[0]?((c>>1)^32'h82f63b78):(c>>1); crc32_byte=c; end
+    endfunction
+
+    assign in_ready=!rst&&(state==ST_IDLE||state==ST_COLLECT);
+    assign out_valid=!rst&&(state==ST_OUTPUT);
+    assign out_sop=out_valid&&(output_index==0);
+    assign out_eop=out_valid&&(output_index+count_keep(out_keep)>=payload_length);
+
+    always @* begin
+        out_data={DATA_WIDTH{1'b0}};
+        out_keep={KEEP_WIDTH{1'b0}};
+        for(integer b=0;b<WORD_BYTES;b=b+1) begin
+            if(output_index+b<payload_length) begin
+                out_data[b*8 +: 8]=frame_mem[28+output_index+b];
+                out_keep[b]=1'b1;
+            end
+        end
+        if(state==ST_OUTPUT && payload_length==0) begin
+            out_data=0; out_keep={{(KEEP_WIDTH-1){1'b0}},1'b1};
+        end
+    end
+
+    always @(posedge clk) begin
+        if(rst) begin
+            state<=ST_IDLE; rx_count<=0; output_index<=0; payload_length<=0;
+            out_packet_sequence<=0; out_frame_sequence<=0; out_lane_id<=0;
+            expected_frame_sequence<=0; frame_error<=0; frame_valid_pulse<=0;
+        end else begin
+            frame_valid_pulse<=0;
+            if(in_valid&&in_ready) begin
+                if(state==ST_IDLE) begin
+                    if(!in_sop || expected_session_id==0 || !keep_contiguous(in_keep) ||
+                       (!in_eop && in_keep!={KEEP_WIDTH{1'b1}})) begin
+                        frame_error<=1;
+                    end else begin
+                        byte_count=count_keep(in_keep);
+                        if(byte_count>MAX_FRAME) begin frame_error<=1; end
+                        else begin
+                            for(i=0;i<KEEP_WIDTH;i=i+1)
+                                if(in_keep[i]) frame_mem[i]<=in_data[i*8 +: 8];
+                            rx_count<=byte_count; state<=in_eop?ST_CHECK:ST_COLLECT;
+                        end
+                    end
+                end else begin
+                    if(in_sop) begin
+                        // Explicit SOP is a resynchronization point.
+                        frame_error<=1; byte_count=count_keep(in_keep);
+                        if(!keep_contiguous(in_keep)||(!in_eop&&in_keep!={KEEP_WIDTH{1'b1}})||byte_count>MAX_FRAME) begin
+                            state<=ST_IDLE; rx_count<=0;
+                        end else begin
+                            for(i=0;i<KEEP_WIDTH;i=i+1)
+                                if(in_keep[i]) frame_mem[i]<=in_data[i*8 +: 8];
+                            rx_count<=byte_count; state<=in_eop?ST_CHECK:ST_COLLECT;
+                        end
+                    end else begin
+                        byte_count=count_keep(in_keep);
+                        if(!keep_contiguous(in_keep)||(!in_eop&&in_keep!={KEEP_WIDTH{1'b1}})||
+                           rx_count+byte_count>MAX_FRAME) begin
+                            frame_error<=1; state<=ST_IDLE; rx_count<=0;
+                        end else begin
+                            for(i=0;i<KEEP_WIDTH;i=i+1)
+                                if(in_keep[i]) frame_mem[rx_count+i]<=in_data[i*8 +: 8];
+                            rx_count<=rx_count+byte_count;
+                            if(in_eop) state<=ST_CHECK;
+                        end
+                    end
+                end
+            end
+
+            if(state==ST_CHECK) begin
+                header_crc_calc=16'hffff;
+                for(i=0;i<22;i=i+1) header_crc_calc=crc16_byte(header_crc_calc,frame_mem[i]);
+                frame_crc_calc=32'hffffffff;
+                for(i=0;i<rx_count-4;i=i+1) frame_crc_calc=crc32_byte(frame_crc_calc,frame_mem[i]);
+                frame_sequence_received={frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]};
+                if(rx_count<32 || frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
+                   frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 || frame_mem[4]!=0 ||
+                   frame_mem[5]>1 ||
+                   (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff)&&(frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
+                   frame_mem[6]!=0 || frame_mem[7]!=8'h18 ||
+                   {frame_mem[22],frame_mem[23]}!=header_crc_calc ||
+                   {frame_mem[20],frame_mem[21]}<4 ||
+                   {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
+                   rx_count!=28+{frame_mem[20],frame_mem[21]}+4 ||
+                   {frame_mem[rx_count-4],frame_mem[rx_count-3],frame_mem[rx_count-2],frame_mem[rx_count-1]}!=~frame_crc_calc) begin
+                    frame_error<=1; state<=ST_IDLE; rx_count<=0;
+                end else if({frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
+                             frame_mem[12],frame_mem[13],frame_mem[14],frame_mem[15]}!=expected_session_id) begin
+                    // Stale session frames are discarded without reporting link corruption.
+                    state<=ST_IDLE; rx_count<=0;
+                end else if(frame_sequence_received!=expected_frame_sequence_override ||
+                            expected_frame_sequence_override==32'hffffffff) begin
+                    frame_error<=1; state<=ST_IDLE; rx_count<=0;
+                end else begin
+                    out_packet_sequence<={frame_mem[24],frame_mem[25],frame_mem[26],frame_mem[27]};
+                    out_frame_sequence<=frame_sequence_received; out_lane_id<=frame_mem[5];
+                    expected_frame_sequence<=frame_sequence_received+1'b1;
+                    payload_length<={frame_mem[20],frame_mem[21]}-16'd4;
+                    output_index<=0; frame_valid_pulse<=1; state<=ST_OUTPUT;
+                end
+            end
+
+            if(state==ST_OUTPUT && out_valid && out_ready) begin
+                if(payload_length==0 || output_index+count_keep(out_keep)>=payload_length) begin
+                    state<=ST_IDLE; rx_count<=0;
+                end else output_index<=output_index+count_keep(out_keep);
+            end
+        end
+    end
+
+    initial begin
+        if((DATA_WIDTH!=8)&&(DATA_WIDTH!=16)&&(DATA_WIDTH!=32)) $error("DATA_WIDTH must be 8, 16 or 32");
+        if(KEEP_WIDTH!=WORD_BYTES) $error("KEEP_WIDTH must equal DATA_WIDTH/8");
+        if(MAX_PAYLOAD<1||MAX_PAYLOAD>4096) $error("MAX_PAYLOAD must be 1..4096");
+    end
+endmodule
