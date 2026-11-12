@@ -229,6 +229,37 @@ module tb_bonded_wire_rx_lane_parallel;
                    DATA_WIDTH,got,frame_error,out_lane_id);
         $display("PASS: parallel DATA RX premature-SOP resynchronization");
 
+        // An input stream that stops before EOP is incomplete, not a frame.
+        // It must not leak payload or report a completed-frame pulse.
+        @(negedge clk); rst=1; got=0;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        send_word(0,WORD_BYTES,1'b1,1'b0);
+        repeat(20) @(posedge clk);
+        if(out_valid || frame_valid_pulse || frame_error)
+            $fatal(1,"WIDTH=%0d truncated frame was delivered or spuriously errored",DATA_WIDTH);
+        $display("PASS: parallel DATA RX holds truncated frame without delivery");
+
+        // Reset while collecting must discard all partial bytes. A subsequent
+        // complete frame must be accepted normally.
+        @(negedge clk); rst=1; got=0;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        send_word(0,WORD_BYTES,1'b1,1'b0);
+        @(negedge clk); rst=1;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        offset=0;
+        while(offset<FRAME_LEN) begin
+            count=WORD_BYTES;
+            if(offset+count>FRAME_LEN) count=FRAME_LEN-offset;
+            send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
+            offset=offset+count;
+        end
+        while(got<PAYLOAD_LEN && cycles<12000) @(posedge clk);
+        repeat(3) @(posedge clk);
+        if(got!=PAYLOAD_LEN || frame_error || out_lane_id!=8'ha5)
+            $fatal(1,"WIDTH=%0d reset-during-collection recovery failed got=%0d err=%b",
+                   DATA_WIDTH,got,frame_error);
+        $display("PASS: parallel DATA RX reset during collection and recovery");
+
         $finish;
     end
 endmodule
