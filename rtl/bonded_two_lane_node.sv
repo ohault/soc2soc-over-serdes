@@ -100,7 +100,7 @@ module bonded_two_lane_node #(
             session_rx_reset_toggle<=1'b0;
         end else begin
             session_active_d<=session_active;
-            if(session_active_d && !session_active) begin
+            if(session_drop_event) begin
                 session_drop_toggle<=~session_drop_toggle;
                 session_rx_reset_toggle<=~session_rx_reset_toggle;
             end
@@ -137,7 +137,8 @@ module bonded_two_lane_node #(
     wire session_established;
     wire [63:0] active_session_id,ctrl_rx_session_id;
     wire session_changed,session_initiated;
-    wire control_tx_rst_n=bond_rst_n && !session_changed;
+    wire session_drop_event=session_active_d && !session_active;
+    wire control_tx_rst_n=bond_rst_n && !session_drop_event;
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
     wire lane0_tx_sop_internal,lane0_tx_eop_internal,lane1_tx_sop_internal,lane1_tx_eop_internal;
     wire lane0_framed_valid,lane0_framed_ready,lane0_framed_sop,lane0_framed_eop;
