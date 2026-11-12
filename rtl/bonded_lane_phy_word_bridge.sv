@@ -6,6 +6,7 @@
 // physical FIFO for that flush cycle.
 module bonded_lane_phy_word_bridge #(
     parameter integer SYMBOLS_PER_WORD=4,
+    parameter integer DATA_BYTES_PER_WORD=1,
     parameter integer RX_FIFO_DEPTH=16,
     parameter integer RX_PHY_STALLABLE=0
 ) (
@@ -36,6 +37,11 @@ module bonded_lane_phy_word_bridge #(
     output reg rx_symbol_error,
     output reg rx_gearbox_error
 );
+    initial begin
+        if(DATA_BYTES_PER_WORD<1 || DATA_BYTES_PER_WORD>SYMBOLS_PER_WORD)
+            $error("DATA_BYTES_PER_WORD must be between 1 and SYMBOLS_PER_WORD");
+    end
+
     (* async_reg = "true" *) reg [1:0] tx_active_sync,rx_active_sync;
     reg tx_active_d,rx_active_d;
     wire tx_flush=tx_active_d && !tx_active_sync[1];
@@ -76,7 +82,8 @@ module bonded_lane_phy_word_bridge #(
     reg rx_drop_until_sop;
     wire rx_word_to_unpacker_valid=rx_word_valid && (!rx_drop_until_sop || rx_word_sop);
 
-    bonded_byte_to_phy_word #(.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD)) tx_packer (
+    bonded_byte_to_phy_word #(.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD),
+        .DATA_BYTES_PER_WORD(DATA_BYTES_PER_WORD)) tx_packer (
         .clk(tx_clk),.rst(tx_packer_rst),
         .byte_valid(tx_byte_valid),.byte_ready(tx_byte_ready),
         .byte_data(tx_byte_data),.byte_sop(tx_byte_sop),.byte_eop(tx_byte_eop),
