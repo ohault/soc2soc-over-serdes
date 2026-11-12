@@ -10,7 +10,7 @@ module tb_bonded_wire_rx_lane_parallel;
     reg rst=1;
     reg [63:0] expected_session_id=64'h0102030405060708;
     reg [31:0] expected_frame_sequence_override=0;
-    reg [7:0] expected_lane_id=1;
+    reg [7:0] expected_lane_id=8'ha5;
     reg in_valid=0,in_sop=0,in_eop=0;
     wire in_ready;
     reg [DATA_WIDTH-1:0] in_data=0;
@@ -28,7 +28,7 @@ module tb_bonded_wire_rx_lane_parallel;
     reg [31:0] fcrc;
     integer i,j,offset,count,got=0,cycles=0;
 
-    bonded_wire_rx_lane_parallel #(.DATA_WIDTH(DATA_WIDTH),.LANE_ID(1)) dut (
+    bonded_wire_rx_lane_parallel #(.DATA_WIDTH(DATA_WIDTH),.LANE_ID(0),.DYNAMIC_LANE_ID(1)) dut (
         .clk(clk),.rst(rst),.expected_session_id(expected_session_id),
         .expected_frame_sequence_override(expected_frame_sequence_override),
         .expected_lane_id(expected_lane_id),.in_valid(in_valid),.in_ready(in_ready),
@@ -80,7 +80,7 @@ module tb_bonded_wire_rx_lane_parallel;
 
     initial begin
         frame[0]=8'h53; frame[1]=8'h42; frame[2]=1; frame[3]=1;
-        frame[4]=0; frame[5]=1; frame[6]=0; frame[7]=24;
+        frame[4]=0; frame[5]=8'ha5; frame[6]=0; frame[7]=24;
         frame[8]=1; frame[9]=2; frame[10]=3; frame[11]=4;
         frame[12]=5; frame[13]=6; frame[14]=7; frame[15]=8;
         frame[16]=0; frame[17]=0; frame[18]=0; frame[19]=0;
@@ -109,7 +109,7 @@ module tb_bonded_wire_rx_lane_parallel;
         while(got<PAYLOAD_LEN && cycles<1000) @(posedge clk);
         repeat(3) @(posedge clk);
         if(got!=PAYLOAD_LEN || frame_error || out_packet_sequence!=32'h11223344 ||
-           out_frame_sequence!=0 || out_lane_id!=1 || expected_frame_sequence!=1)
+           out_frame_sequence!=0 || out_lane_id!=8'ha5 || expected_frame_sequence!=1)
             $fatal(1,"WIDTH=%0d failed got=%0d err=%b packet=%h frame=%h lane=%d next=%h",
                    DATA_WIDTH,got,frame_error,out_packet_sequence,out_frame_sequence,
                    out_lane_id,expected_frame_sequence);
