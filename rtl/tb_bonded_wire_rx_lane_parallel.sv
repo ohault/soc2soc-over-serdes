@@ -132,6 +132,25 @@ module tb_bonded_wire_rx_lane_parallel;
         if(!frame_error || got!=0)
             $fatal(1,"WIDTH=%0d corrupted CRC was not rejected (err=%b got=%0d)",DATA_WIDTH,frame_error,got);
         $display("PASS: parallel DATA RX DATA_WIDTH=%0d (valid + CRC rejection)",DATA_WIDTH);
+
+        // A valid frame from an old session is discarded without link error.
+        @(negedge clk); rst=1; got=0; frame[FRAME_LEN-1]=frame[FRAME_LEN-1]^8'h01;
+        expected_session_id=64'h1112131415161718;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        offset=0;
+        while(offset<FRAME_LEN) begin
+            if(offset<28) count=WORD_BYTES;
+            else if(offset<28+PAYLOAD_LEN) begin
+                count=WORD_BYTES; if(offset+count>28+PAYLOAD_LEN) count=28+PAYLOAD_LEN-offset;
+            end else count=WORD_BYTES;
+            if(offset+count>FRAME_LEN) count=FRAME_LEN-offset;
+            send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
+            offset=offset+count;
+        end
+        repeat(100) @(posedge clk);
+        if(frame_error || got!=0)
+            $fatal(1,"WIDTH=%0d stale session was not silently discarded",DATA_WIDTH);
+        $display("PASS: parallel DATA RX stale-session discard");
         $finish;
     end
 endmodule
