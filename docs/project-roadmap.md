@@ -24,7 +24,7 @@ is an integration option, not a dependency of the bonding core.
 | Parallel 8b/10b word adapter and byte/word gearboxes | Integrated prototype; sustained throughput limited | The safe default is one payload byte per PHY word; multi-byte mode is experimental because the bonded wire TX/RX framing core remains byte-wide and cannot consume full-rate multi-byte RX traffic |
 | Per-lane PHY bridge | Integrated as generic RTL | Independent TX/recovered-RX clocks, word packer/decoder, byte unpacker, session-drop flushing and sticky PHY faults |
 | Two-lane parallel-PHY node wrapper | Integrated RTL; regression authored, current CI unverified | Full-duplex packet tests exist, but they do not establish sustained PHY line-rate capability |
-| Board-specific transceiver adapters | Acorn LiteX/Migen wrapper prototype added; build not verified | Two 20-bit LiteICLink GTP channels are mapped to the generic node; separate target and build smoke test remain |
+| Board-specific transceiver adapters | Acorn wrapper and separate bring-up target added; build not verified | Two 20-bit LiteICLink GTP channels are mapped to the generic node; LiteX elaboration and generated-Verilog smoke test remain |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
 ## Current top-level RTL
@@ -94,16 +94,16 @@ behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Add a separate Acorn bonded-transport target using the prototype in
-   `soc2soc/bonded_acorn.py` and the existing CRG/QPLL setup. Do not change
-   the existing SerWB target or instantiate two GTPs on the same SFP pads.
-2. Add a generated-Verilog build smoke test and verify both SFP channels map
-   to the correct GTP clocks, data/control slices and decoder error status.
-3. Rerun the complete Python and RTL CI suite against the current branch head;
+1. Elaborate the separate Acorn target in a LiteX environment, generate Verilog
+   and verify both SFP channels map to the correct GTP clocks, data/control
+   slices and decoder error status. Do not change the existing SerWB target.
+2. Rerun the complete Python and RTL CI suite against the current branch head;
    fix any compile, simulation or regression failures before synthesis.
-4. Bring up the conservative one-byte-per-PHY-word profile in simulation and
-   then on the Acorn. Validate PLL lock, TX/RX initialization, PRBS, polarity,
-   comma alignment and sustained traffic.
+3. Add a hardware-free packet generator/checker to the Acorn target so the
+   first board test can verify bidirectional DATA as well as HELLO/READY.
+4. Bring up the conservative one-byte-per-PHY-word profile on the Acorn.
+   Validate PLL lock, TX/RX initialization, PRBS, polarity, comma alignment
+   and sustained traffic.
 5. Widen the wire TX/RX framing path so CRC, frame boundaries, CONTROL/DATA
    arbitration and packet scheduling can accept and emit multiple bytes per
    lane clock. The current byte-wide core cannot consume full-rate multi-byte
