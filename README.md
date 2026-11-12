@@ -52,8 +52,8 @@ passes the Python bonding tests and the complete RTL frame-boundary workflow on
 the clean branch revision. The separate payload-RAM workflow
 [43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
 passes the 8/16/32-bit RAM tests, all 27 reference-versus-RAM RX differential
-configurations and the generic Yosys memory-inference check. The Acorn LiteX
-elaboration job in run 43178198151 is still running; no Vivado synthesis,
+configurations and the generic Yosys memory-inference check. The same run also successfully elaborates the Acorn target at both 2.5 and
+5.0 Gb/s, including the two GTP channels and shared QPLL. No Vivado synthesis,
 timing closure or physical hardware validation is claimed.
 Board-specific SERDES primitives and clocks remain outside the bonding core.
 
