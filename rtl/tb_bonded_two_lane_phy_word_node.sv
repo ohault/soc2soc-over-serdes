@@ -151,117 +151,6 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
     reg expected_sop[0:127],expected_eop[0:127];
     integer expected_count=0,got=0,cycles=0,packet_number=0;
     integer lane0_data_frames=0,lane1_data_frames=0;
-    reg recovery_debug=0;
-    reg fault_a_d=0,fault_b_d=0;
-    always @(posedge bond_a) begin
-        fault_a_d<=fault_a;
-        if(recovery_debug && node_a.node.control_manager.rx_handshake)
-            $display("RECOV A RX opcode=%02x session=%h lane=%b len=%0d fault=%b restart=%b epoch=%h",
-                node_a.node.control_manager.rx_opcode,node_a.node.control_manager.ctrl_rx_session_id,
-                node_a.node.control_manager.ctrl_rx_lane,node_a.node.control_manager.ctrl_rx_body_length,
-                fault_a,node_a.node.control_manager.restart_pending,
-                node_a.node.control_manager.active_session_id);
-        if(recovery_debug && fault_a && !fault_a_d) begin
-            $display("RECOV A FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b phy_tx=%b%b phy_rx=%b%b tx_frame=%b%b rx_frame=%b%b lane_sync=%b rxerr_sync=%b txerr_sync=%b",
-                node_a.node.control_manager.active_session_id,node_a.node.control_manager.rx_opcode,
-                node_a.node.control_manager.ctrl_rx_session_id,node_a.node.control_manager.all_lanes_up,
-                node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen,
-                a1txerr,a0txerr,a1rxerr,a0rxerr,a1tf,a0tf,a1rf,a0rf,
-                node_a.node.lane_up_sync2,node_a.node.lane_rx_error_sync2,node_a.node.lane_tx_error_sync2);
-            $display("RECOV A RXDETAIL overflow=%b%b framer=%b%b demux=%b%b ctrl=%b%b data=%b%b map=%b%b duplicate=%b",
-                node_a.lane1_rx_overflow,node_a.lane0_rx_overflow,
-                node_a.node.lane1_framer_error,node_a.node.lane0_framer_error,
-                node_a.node.endpoint.rx_path.ctrl1_demux_error,node_a.node.endpoint.rx_path.ctrl0_demux_error,
-                node_a.node.endpoint.rx_path.ctrl1_frame_error,node_a.node.endpoint.rx_path.ctrl0_frame_error,
-                node_a.node.endpoint.rx_path.lane1_data_frame_error,node_a.node.endpoint.rx_path.lane0_data_frame_error,
-                node_a.node.endpoint.rx_path.lane1_map_error,node_a.node.endpoint.rx_path.lane0_map_error,
-                node_a.node.endpoint.rx_path.duplicate_remote_lane_id);
-        end
-    end
-    always @(posedge bond_b) begin
-        fault_b_d<=fault_b;
-        if(recovery_debug && node_b.node.control_manager.rx_handshake)
-            $display("RECOV B RX opcode=%02x session=%h lane=%b len=%0d fault=%b restart=%b epoch=%h",
-                node_b.node.control_manager.rx_opcode,node_b.node.control_manager.ctrl_rx_session_id,
-                node_b.node.control_manager.ctrl_rx_lane,node_b.node.control_manager.ctrl_rx_body_length,
-                fault_b,node_b.node.control_manager.restart_pending,
-                node_b.node.control_manager.active_session_id);
-        if(recovery_debug && fault_b && !fault_b_d)
-            $display("RECOV B FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b phy_tx=%b%b phy_rx=%b%b tx_frame=%b%b rx_frame=%b%b lane_sync=%b rxerr_sync=%b txerr_sync=%b",
-                node_b.node.control_manager.active_session_id,node_b.node.control_manager.rx_opcode,
-                node_b.node.control_manager.ctrl_rx_session_id,node_b.node.control_manager.all_lanes_up,
-                node_b.node.control_manager.hello_seen,node_b.node.control_manager.ready_seen,
-                b1txerr,b0txerr,b1rxerr,b0rxerr,b1tf,b0tf,b1rf,b0rf,
-                node_b.node.lane_up_sync2,node_b.node.lane_rx_error_sync2,node_b.node.lane_tx_error_sync2);
-    end
-
-    reg a_ctrl0_error_d=0,a_ctrl1_error_d=0,b_ctrl0_error_d=0,b_ctrl1_error_d=0;
-    always @(posedge a_rx0) begin
-        a_ctrl0_error_d<=node_a.node.endpoint.rx_path.control_decoder0.frame_error;
-        if(recovery_debug && node_a.node.endpoint.rx_path.control_decoder0.frame_error && !a_ctrl0_error_d)
-            $display("CTRLERR A0 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
-                node_a.node.endpoint.rx_path.control_decoder0.state,
-                node_a.node.endpoint.rx_path.control_decoder0.rx_count,
-                node_a.node.endpoint.rx_path.control_decoder0.frame_session_id,
-                node_a.node.endpoint.rx_path.control_decoder0.expected_session_id,
-                {node_a.node.endpoint.rx_path.control_decoder0.frame_mem[16],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[17],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[18],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[19]},
-                node_a.node.endpoint.rx_path.control_decoder0.expected_frame_sequence_override,
-                node_a.node.endpoint.rx_path.control_decoder0.frame_mem[21],
-                {node_a.node.endpoint.rx_path.control_decoder0.frame_mem[22],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[23]},
-                node_a.node.endpoint.rx_path.control_decoder0.header_crc,
-                ~node_a.node.endpoint.rx_path.control_decoder0.frame_crc,
-                {node_a.node.endpoint.rx_path.control_decoder0.tail3,node_a.node.endpoint.rx_path.control_decoder0.tail2,node_a.node.endpoint.rx_path.control_decoder0.tail1,node_a.node.endpoint.rx_path.control_decoder0.tail0});
-    end
-    always @(posedge a_rx1) begin
-        a_ctrl1_error_d<=node_a.node.endpoint.rx_path.control_decoder1.frame_error;
-        if(recovery_debug && node_a.node.endpoint.rx_path.control_decoder1.frame_error && !a_ctrl1_error_d)
-            $display("CTRLERR A1 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
-                node_a.node.endpoint.rx_path.control_decoder1.state,
-                node_a.node.endpoint.rx_path.control_decoder1.rx_count,
-                node_a.node.endpoint.rx_path.control_decoder1.frame_session_id,
-                node_a.node.endpoint.rx_path.control_decoder1.expected_session_id,
-                {node_a.node.endpoint.rx_path.control_decoder1.frame_mem[16],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[17],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[18],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[19]},
-                node_a.node.endpoint.rx_path.control_decoder1.expected_frame_sequence_override,
-                node_a.node.endpoint.rx_path.control_decoder1.frame_mem[21],
-                {node_a.node.endpoint.rx_path.control_decoder1.frame_mem[22],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[23]},
-                node_a.node.endpoint.rx_path.control_decoder1.header_crc,
-                ~node_a.node.endpoint.rx_path.control_decoder1.frame_crc,
-                {node_a.node.endpoint.rx_path.control_decoder1.tail3,node_a.node.endpoint.rx_path.control_decoder1.tail2,node_a.node.endpoint.rx_path.control_decoder1.tail1,node_a.node.endpoint.rx_path.control_decoder1.tail0});
-    end
-
-    always @(posedge b_rx0) begin
-        b_ctrl0_error_d<=node_b.node.endpoint.rx_path.control_decoder0.frame_error;
-        if(recovery_debug && node_b.node.endpoint.rx_path.control_decoder0.frame_error && !b_ctrl0_error_d)
-            $display("CTRLERR B0 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
-                node_b.node.endpoint.rx_path.control_decoder0.state,
-                node_b.node.endpoint.rx_path.control_decoder0.rx_count,
-                node_b.node.endpoint.rx_path.control_decoder0.frame_session_id,
-                node_b.node.endpoint.rx_path.control_decoder0.expected_session_id,
-                {node_b.node.endpoint.rx_path.control_decoder0.frame_mem[16],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[17],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[18],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[19]},
-                node_b.node.endpoint.rx_path.control_decoder0.expected_frame_sequence_override,
-                node_b.node.endpoint.rx_path.control_decoder0.frame_mem[21],
-                {node_b.node.endpoint.rx_path.control_decoder0.frame_mem[22],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[23]},
-                node_b.node.endpoint.rx_path.control_decoder0.header_crc,
-                ~node_b.node.endpoint.rx_path.control_decoder0.frame_crc,
-                {node_b.node.endpoint.rx_path.control_decoder0.tail3,node_b.node.endpoint.rx_path.control_decoder0.tail2,node_b.node.endpoint.rx_path.control_decoder0.tail1,node_b.node.endpoint.rx_path.control_decoder0.tail0});
-    end
-    always @(posedge b_rx1) begin
-        b_ctrl1_error_d<=node_b.node.endpoint.rx_path.control_decoder1.frame_error;
-        if(recovery_debug && node_b.node.endpoint.rx_path.control_decoder1.frame_error && !b_ctrl1_error_d)
-            $display("CTRLERR B1 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
-                node_b.node.endpoint.rx_path.control_decoder1.state,
-                node_b.node.endpoint.rx_path.control_decoder1.rx_count,
-                node_b.node.endpoint.rx_path.control_decoder1.frame_session_id,
-                node_b.node.endpoint.rx_path.control_decoder1.expected_session_id,
-                {node_b.node.endpoint.rx_path.control_decoder1.frame_mem[16],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[17],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[18],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[19]},
-                node_b.node.endpoint.rx_path.control_decoder1.expected_frame_sequence_override,
-                node_b.node.endpoint.rx_path.control_decoder1.frame_mem[21],
-                {node_b.node.endpoint.rx_path.control_decoder1.frame_mem[22],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[23]},
-                node_b.node.endpoint.rx_path.control_decoder1.header_crc,
-                ~node_b.node.endpoint.rx_path.control_decoder1.frame_crc,
-                {node_b.node.endpoint.rx_path.control_decoder1.tail3,node_b.node.endpoint.rx_path.control_decoder1.tail2,node_b.node.endpoint.rx_path.control_decoder1.tail1,node_b.node.endpoint.rx_path.control_decoder1.tail0});
-    end
-
     always @(posedge b_rx0)
         if(node_b.node.endpoint.rx_path.lane0_decoder.frame_valid_pulse)
             lane0_data_frames<=lane0_data_frames+1;
@@ -397,7 +286,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        recovery_debug=0;
+        
         if(!active_a || !active_b || fault_a || fault_b) begin
             $display("HELLO diag PHY RX=%b%b/%b%b wire RX=%b%b/%b%b wire TX=%b%b/%b%b lane_up=%b%b/%b%b",
                 a1rxerr,a0rxerr,b1rxerr,b0rxerr,a1rf,a0rf,b1rf,b0rf,
@@ -483,7 +372,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        recovery_debug=1;
+        
         // A loses one local lane. A must fault immediately; B still has
         // both local lanes up and can only discover the remote failure through
         // its PING/PONG timeout.
@@ -502,7 +391,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        recovery_debug=0;
+        
         if(!active_a || !active_b || fault_a || fault_b) begin
             $display("A epoch=%h changed=%b initiated=%b active=%b fault=%b hello=%b ready=%b sent=%b/%b restart=%b age=%0d",
                 node_a.node.control_manager.active_session_id,node_a.node.control_manager.session_changed,
