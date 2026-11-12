@@ -131,8 +131,8 @@ implementation or connect it to an unthrottled live PHY for sustained DATA.**
 
 The next datapath milestone must widen both sides of the wire boundary:
 parallel TX framing/CRC generation and parallel RX framing/CRC validation,
-with multi-byte ready/valid lane streams carried into the packet scheduler and
-reorder path. Until that is done, the per-lane bridge and two-lane PHY node default to
+with multi-byte ready/valid lane streams carried through the packet scheduler,
+per-lane CDC, reorder/reassembly engine and logical application interface. Until that is done, the per-lane bridge and two-lane PHY node default to
 `DATA_BYTES_PER_WORD=1` / `PHY_DATA_BYTES_PER_WORD=1`: one payload byte per
 PHY user-clock word, with K28.5 reserved for SOP and K28.0 in unused symbols.
 This is the safe interoperability/bring-up mode, not a bandwidth optimization.
