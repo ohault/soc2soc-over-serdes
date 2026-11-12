@@ -60,6 +60,9 @@ The parallel RX width-matrix regression now exercises, at 8, 16 and 32 bits:
 - An unexpected frame sequence, which must set `frame_error` and release no payload.
 - Reset while a validated payload is stalled, which must flush the pending
   payload and return the receiver to idle.
+- A premature SOP while a previous frame is incomplete, which must flag the
+  abandoned frame, resynchronize at the new SOP, and still deliver the new
+  valid frame.
 
 Both byte-serial and parallel receivers now accept the full eight-bit lane-ID
 field when configured for dynamic lane checking. These are source-level
