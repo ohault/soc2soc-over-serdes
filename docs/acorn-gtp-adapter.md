@@ -1,0 +1,105 @@
+# Acorn CLE-215+ / LiteICLink GTP adapter plan
+
+## Scope
+
+This is the first board-specific PHY wrapper for the board-neutral
+`bonded_two_lane_phy_word_node`. It must be a separate target or an explicitly
+selected alternative to the existing SerWB/`GTPSoCLink` target. Do not
+instantiate a second GTP on an SFP cage already owned by the existing link.
+
+The generic bonding RTL remains free of LiteX, Migen, LiteICLink and Xilinx
+primitives. The adapter owns only GTP creation, clock/reset mapping, decoder
+error reporting and the PHY stream pin mapping.
+
+## Existing Acorn implementation facts
+
+The current `soc2soc/serdes_link.py` constructs each GTP with:
+
+- `data_width=20`: two 8b/10b symbols per user-clock word.
+- TX and RX elastic buffers enabled.
+- GTP comma alignment enabled by the transceiver; no extra LiteICLink clock
+  aligner is instantiated for this link.
+- `GTPQuadPLL` shared by the two SFP channels.
+- Independent TX and RX clock domains, renamed per SFP channel.
+
+The LiteICLink GTP stream endpoint is:
+
+- TX `sink.data[15:0]`: two data bytes, byte 0 in bits 7:0.
+- TX `sink.ctrl[1:0]`: one K-character flag per byte.
+- RX `source.data[15:0]` and `source.ctrl[1:0]`: decoded symbols and K flags.
+- `sink.ready` is tied high and `source.valid` is tied high by
+  `GTP.add_stream_endpoints()`. The endpoint itself has no per-word
+  backpressure.
+
+The GTP exposes `tx_ready`, `rx_ready`, and per-symbol decoder
+`invalid` indications. The first two indicate transceiver initialization
+completion; they are the starting point for the local lane-up signal, while
+decoder invalid indications must also invalidate the lane/session.
+
+## Generic node mapping
+
+For each of the two SFP channels:
+
+| Generic node port | LiteICLink GTP signal |
+|---|---|
+| `laneN_tx_clk` | GTP TX user clock domain |
+| `laneN_tx_rst_n` | inverse of local TX-domain reset |
+| `laneN_phy_tx_data[15:0]` | `serdes.sink.data` |
+| `laneN_phy_tx_ctrl[1:0]` | `serdes.sink.ctrl` |
+| `laneN_phy_tx_ready` | `serdes.sink.ready` (constant 1) |
+| `laneN_rx_clk` | GTP recovered RX user clock domain |
+| `laneN_rx_rst_n` | inverse of local RX-domain reset |
+| `laneN_phy_rx_valid` | `serdes.source.valid` (constant 1) |
+| `laneN_phy_rx_data[15:0]` | `serdes.source.data` |
+| `laneN_phy_rx_ctrl[1:0]` | `serdes.source.ctrl` |
+| `laneN_up` | TX ready AND RX ready AND no latched decoder error |
+
+Use `SYMBOLS_PER_WORD=2`, `RX_PHY_STALLABLE=0`, and
+`PHY_DATA_BYTES_PER_WORD=1` for the initial Acorn integration. The GTP
+source cannot be stalled. The one-byte-per-word setting matches the current
+byte-wide wire framing pipeline and avoids the RX FIFO overrun that would
+occur if two decoded bytes per clock were sent into a one-byte-per-clock
+consumer.
+
+This profile is a safe protocol bring-up configuration, not maximum GTP
+throughput. Full two-byte-per-clock operation requires the wire TX/RX framing
+and packet paths to be widened end to end first.
+
+## Decoder error handling
+
+The two `Decoder.invalid` flags are in the recovered RX clock domain. Latch
+their OR in that domain until the physical RX reset. Feed the sticky result
+into the lane-up decision so the generic node's normal lane/session
+supervision sees a persistent lane drop. Do not pass a one-cycle asynchronous
+error pulse directly into the bonding clock domain.
+
+The generic word adapter separately checks illegal K-character placement,
+comma alignment and malformed empty-symbol placement. Those checks do not
+replace the GTP decoder's code/disparity error flags.
+
+## Clock and reset rules
+
+- Keep the bonding/control clock independent of the GTP TX and recovered RX
+  clocks.
+- Each SFP channel has its own TX and RX user-clock domain.
+- Never use the TX user clock for RX decoding.
+- Reset assertion may be asynchronous, but release must be synchronized in
+  each local user-clock domain.
+- The two physical lanes may share a QPLL but must not share recovered RX
+  clocks.
+- The GTP RX source is continuous; configure the generic RX adapter as
+  non-stallable and rely on its buffering plus the byte-wide one-byte profile.
+
+## Implementation sequence
+
+1. Add a LiteX/Migen wrapper module that instantiates two existing LiteICLink
+   GTPs and one `bonded_two_lane_phy_word_node` RTL instance.
+2. Add a separate Acorn bonded-transport target using the existing CRG/QPLL
+   setup, without changing the current SerWB target or its GTP ownership.
+3. Add a generated-Verilog build smoke test and verify both SFP channels map
+   to the correct GTP clocks and byte/control slices.
+4. Run the full RTL CI suite before attempting Vivado synthesis.
+5. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
+   and sustained one-byte-per-word traffic on hardware.
+
+No board-specific wrapper is hardware-validated by this document.
