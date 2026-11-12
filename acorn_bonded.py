@@ -15,6 +15,7 @@ from litex_boards.platforms import sqrl_acorn
 import board_lock
 from acorn_soc2soc import SoC2SoC, SFP_POLARITIES, create_programmer
 from soc2soc.bonded_acorn import AcornBondedSerdes
+from soc2soc.bonded_tester import BondedPatternTester
 
 
 class BondedAcornSoC(SoC2SoC):
@@ -67,27 +68,34 @@ class BondedAcornSoC(SoC2SoC):
             qpll=self.qpll,
         )
 
-        # This first target is a link/session bring-up image. Application
-        # traffic is deliberately idle until a packet generator/checker is
-        # connected in a later step.
+        # Generate and verify fixed-size bidirectional DATA packets after
+        # both peers have established the bonded session.
+        self.tester = BondedPatternTester(
+            session_active=self.bonded.session_active,
+            local_peer_id=peer_id,
+            remote_peer_id=expected_peer_id,
+        )
         self.comb += [
-            self.bonded.sink.valid.eq(0),
-            self.bonded.sink.data.eq(0),
-            self.bonded.sink.keep.eq(0),
-            self.bonded.sink.sop.eq(0),
-            self.bonded.sink.eop.eq(0),
-            self.bonded.source.ready.eq(1),
+            self.tester.tx.connect(self.bonded.sink),
+            self.bonded.source.connect(self.tester.rx),
             self.sfp_leds[0].eq(self.bonded.lane_up[0]),
             self.sfp_leds[1].eq(self.bonded.lane_up[1]),
         ]
 
-        self._bond_status = CSRStatus(4, description="Bonded link status: session active, control fault, lane 0 up, lane 1 up.")
-        self.comb += self._bond_status.status.eq(Cat(
-            self.bonded.session_active,
-            self.bonded.control_fault,
-            self.bonded.lane_up[0],
-            self.bonded.lane_up[1],
-        ))
+        self._bond_status = CSRStatus(5, description="Bonded status: session active, control fault, lane 0 up, lane 1 up, packet tester error.")
+        self._bond_tx_packets = CSRStatus(32, description="Bidirectional test packets transmitted.")
+        self._bond_rx_packets = CSRStatus(32, description="Bidirectional test packets received and checked.")
+        self.comb += [
+            self._bond_status.status.eq(Cat(
+                self.bonded.session_active,
+                self.bonded.control_fault,
+                self.bonded.lane_up[0],
+                self.bonded.lane_up[1],
+                self.tester.error,
+            )),
+            self._bond_tx_packets.status.eq(self.tester.tx_packets),
+            self._bond_rx_packets.status.eq(self.tester.rx_packets),
+        ]
 
 
 def main():
