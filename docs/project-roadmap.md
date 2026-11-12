@@ -104,10 +104,10 @@ integrity, FPGA resource utilization or timing closure.
 4. Bring up the conservative one-byte-per-PHY-word profile on the Acorn.
    Validate PLL lock, TX/RX initialization, PRBS, polarity, comma alignment
    and sustained traffic.
-5. Widen the wire TX/RX framing path so CRC, frame boundaries, CONTROL/DATA
-   arbitration and packet scheduling can accept and emit multiple bytes per
-   lane clock. The current byte-wide core cannot consume full-rate multi-byte
-   RX traffic.
+5. Widen the entire datapath for full-rate operation: TX/RX wire framing and
+   CRC, CONTROL/DATA arbitration, per-lane CDC, packet reorder/reassembly and
+   the logical application RX interface. The current byte-wide receiver and
+   byte-wide bond-clock output cannot consume full-rate aggregate traffic.
 6. Add sustained-rate and long-duration backpressure regressions for both
    two-symbol and four-symbol PHY configurations, including overflow checks.
 7. Audit epoch transitions, delayed CONTROL frames, stale complete DATA frames
