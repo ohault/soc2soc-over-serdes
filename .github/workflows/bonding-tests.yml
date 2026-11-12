@@ -22,6 +22,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check Python syntax for Acorn bonded target and wrapper
+        run: python -m compileall -q acorn_soc2soc.py acorn_bonded.py soc2soc/bonded_acorn.py
       - name: Run bonding unit and integration tests
         run: python -m unittest discover -s test -p "test_bonding_*.py" -v
 
