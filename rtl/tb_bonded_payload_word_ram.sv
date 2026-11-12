@@ -101,7 +101,7 @@ module tb_bonded_payload_word_ram #(
 
         // Update only the highest byte lane; all other bytes must be preserved.
         partial_expected[(KEEP_WIDTH-1)*8 +: 8] = 8'hD7;
-        write_word(0, {DATA_WIDTH{1'b1}}, ({{(KEEP_WIDTH-1){1'b0}},1'b1} << (KEEP_WIDTH-1)));
+        write_word(0, {DATA_WIDTH{1'b1}}, (1 << (KEEP_WIDTH-1)));
         read_word(0, partial_expected);
 
         // Reset clears response validity but deliberately preserves RAM contents.
