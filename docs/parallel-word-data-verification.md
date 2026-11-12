@@ -65,3 +65,10 @@ Both byte-serial and parallel receivers now accept the full eight-bit lane-ID
 field when configured for dynamic lane checking. These are source-level
 regressions registered in CI; they remain unverified until the Icarus job
 actually runs and its logs are inspected.
+
+
+The parallel receiver's CRC implementation now updates CRC-16 and CRC-32C
+incrementally while collecting each accepted word. A four-byte rolling tail
+excludes the received CRC-32C trailer. This avoids a frame-length-sized CRC
+loop at end of frame; it does not yet resolve the frame buffer's memory-port
+and inference questions.
