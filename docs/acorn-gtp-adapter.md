@@ -65,6 +65,21 @@ This profile is a safe protocol bring-up configuration, not maximum GTP
 throughput. Full two-byte-per-clock operation requires the wire TX/RX framing
 and packet paths to be widened end to end first.
 
+## Candidate common Tang line rate
+
+For an Acorn-to-Tang link, a candidate common serial line rate is 5.0 Gb/s
+per lane. The Acorn GTP keeps its 20-bit/two-symbol user interface, so its
+TX and recovered RX user clocks are 250 MHz at this line rate. The proposed
+Tang Gowin configuration uses a 20-bit internal width and 1:2 external ratio,
+giving a 40-bit/four-symbol user interface at 125 MHz. The physical line rate
+must match even though the user clocks and word widths differ.
+
+The Acorn target currently defaults to 2.5 Gb/s for conservative bring-up.
+After the QPLL and timing checks, use `--linerate=5e9` for the candidate
+cross-board profile. The LiteX elaboration CI job now checks both the default
+and 5.0-Gb/s configurations; this is not a substitute for Vivado timing
+closure or hardware validation.
+
 ## Decoder error handling
 
 The two `Decoder.invalid` flags are in the recovered RX clock domain. Latch
