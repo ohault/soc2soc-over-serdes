@@ -26,7 +26,7 @@ module tb_bonded_wire_rx_lane_parallel;
     reg [7:0] payload[0:PAYLOAD_LEN-1];
     reg [15:0] hcrc;
     reg [31:0] fcrc;
-    integer i,j,offset,count,got=0,cycles=0;
+    integer i,j,offset,count,got=0,cycles=0,timeout_count=0;
     reg force_stall=0;
 
     bonded_wire_rx_lane_parallel #(.DATA_WIDTH(DATA_WIDTH),.LANE_ID(0),.DYNAMIC_LANE_ID(1)) dut (
@@ -222,7 +222,10 @@ module tb_bonded_wire_rx_lane_parallel;
             send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
             offset=offset+count;
         end
-        while(got<PAYLOAD_LEN && cycles<8000) @(posedge clk);
+        timeout_count=0;
+        while(got<PAYLOAD_LEN && timeout_count<1000) begin
+            @(posedge clk); timeout_count=timeout_count+1;
+        end
         repeat(3) @(posedge clk);
         if(got!=PAYLOAD_LEN || !frame_error || out_lane_id!=8'ha5)
             $fatal(1,"WIDTH=%0d premature-SOP resynchronization failed got=%0d err=%b lane=%h",
@@ -253,7 +256,10 @@ module tb_bonded_wire_rx_lane_parallel;
             send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
             offset=offset+count;
         end
-        while(got<PAYLOAD_LEN && cycles<12000) @(posedge clk);
+        timeout_count=0;
+        while(got<PAYLOAD_LEN && timeout_count<1000) begin
+            @(posedge clk); timeout_count=timeout_count+1;
+        end
         repeat(3) @(posedge clk);
         if(got!=PAYLOAD_LEN || frame_error || out_lane_id!=8'ha5)
             $fatal(1,"WIDTH=%0d reset-during-collection recovery failed got=%0d err=%b",
