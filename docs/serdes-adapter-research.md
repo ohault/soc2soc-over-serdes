@@ -126,24 +126,32 @@ but it cannot absorb a peer that sends multiple data bytes per PHY word
 continuously; both peers must use the same bring-up profile. This is not a
 full-line-rate solution.
 
-## Candidate common first bring-up profile
+## Candidate common Acorn/Tang bring-up profile
 
-A reasonable *candidate* for first cross-board testing is:
+A useful *candidate* common serial line rate is 5.0 Gb/s per SFP lane:
 
-- 8b/10b line rate: 6.25 Gb/s per SFP lane.
-- Four decoded symbols per PHY word (40-bit encoded word, 32 data bits plus
-  four K-character indicators).
-- PHY user clock: 156.25 MHz.
-- One data byte per PHY word using the generic comma-first adapter.
-- Effective transport ceiling: 1.25 Gb/s per lane, or 2.5 Gb/s across two lanes,
-  before the project's frame overhead.
+- Acorn CLE-215+ GTP: 20-bit user datapath (two 8b/10b symbols), giving a
+  250 MHz TX/RX user clock at 5.0 Gb/s.
+- Tang Mega 138K Pro Gowin PHY: 20-bit internal datapath with a 1:2 external
+  ratio (40-bit TX / 44-bit RX, four symbols), giving a 125 MHz user clock.
+- Both sides use 8b/10b and the same 5.0 Gb/s serial line rate. Their user
+  clocks differ; each lane bridge handles its own TX and recovered RX clock.
 
-This keeps the node clock at 156.25 MHz and uses a line rate within the Acorn
-GTP's documented 6.6-Gb/s limit. The Tang dock's MS5351 reference-clock guide
-also lists 156.25 MHz as a supported output configuration. The actual PLL
-settings, SFP polarity, comma alignment and link stability still require
-vendor-tool verification and then hardware PRBS/loopback testing; this is a
-starting configuration, not a validated board profile.
+5.0 Gb/s is below the Acorn GTP's documented 6.6-Gb/s ceiling and within the
+Gowin PHY's 1--12.5-Gb/s range. The Tang IP guide supports 20-bit internal
+width with a 1:2 external ratio. The checked-in Sipeed example instead uses
+1:4 (80-bit TX / 88-bit RX) and reports a 10-Gb/s configuration; the generic
+Gowin mapper supports both four- and eight-symbol widths.
+
+This is only a candidate. The Acorn 250 MHz user-clock timing path and the
+Gowin QPLL/reference-clock configuration must pass vendor-tool elaboration,
+synthesis and timing. The separate Acorn bonded target currently defaults to
+2.5 Gb/s; use `--linerate=5e9` only after the QPLL and timing checks.
+
+Keep `PHY_DATA_BYTES_PER_WORD=1` for initial bring-up. This is an integrity
+profile, not line-rate utilization: the current logical wire framing and RX
+application path are byte-wide. Full-rate operation requires widening the
+framing, packet scheduling, CDC, reorder/reassembly and logical RX path.
 
 ## First bring-up adapter
 
