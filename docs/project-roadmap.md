@@ -27,7 +27,7 @@ is an integration option, not a dependency of the bonding core.
 | Gowin 8b/10b FIFO mapper | Implemented; 4/8-symbol mapping regressions added | Maps 40/44-bit and 80/88-bit Gowin interfaces, including disparity and decoder-error flags |
 | Per-lane PHY bridge | Integrated as generic RTL | Independent TX/recovered-RX clocks, word packer/decoder, byte unpacker, session-drop flushing and sticky PHY faults |
 | Two-lane parallel-PHY node wrapper | Integrated RTL; CI passing | End-to-end parallel-word PHY tests, session-flush recovery and malformed-symbol fault propagation; no sustained line-rate claim |
-| Board-specific transceiver adapters | Acorn wrapper present; LiteX elaboration pending | Two 20-bit LiteICLink GTP channels map to the generic node; no Vivado synthesis or hardware validation yet |
+| Board-specific transceiver adapters | Acorn wrapper LiteX/Migen elaboration passing | Both 2.5 and 5.0 Gb/s targets elaborate with one shared QPLL and two GTP channels; no Vivado synthesis or hardware validation yet |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
 ## Current top-level RTL
@@ -76,12 +76,12 @@ unrelated lane and bonding clocks.
 
 **Current code verification (12 November 2026):** GitHub Actions run
 [43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
-on commit `eb0f3026fda8a1c501aedc3cad0251c55959e0c9` passes the Python bonding
-tests and the complete RTL frame-boundary workflow, including two-node
-parallel-PHY transport, asymmetric lane-loss recovery, PHY session flushing,
-crossed-lane mapping and full-duplex backpressure. The Acorn LiteX elaboration
-job in that run is still running and must complete before the wrapper can be
-marked elaboration-verified.
+on commit `eb0f3026fda8a1c501aedc3cad0251c55959e0c9` passes all three jobs:
+Python bonding tests, the complete RTL frame-boundary workflow (including
+two-node parallel-PHY transport, asymmetric lane-loss recovery, PHY
+session-flush recovery, crossed-lane mapping and full-duplex backpressure),
+and Acorn LiteX/Migen elaboration at both 2.5 and 5.0 Gb/s. The elaboration
+confirms one shared QPLL and two GTP channel instances; it does not run Vivado.
 
 The separate payload-RAM workflow
 [43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
@@ -97,10 +97,9 @@ timing closure or bitstream behavior.
 
 ## Next engineering steps
 
-1. Complete the Acorn LiteX elaboration job on the current branch and inspect
-   the generated Verilog for both GTP channels, independent TX/RX clocks,
-   data/control slices, reset domains and decoder-error propagation. Keep the
-   existing SerWB target unchanged.
+1. Add a generated-Verilog structural check for exactly two GTP channel
+   primitives and one shared QPLL, then inspect the clock, data/control,
+   reset and decoder-error wiring. Keep the existing SerWB target unchanged.
 2. Run Vivado synthesis and timing analysis for the conservative
    one-byte-per-PHY-word profile. Check QPLL configuration, resource use, CDC
    constraints and timing before generating a bitstream.
