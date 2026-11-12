@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: BSD-2-Clause
 `timescale 1ns/1ps
-module tb_bonded_gowin_8b10b_word_adapter;
-    reg [63:0] tx_data=0;
-    reg [7:0] tx_ctrl=0;
-    wire [79:0] gowin_tx_data;
-    reg [87:0] gowin_rx_data=0;
-    wire [63:0] rx_data;
-    wire [7:0] rx_ctrl,rx_disparity_error,rx_decoder_error;
+module tb_bonded_gowin_8b10b_word_adapter #(parameter integer SYMBOLS_PER_WORD=4);
+    localparam integer TX_WIDTH=SYMBOLS_PER_WORD*10;
+    localparam integer RX_WIDTH=SYMBOLS_PER_WORD*11;
+    localparam integer DATA_WIDTH=SYMBOLS_PER_WORD*8;
+    reg [DATA_WIDTH-1:0] tx_data=0;
+    reg [SYMBOLS_PER_WORD-1:0] tx_ctrl=0;
+    wire [TX_WIDTH-1:0] gowin_tx_data;
+    reg [RX_WIDTH-1:0] gowin_rx_data=0;
+    wire [DATA_WIDTH-1:0] rx_data;
+    wire [SYMBOLS_PER_WORD-1:0] rx_ctrl,rx_disparity_error,rx_decoder_error;
     wire rx_symbol_error;
 
-    bonded_gowin_8b10b_word_adapter dut(
+    bonded_gowin_8b10b_word_adapter #(.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD)) dut(
         .tx_data(tx_data),.tx_ctrl(tx_ctrl),.gowin_tx_data(gowin_tx_data),
         .gowin_rx_data(gowin_rx_data),.rx_data(rx_data),.rx_ctrl(rx_ctrl),
         .rx_disparity_error(rx_disparity_error),
@@ -17,13 +20,13 @@ module tb_bonded_gowin_8b10b_word_adapter;
     );
 
     integer i;
-    reg [63:0] expected_data;
-    reg [7:0] expected_ctrl;
+    reg [DATA_WIDTH-1:0] expected_data;
+    reg [SYMBOLS_PER_WORD-1:0] expected_ctrl;
 
     initial begin
         expected_data=0;
-        expected_ctrl=8'b10010001;
-        for(i=0;i<8;i=i+1) begin
+        expected_ctrl='h91;
+        for(i=0;i<SYMBOLS_PER_WORD;i=i+1) begin
             expected_data[8*i +: 8]=8'h31+i*7;
             tx_data[8*i +: 8]=8'h31+i*7;
         end
@@ -57,9 +60,9 @@ module tb_bonded_gowin_8b10b_word_adapter;
             $fatal(1,"RX disparity error bit not propagated");
 
         gowin_rx_data[10*3+9]=1'b0;
-        gowin_rx_data[80+6]=1'b1;
+        gowin_rx_data[10*SYMBOLS_PER_WORD+SYMBOLS_PER_WORD-2]=1'b1;
         #1;
-        if(!rx_symbol_error || !rx_decoder_error[6])
+        if(!rx_symbol_error || !rx_decoder_error[SYMBOLS_PER_WORD-2])
             $fatal(1,"RX decoder error bit not propagated");
 
         $display("PASS: Gowin 80/88-bit TX/RX symbol and error-bit mapping");
