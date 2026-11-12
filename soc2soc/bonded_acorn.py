@@ -93,6 +93,8 @@ class AcornBondedSerdes(LiteXModule):
         self.phy_rx_error = Signal(2)
         self.tx_frame_error = Signal(2)
         self.rx_frame_error = Signal(2)
+        self.gtp_rx_invalid = Signal(2)
+        self.lane_up = Signal(2)
 
         rtl_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "rtl"))
         for filename in _BONDED_RTL:
@@ -166,7 +168,10 @@ class AcornBondedSerdes(LiteXModule):
             setattr(self.submodules, f"gtp{lane}_rx_error_latch", error_latch)
             invalid_sys = Signal()
             self.specials += MultiReg(error_latch.error, invalid_sys, "sys")
+            self.comb += self.gtp_rx_invalid[lane].eq(invalid_sys)
             lane_up.append(gtp.tx_ready & gtp.rx_ready & qpll_lock_sys & ~invalid_sys)
+
+        self.comb += [self.lane_up[0].eq(lane_up[0]), self.lane_up[1].eq(lane_up[1])]
 
         tx_ready = Signal()
         rx_valid = Signal()
