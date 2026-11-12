@@ -179,3 +179,19 @@ The differential bench also checks stale-session discard, unexpected frame
 sequence rejection, and dynamic lane-ID mismatch rejection. For each case,
 both receivers must agree on whether a link error is raised and neither may
 release payload bytes from a rejected frame.
+
+
+## Recovery and synthesis checks
+
+The side-by-side differential regression now includes premature-SOP recovery,
+reset during partial frame collection, and reset while both output interfaces
+are stalled. After each recovery, it checks that a subsequent valid frame is
+delivered without stale bytes. The CI matrix applies these scenarios across
+the supported 8-, 16- and 32-bit datapaths and the payload boundary lengths.
+
+A separate Yosys job reports the memory cells retained by the original
+byte-array receiver and checks that the RAM-backed candidate retains a
+32-bit-wide, 1024-word payload memory at its default 32-bit configuration.
+This is a generic RTL memory-inference check, not a vendor-specific BRAM
+mapping or a timing/resource report. Actual FPGA-family synthesis and
+primitive mapping remain a later validation step.
