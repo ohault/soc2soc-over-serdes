@@ -108,7 +108,7 @@ module bonded_wire_rx_lane #(
             if(state==ST_CHECK) begin
                 if(frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 ||
-                   frame_mem[4]!=8'h00 || frame_mem[5]>8'd1 ||
+                   frame_mem[4]!=8'h00 ||
                    (DYNAMIC_LANE_ID ? ((expected_lane_id!=8'hff) && (frame_mem[5]!=expected_lane_id)) : (frame_mem[5]!=LANE_ID[7:0])) ||
                    frame_mem[6]!=8'h00 || frame_mem[7]!=8'h18 ||
                    {frame_mem[22],frame_mem[23]}!=header_crc ||
