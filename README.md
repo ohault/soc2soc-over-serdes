@@ -45,9 +45,10 @@ Board-specific SERDES primitives and clocks remain outside the bonding core.
 - [Dynamic lane mapping and crossed-cable behavior](docs/dynamic-lane-mapping.md)
 - [RTL session epoch v1 proposal](docs/session-epoch-v1.md)
 
-The initial 8b/10b adapter carries one data byte per PHY word for conservative
-bring-up; it is not the full-rate multi-byte datapath required for maximum
-SFP+ throughput. No hardware validation has been performed yet.
+The conservative one-byte-per-PHY-word mode is suitable for initial bring-up.
+The multi-byte PHY adapter is not yet safe for sustained full-rate traffic
+until the wire framing and packet datapaths are widened end to end. No hardware
+validation has been performed yet.
 
 ## Scenarios
 
