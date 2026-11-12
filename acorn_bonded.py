@@ -33,6 +33,16 @@ class BondedAcornSoC(SoC2SoC):
         rx_fifo_depth=16,
         **kwargs,
     ):
+        if not (64 <= max_payload <= 4096):
+            raise ValueError("max_payload must be between 64 and the v0 maximum of 4096 bytes")
+        if rx_fifo_depth < 2 or (rx_fifo_depth & (rx_fifo_depth - 1)):
+            raise ValueError("rx_fifo_depth must be a power of two >= 2")
+        if session_id == 0:
+            raise ValueError("session_id must be non-zero")
+        if peer_id == expected_peer_id:
+            raise ValueError("peer_id and expected_peer_id must differ")
+        if not (0 < peer_id < (1 << 64) and 0 < expected_peer_id < (1 << 64)):
+            raise ValueError("peer IDs must be non-zero unsigned 64-bit values")
         # Reuse the established Acorn CRG and shared QPLL setup, but leave both
         # SFP cages unclaimed by the legacy SerWB/GTPSoCLink modules.
         kwargs.setdefault("ident", "Experimental bonded two-lane packet transport on Acorn CLE-215+")
