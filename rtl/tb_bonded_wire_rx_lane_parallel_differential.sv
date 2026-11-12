@@ -28,9 +28,9 @@ module tb_bonded_wire_rx_lane_parallel_differential;
     wire ref_error,ref_pulse,ram_error,ram_pulse;
 
     reg [7:0] frame[0:FRAME_LEN-1];
-    reg [7:0] payload[0:PAYLOAD_LEN-1];
-    reg [7:0] ref_bytes[0:PAYLOAD_LEN-1];
-    reg [7:0] ram_bytes[0:PAYLOAD_LEN-1];
+    reg [7:0] payload[0:((PAYLOAD_LEN>0)?PAYLOAD_LEN:1)-1];
+    reg [7:0] ref_bytes[0:((PAYLOAD_LEN>0)?PAYLOAD_LEN:1)-1];
+    reg [7:0] ram_bytes[0:((PAYLOAD_LEN>0)?PAYLOAD_LEN:1)-1];
     reg [15:0] hcrc;
     reg [31:0] fcrc;
     integer i,j,offset,count,got_ref=0,got_ram=0,cycles=0,watchdog;
@@ -181,6 +181,10 @@ module tb_bonded_wire_rx_lane_parallel_differential;
     endtask
 
     initial begin
+        if(DATA_WIDTH!=8 && DATA_WIDTH!=16 && DATA_WIDTH!=32)
+            $fatal(1,"Unsupported DATA_WIDTH=%0d",DATA_WIDTH);
+        if(PAYLOAD_LEN<0 || PAYLOAD_LEN>4096)
+            $fatal(1,"PAYLOAD_LEN must be 0..4096");
         build_frame();
         repeat(4) @(posedge clk);
         @(negedge clk); rst=0;
