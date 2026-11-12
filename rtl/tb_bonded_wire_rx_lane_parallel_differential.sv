@@ -192,7 +192,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             @(negedge clk);
             in_data=0; in_keep=0;
             if(KEEP_WIDTH>1) begin
-                in_keep[0]=1'b1; in_keep[KEEP_WIDTH-1]=1'b1;
+                in_keep[KEEP_WIDTH-1]=1'b1;
             end
             in_sop=1; in_eop=0; in_valid=1;
             while(!in_ready_ref || !in_ready_ram) @(negedge clk);
