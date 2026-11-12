@@ -5,8 +5,8 @@
 // different latency; this test compares accepted payload streams and metadata.
 module tb_bonded_wire_rx_lane_parallel_differential;
     parameter integer DATA_WIDTH=32;
+    parameter integer PAYLOAD_LEN=7;
     localparam integer KEEP_WIDTH=DATA_WIDTH/8;
-    localparam integer PAYLOAD_LEN=7;
     localparam integer FRAME_LEN=24+4+PAYLOAD_LEN+4;
     localparam integer WORD_BYTES=DATA_WIDTH/8;
 
@@ -34,6 +34,11 @@ module tb_bonded_wire_rx_lane_parallel_differential;
     reg [15:0] hcrc;
     reg [31:0] fcrc;
     integer i,j,offset,count,got_ref=0,got_ram=0,cycles=0,watchdog;
+    reg ref_eop_seen=0,ram_eop_seen=0;
+    reg ref_stalled=0,ram_stalled=0;
+    reg [DATA_WIDTH-1:0] ref_stall_data,ram_stall_data;
+    reg [KEEP_WIDTH-1:0] ref_stall_keep,ram_stall_keep;
+    reg ref_stall_sop,ref_stall_eop,ram_stall_sop,ram_stall_eop;
 
     bonded_wire_rx_lane_parallel #(
         .DATA_WIDTH(DATA_WIDTH),.LANE_ID(0),.DYNAMIC_LANE_ID(1)
@@ -96,6 +101,22 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             out_ready <= ((cycles%5)!=1);
             cycles=cycles+1;
 
+            if(ref_stalled && (!ref_valid || ref_data!==ref_stall_data ||
+               ref_keep!==ref_stall_keep || ref_sop!==ref_stall_sop || ref_eop!==ref_stall_eop))
+                $fatal(1,"WIDTH=%0d reference output changed while stalled",DATA_WIDTH);
+            if(ram_stalled && (!ram_valid || ram_data!==ram_stall_data ||
+               ram_keep!==ram_stall_keep || ram_sop!==ram_stall_sop || ram_eop!==ram_stall_eop))
+                $fatal(1,"WIDTH=%0d RAM candidate output changed while stalled",DATA_WIDTH);
+            ref_stalled <= ref_valid && !out_ready;
+            ram_stalled <= ram_valid && !out_ready;
+            if(ref_valid && !out_ready) begin
+                ref_stall_data<=ref_data; ref_stall_keep<=ref_keep;
+                ref_stall_sop<=ref_sop; ref_stall_eop<=ref_eop;
+            end
+            if(ram_valid && !out_ready) begin
+                ram_stall_data<=ram_data; ram_stall_keep<=ram_keep;
+                ram_stall_sop<=ram_sop; ram_stall_eop<=ram_eop;
+            end
             if(ref_valid && out_ready) begin
                 if(got_ref==0 && !ref_sop) $fatal(1,"reference missing SOP");
                 for(j=0;j<KEEP_WIDTH;j=j+1) if(ref_keep[j]) begin
@@ -103,7 +124,10 @@ module tb_bonded_wire_rx_lane_parallel_differential;
                     ref_bytes[got_ref]=ref_data[j*8 +: 8];
                     got_ref=got_ref+1;
                 end
-                if(ref_eop && got_ref!=PAYLOAD_LEN) $fatal(1,"reference early EOP");
+                if(ref_eop) begin
+                    ref_eop_seen=1;
+                    if(got_ref!=PAYLOAD_LEN) $fatal(1,"reference early EOP");
+                end
             end
 
             if(ram_valid && out_ready) begin
@@ -113,7 +137,10 @@ module tb_bonded_wire_rx_lane_parallel_differential;
                     ram_bytes[got_ram]=ram_data[j*8 +: 8];
                     got_ram=got_ram+1;
                 end
-                if(ram_eop && got_ram!=PAYLOAD_LEN) $fatal(1,"RAM candidate early EOP");
+                if(ram_eop) begin
+                    ram_eop_seen=1;
+                    if(got_ram!=PAYLOAD_LEN) $fatal(1,"RAM candidate early EOP");
+                end
             end
         end
     end
@@ -125,14 +152,15 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             frame[8]=1; frame[9]=2; frame[10]=3; frame[11]=4;
             frame[12]=5; frame[13]=6; frame[14]=7; frame[15]=8;
             frame[16]=0; frame[17]=0; frame[18]=0; frame[19]=0;
-            frame[20]=0; frame[21]=PAYLOAD_LEN+4;
+            frame[20]=(PAYLOAD_LEN+4)>>8; frame[21]=(PAYLOAD_LEN+4)&8'hff;
             hcrc=16'hffff;
             for(i=0;i<22;i=i+1) hcrc=crc16_byte(hcrc,frame[i]);
             frame[22]=hcrc[15:8]; frame[23]=hcrc[7:0];
             frame[24]=8'h11; frame[25]=8'h22; frame[26]=8'h33; frame[27]=8'h44;
-            payload[0]=8'h10; payload[1]=8'h20; payload[2]=8'h30;
-            payload[3]=8'h40; payload[4]=8'h50; payload[5]=8'h60; payload[6]=8'h70;
-            for(i=0;i<PAYLOAD_LEN;i=i+1) frame[28+i]=payload[i];
+            for(i=0;i<PAYLOAD_LEN;i=i+1) begin
+                payload[i]=(i*37+8'h10)&8'hff;
+                frame[28+i]=payload[i];
+            end
             fcrc=32'hffffffff;
             for(i=0;i<FRAME_LEN-4;i=i+1) fcrc=crc32_byte(fcrc,frame[i]);
             frame[FRAME_LEN-4]=~fcrc[31:24]; frame[FRAME_LEN-3]=~fcrc[23:16];
@@ -159,11 +187,11 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         send_complete_frame();
 
         watchdog=0;
-        while((got_ref<PAYLOAD_LEN || got_ram<PAYLOAD_LEN) && watchdog<2000) begin
+        while((!ref_eop_seen || !ram_eop_seen) && watchdog<20000) begin
             @(posedge clk); watchdog=watchdog+1;
         end
         repeat(4) @(posedge clk);
-        if(got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
+        if(!ref_eop_seen || !ram_eop_seen || got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
             $fatal(1,"WIDTH=%0d payload timeout ref=%0d ram=%0d",DATA_WIDTH,got_ref,got_ram);
         for(i=0;i<PAYLOAD_LEN;i=i+1)
             if(ref_bytes[i]!==ram_bytes[i] || ref_bytes[i]!==payload[i])
@@ -173,7 +201,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             $fatal(1,"WIDTH=%0d differential metadata/error mismatch",DATA_WIDTH);
 
         // Corrupt the trailer and prove neither implementation releases data.
-        @(negedge clk); rst=1; got_ref=0; got_ram=0;
+        @(negedge clk); rst=1; got_ref=0; got_ram=0; ref_eop_seen=0; ram_eop_seen=0; ref_stalled=0; ram_stalled=0;
         repeat(3) @(posedge clk);
         @(negedge clk); rst=0;
         frame[FRAME_LEN-1]=frame[FRAME_LEN-1]^8'h01;
@@ -182,7 +210,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
             $fatal(1,"WIDTH=%0d invalid frame handling differs or leaked payload",DATA_WIDTH);
 
-        $display("PASS differential byte-array vs RAM-backed RX DATA_WIDTH=%0d",DATA_WIDTH);
+        $display("PASS differential byte-array vs RAM-backed RX DATA_WIDTH=%0d PAYLOAD_LEN=%0d",DATA_WIDTH,PAYLOAD_LEN);
         $finish;
     end
 endmodule
