@@ -4,6 +4,7 @@
 // continuation words carry N bytes. EOP flushes a partial final word.
 module bonded_byte_to_phy_word #(
     parameter integer SYMBOLS_PER_WORD=4,
+    parameter integer DATA_BYTES_PER_WORD=SYMBOLS_PER_WORD,
     parameter integer COUNT_WIDTH=(SYMBOLS_PER_WORD<=2)?2:$clog2(SYMBOLS_PER_WORD+1)
 ) (
     input wire clk,
@@ -23,8 +24,9 @@ module bonded_byte_to_phy_word #(
     reg [COUNT_WIDTH-1:0] byte_count;
     reg frame_open;
     reg first_word;
-    wire [COUNT_WIDTH-1:0] capacity =
-        (first_word ? SYMBOLS_PER_WORD-1 : SYMBOLS_PER_WORD);
+    localparam integer SOP_CAPACITY=(DATA_BYTES_PER_WORD<SYMBOLS_PER_WORD) ?
+        DATA_BYTES_PER_WORD : SYMBOLS_PER_WORD-1;
+    wire [COUNT_WIDTH-1:0] capacity = first_word ? SOP_CAPACITY : DATA_BYTES_PER_WORD;
     integer j;
 
     assign byte_ready=!rst && !word_valid;
@@ -32,6 +34,8 @@ module bonded_byte_to_phy_word #(
     initial begin
         if(SYMBOLS_PER_WORD!=2 && SYMBOLS_PER_WORD!=4)
             $error("SYMBOLS_PER_WORD must be 2 or 4");
+        if(DATA_BYTES_PER_WORD<1 || DATA_BYTES_PER_WORD>SYMBOLS_PER_WORD)
+            $error("DATA_BYTES_PER_WORD must be between 1 and SYMBOLS_PER_WORD");
     end
 
     always @(posedge clk) begin
