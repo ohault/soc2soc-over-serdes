@@ -29,7 +29,7 @@ module bonded_byte_to_phy_word #(
     wire [COUNT_WIDTH-1:0] capacity = first_word ? SOP_CAPACITY : DATA_BYTES_PER_WORD;
     integer j;
 
-    assign byte_ready=!rst && !word_valid;
+    assign byte_ready=!rst && (!word_valid || word_ready);
 
     initial begin
         if(SYMBOLS_PER_WORD!=2 && SYMBOLS_PER_WORD!=4)
