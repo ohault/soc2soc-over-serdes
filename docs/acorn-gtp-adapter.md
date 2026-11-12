@@ -112,26 +112,38 @@ both lanes are ready again.
 
 ## Implementation status
 
-A first LiteX/Migen wrapper prototype is now present in
-`soc2soc/bonded_acorn.py`. It instantiates two 20-bit LiteICLink GTP channels,
-uses independent per-lane TX and recovered-RX clocks, maps the two data and K
-control bits, latches GTP decoder-invalid indications in the RX clock domain,
-and connects the generic two-lane RTL node. It defaults to the safe
-one-byte-per-PHY-word mode. The existing SerWB target is not modified.
+The LiteX/Migen wrapper in `soc2soc/bonded_acorn.py` instantiates two
+20-bit LiteICLink GTP channels, uses independent per-lane TX and recovered-RX
+clocks, maps data and K-control bits, latches GTP decoder-invalid indications
+in the RX clock domain, and connects the generic two-lane RTL node. It defaults
+to the safe one-byte-per-PHY-word mode. The existing SerWB target is unchanged.
 
-The separate `acorn_bonded.py` target now reuses the established CRG/QPLL
-setup while leaving the existing SerWB target unchanged. The image starts the
-control plane but leaves application DATA idle; a packet generator/checker is
-still needed. The wrapper and target have not yet been imported in a LiteX
-build, elaborated to Verilog, synthesized or hardware-tested. The next steps
-are:
+The separate `acorn_bonded.py` target reuses the established CRG/QPLL setup
+while leaving the legacy SerWB GTP links uninstantiated. Its
+`BondedPatternTester` is connected for bidirectional fixed-size DATA packets;
+traffic starts after the HELLO/READY session has been active for a short
+settling interval.
 
-1. Elaborate the target in a LiteX environment and verify both SFP channels
-   map to the correct GTP clocks and byte/control slices.
-2. Add a hardware-free packet generator/checker for bidirectional DATA tests.
-3. Run the full RTL CI suite before attempting Vivado synthesis.
-4. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
-   and sustained one-byte-per-word traffic on hardware.
+**LiteX/Migen verification passed** in GitHub Actions run
+[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
+for both the default 2.5-Gb/s profile and the candidate 5.0-Gb/s profile. The
+SoC hierarchy contains one shared `GTPE2_COMMON` QPLL and two
+`GTPE2_CHANNEL` instances. A follow-on generated-Verilog structural check
+(run 43178804116) now verifies primitive counts and the TX/RX data, K-control
+and user-clock ports for both line rates.
+
+No Vivado synthesis, timing closure, bitstream generation or physical hardware
+validation has been performed. After the generated-Verilog check passes, the
+remaining steps are:
+
+1. Review the generated GTP port connections and clock/reset domains, then run
+   Vivado synthesis and timing analysis without changing the existing SerWB
+   target.
+2. Build and load matching images on both Acorn boards. Check QPLL lock,
+   TX/RX initialization, PRBS, polarity and comma alignment.
+3. Run the bidirectional packet pattern test on both DAC lanes, including
+   crossed cabling and recovery after a lane fault; measure sustained traffic
+   and long-duration integrity.
 
 ## Separate Acorn bring-up target
 
