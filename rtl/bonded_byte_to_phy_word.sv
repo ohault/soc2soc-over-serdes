@@ -32,8 +32,8 @@ module bonded_byte_to_phy_word #(
     assign byte_ready=!rst && (!word_valid || word_ready);
 
     initial begin
-        if(SYMBOLS_PER_WORD!=2 && SYMBOLS_PER_WORD!=4)
-            $error("SYMBOLS_PER_WORD must be 2 or 4");
+        if(SYMBOLS_PER_WORD!=2 && SYMBOLS_PER_WORD!=4 && SYMBOLS_PER_WORD!=8)
+            $error("SYMBOLS_PER_WORD must be 2, 4 or 8");
         if(DATA_BYTES_PER_WORD<1 || DATA_BYTES_PER_WORD>SYMBOLS_PER_WORD)
             $error("DATA_BYTES_PER_WORD must be between 1 and SYMBOLS_PER_WORD");
     end
