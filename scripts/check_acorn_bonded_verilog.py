@@ -25,7 +25,7 @@ def main() -> None:
     verilog = top.read_text(encoding="utf-8")
 
     def count(primitive: str) -> int:
-        return len(re.findall(rf"\\b{re.escape(primitive)}\\b", verilog))
+        return len(re.findall(rf"\b{re.escape(primitive)}\b", verilog))
 
     counts = {
         "GTPE2_COMMON": count("GTPE2_COMMON"),
@@ -56,7 +56,7 @@ def main() -> None:
         if counts[name] != expected[name]
     ]
     if failures:
-        raise SystemExit("Acorn bonded Verilog structural check failed:\\n" + "\\n".join(failures))
+        raise SystemExit("Acorn bonded Verilog structural check failed:\n" + "\n".join(failures))
     print("PASS: one shared GTP QPLL and two independently clocked GTP channels")
 
 
