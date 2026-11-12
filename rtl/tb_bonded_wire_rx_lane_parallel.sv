@@ -27,6 +27,7 @@ module tb_bonded_wire_rx_lane_parallel;
     reg [15:0] hcrc;
     reg [31:0] fcrc;
     integer i,j,offset,count,got=0,cycles=0;
+    reg force_stall=0;
 
     bonded_wire_rx_lane_parallel #(.DATA_WIDTH(DATA_WIDTH),.LANE_ID(0),.DYNAMIC_LANE_ID(1)) dut (
         .clk(clk),.rst(rst),.expected_session_id(expected_session_id),
@@ -63,7 +64,7 @@ module tb_bonded_wire_rx_lane_parallel;
     endtask
 
     always @(posedge clk) begin
-        if(!rst) out_ready<=((cycles%4)!=1);
+        if(!rst) out_ready<=force_stall ? 1'b0 : ((cycles%4)!=1);
         if(!rst && out_valid && out_ready) begin
             if(got==0 && !out_sop) $fatal(1,"missing output SOP");
             for(j=0;j<KEEP_WIDTH;j=j+1) if(out_keep[j]) begin
@@ -151,6 +152,29 @@ module tb_bonded_wire_rx_lane_parallel;
         if(frame_error || got!=0)
             $fatal(1,"WIDTH=%0d stale session was not silently discarded",DATA_WIDTH);
         $display("PASS: parallel DATA RX stale-session discard");
+
+        // Reset while a validated payload is stalled must flush the frame.
+        @(negedge clk); rst=1; got=0; expected_session_id=64'h0102030405060708;
+        force_stall=1;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        offset=0;
+        while(offset<FRAME_LEN) begin
+            if(offset<28) count=WORD_BYTES;
+            else if(offset<28+PAYLOAD_LEN) begin
+                count=WORD_BYTES; if(offset+count>28+PAYLOAD_LEN) count=28+PAYLOAD_LEN-offset;
+            end else count=WORD_BYTES;
+            if(offset+count>FRAME_LEN) count=FRAME_LEN-offset;
+            send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
+            offset=offset+count;
+        end
+        while(!frame_valid_pulse && cycles<5000) @(posedge clk);
+        @(negedge clk); rst=1;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        force_stall=0;
+        repeat(4) @(posedge clk);
+        if(out_valid || got!=0 || frame_error)
+            $fatal(1,"WIDTH=%0d reset did not flush stalled output",DATA_WIDTH);
+        $display("PASS: parallel DATA RX reset during stalled output");
         $finish;
     end
 endmodule
