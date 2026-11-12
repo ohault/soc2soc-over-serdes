@@ -11,6 +11,7 @@ module bonded_two_lane_phy_word_node #(
     parameter integer REORDER_WINDOW=4,
     parameter integer MAX_PACKET_BYTES=4096,
     parameter integer SYMBOLS_PER_WORD=4,
+    parameter integer PHY_DATA_BYTES_PER_WORD=1,
     parameter integer PHY_RX_FIFO_DEPTH=16,
     parameter integer RX_PHY_STALLABLE=0,
     parameter integer LANE0_ID=0,
@@ -117,6 +118,7 @@ module bonded_two_lane_phy_word_node #(
 
     bonded_lane_phy_word_bridge #(
         .SYMBOLS_PER_WORD(SYMBOLS_PER_WORD),
+        .DATA_BYTES_PER_WORD(PHY_DATA_BYTES_PER_WORD),
         .RX_FIFO_DEPTH(PHY_RX_FIFO_DEPTH),
         .RX_PHY_STALLABLE(RX_PHY_STALLABLE)
     ) lane0_bridge (
@@ -138,6 +140,7 @@ module bonded_two_lane_phy_word_node #(
     );
     bonded_lane_phy_word_bridge #(
         .SYMBOLS_PER_WORD(SYMBOLS_PER_WORD),
+        .DATA_BYTES_PER_WORD(PHY_DATA_BYTES_PER_WORD),
         .RX_FIFO_DEPTH(PHY_RX_FIFO_DEPTH),
         .RX_PHY_STALLABLE(RX_PHY_STALLABLE)
     ) lane1_bridge (
