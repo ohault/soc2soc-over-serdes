@@ -128,9 +128,9 @@ settling interval.
 [43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
 for both the default 2.5-Gb/s profile and the candidate 5.0-Gb/s profile. The
 SoC hierarchy contains one shared `GTPE2_COMMON` QPLL and two
-`GTPE2_CHANNEL` instances. A follow-on generated-Verilog structural check
-(run 43178804116) now verifies primitive counts and the TX/RX data, K-control
-and user-clock ports for both line rates.
+`GTPE2_CHANNEL` instances. A follow-on generated-Verilog structural check now verifies primitive counts
+and the TX/RX data, K-control and user-clock ports for both line rates. It is
+being validated in GitHub Actions run 43179144496.
 
 No Vivado synthesis, timing closure, bitstream generation or physical hardware
 validation has been performed. After the generated-Verilog check passes, the
