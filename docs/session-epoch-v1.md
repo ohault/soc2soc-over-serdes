@@ -1,8 +1,10 @@
-# RTL session epoch v1 proposal
+# RTL session epoch v1 — implementation status
 
-## Current limitation
+## Implementation status
 
-The Python reference control plane already supports deterministic epoch election: the endpoint with the lower peer_id proposes a strictly newer 64-bit session ID and the higher-ID endpoint adopts it. The RTL control manager still uses a fixed SESSION_ID provisioned identically at both peers. A coordinated reset currently resets the physical lane FIFOs as well as the bonding domains because a stale complete frame can carry a valid SOP and pass the bridge's continuation flush.
+The RTL control manager now implements deterministic epoch election. The lower peer-ID endpoint increments its active 64-bit session ID after lane recovery; the higher peer-ID endpoint adopts a strictly newer HELLO from that configured authority. The active ID is passed into the endpoint's DATA TX/RX paths, and a session-change pulse resets per-session endpoint state. The initial `SESSION_ID` parameter remains the common seed for first power-up. The epoch register is volatile and is not persistent across independent cold boots.
+
+Dynamic remote lane-ID discovery is enabled by the autonomous node wrapper. Crossed lane wiring is exercised by the two-node PHY-word test; duplicate remote lane IDs are rejected. The PHY bridge discards stale continuation words after a session drop, while the wire/session layer rejects DATA frames carrying an old epoch.
 
 ## Epoch rules
 
@@ -27,11 +29,17 @@ The Python reference control plane already supports deterministic epoch election
 - The PHY byte/word bridge continues clocking idles and discards stale continuation words until a new SOP. A stale complete DATA frame may pass the PHY bridge but is rejected by its old session ID.
 - A full power-cycle still requires a common provisioned seed or a board-level persistent boot nonce/counter. RTL registers alone cannot guarantee monotonicity across independent power loss.
 
-## Implementation sequence
+## Implemented RTL elements
 
-1. Add the received wire-header session ID to the CONTROL RX CDC path.
-2. Make CONTROL decoders accept any non-zero session ID for the manager to validate; keep DATA decoders bound to the active session ID.
-3. Add active_session_id and session_changed to the RTL control manager.
-4. Implement lower-peer epoch increment after lane recovery and higher-peer adoption of a strictly newer authoritative HELLO.
-5. Reset per-session lane/control state on epoch changes without resetting the manager's epoch register.
-6. Add RTL tests for stale complete DATA frames, delayed old HELLO/READY, non-authoritative epoch proposals, simultaneous restarts and overflow.
+1. The CONTROL RX CDC path carries the received session ID to the control manager.
+2. CONTROL decoding is epoch-neutral; the manager validates current, newer-authoritative and stale epochs. DATA decoding remains bound to the active session ID.
+3. The manager exposes `active_session_id`, `session_changed` and `session_initiated`.
+4. Only the lower peer ID initiates an increment after lane recovery; the higher peer adopts a strictly newer authoritative HELLO.
+5. Per-session endpoint state and lane mappings are reset/relearned on epoch changes while the manager retains its active epoch.
+6. RTL regressions cover lane loss, heartbeat timeout, session re-arm, crossed lane mapping, duplicate lane IDs and post-recovery traffic.
+
+## Remaining hardening
+
+- Add explicit stale complete-DATA and delayed old CONTROL-frame injection tests across an epoch transition.
+- Test asymmetric cold reboot where one peer loses volatile epoch state. A persistent boot counter/nonce or explicit reprovisioning policy is required to prevent epoch rollback across independent power cycles.
+- Test simultaneous lane recovery and session proposal collisions, plus the 64-bit epoch exhaustion fail-closed path.
