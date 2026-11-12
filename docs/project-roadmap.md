@@ -40,24 +40,22 @@ is an integration option, not a dependency of the bonding core.
 - `docs/dynamic-lane-mapping.md`: remote lane-ID discovery, crossed cabling and duplicate-ID rejection.
 - `docs/rtl-control-transport.md`: RTL control architecture and limitations.
 
-## Important v0 limitations
+## Current limitations
 
-1. Both peers must be configured with the same non-zero session ID.
-2. The RTL control manager currently assumes direct lane-index mapping. Crossed
-   SFP/DAC cable discovery and deterministic session-ID election are not yet
-   implemented in RTL.
-3. A control fault is sticky; recovery currently requires a coordinated
-   physical-lane and bonding-domain reset. Automatic re-negotiation after lane
-   recovery is not yet implemented.
-4. The original `bonded_two_lane_node` byte-stream boundary remains available
-   as the reference path. `bonded_two_lane_phy_word_node` adds a configurable two- or four-symbol
-   parallel PHY boundary, but the board-specific transceiver user-side width,
-   clocking, and achievable line rate have not been validated. The adapter
-   fault outputs are sticky and invalidate the session on recovered-byte loss,
-   symbol errors or gearbox errors.
-5. The RX framer validates the header CRC before trusting frame length and can
-   rescan false prefixes. Uncorrectable byte loss inside a frame must still be
-   surfaced by the PHY adapter as a lane/session error.
+1. Both peers need the same non-zero initial session seed for first power-up.
+   Runtime session epochs are elected by peer ID, but the epoch register is
+   volatile and cannot prevent rollback after independent cold boots.
+2. Dynamic remote lane-ID discovery is enabled in the autonomous node and
+   crossed cable mapping is covered by simulation. Duplicate remote lane IDs
+   are rejected.
+3. Lane loss invalidates the bonded session. When both local lanes recover,
+   the lower peer-ID endpoint initiates a strictly newer epoch and the higher
+   peer adopts it. In-flight application packets are not preserved.
+4. The parallel-PHY wrapper is configurable for two- or four-symbol words,
+   but the actual board transceiver user-side width, clocking, line rate,
+   signal integrity, resource use and timing closure remain unvalidated.
+5. The PHY bridge flushes stale continuation words until a fresh SOP; the
+   session layer rejects complete DATA frames carrying an old epoch.
 6. The RTL flow-control violation is reported after a complete packet has
    entered reorder storage. Early admission reservation remains a hardening item.
 
@@ -76,22 +74,18 @@ two-node test with unrelated lane and bonding clocks.
 [43117263747](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43117263747)
 completed successfully for commit
 `dc0e46f6ece177cd11c9df483a8758a7f7069970`. Both the Python reference-model
-and RTL simulation jobs passed. The current branch is 27 commits ahead of that
+and RTL simulation jobs passed. The current branch is 29 commits ahead of that
 baseline; the later session-epoch, dynamic lane-map and parallel-PHY node
-changes must be rerun in GitHub Actions before they can be marked CI-verified. The end-to-end test connects two parallel-PHY
+changes must be rerun in GitHub Actions before they can be marked CI-verified. The end-to-end test at that baseline connects two byte-oriented
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
 16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
 direction, checks both physical lanes, applies application RX backpressure,
-and injects malformed 8b/10b control symbols to verify PHY-fault supervision.
-The test topology is deliberately crossed: local RX0 receives remote TX1 and
-local RX1 receives remote TX0. Dynamic remote lane-ID discovery allows the
-HELLO/READY and DATA paths to operate with that cable arrangement. A separate
-regression verifies duplicate remote lane IDs are rejected and invalidates the
-session rather than silently treating the two physical paths as one lane. The node-level
-tests also cover one-sided lane loss, remote PING/PONG timeout, sticky-fault
-behavior, coordinated FIFO/bond reset and session re-arm; the per-lane bridge test covers stale continuation discard
-without resetting the physical channel FIFO.
+and checks packet framing and flow-control behavior.
+Later, unverified-on-this-baseline tests extend coverage to crossed lane mapping,
+dynamic lane-ID discovery, duplicate-ID rejection, session epoch re-arm,
+parallel PHY framing, malformed control-symbol supervision and stale-frame
+discard without resetting the physical channel FIFO.
 
 This is digital simulation evidence only. It does not model analogue SERDES
 behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
