@@ -124,21 +124,22 @@ while leaving the legacy SerWB GTP links uninstantiated. Its
 traffic starts after the HELLO/READY session has been active for a short
 settling interval.
 
-**LiteX/Migen verification passed** in GitHub Actions run
-[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
-for both the default 2.5-Gb/s profile and the candidate 5.0-Gb/s profile. The
-SoC hierarchy contains one shared `GTPE2_COMMON` QPLL and two
-`GTPE2_CHANNEL` instances. A follow-on generated-Verilog structural check now verifies primitive counts
-and the TX/RX data, K-control and user-clock ports for both line rates. It is
-being validated in GitHub Actions run 43179144496.
+**LiteX/Migen elaboration and generated-Verilog structural checks passed**
+in GitHub Actions run
+[43180251990](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43180251990)
+for both the default 2.5-Gb/s profile and the candidate 5.0-Gb/s profile. For
+each generated build, the checker confirms one `GTPE2_COMMON`, two
+`GTPE2_CHANNEL` instances, and two occurrences each of TX/RX data,
+character-is-K, TXOUTCLK and RXOUTCLK connections. This is a structural
+smoke check; it does not prove correct pin constraints, clock quality,
+transceiver analog behavior or timing closure.
 
 No Vivado synthesis, timing closure, bitstream generation or physical hardware
-validation has been performed. After the generated-Verilog check passes, the
-remaining steps are:
+validation has been performed. The remaining steps are:
 
-1. Review the generated GTP port connections and clock/reset domains, then run
-   Vivado synthesis and timing analysis without changing the existing SerWB
-   target.
+1. Review the generated GTP port connections and clock/reset domains in detail,
+   then run Vivado synthesis and timing analysis without changing the existing
+   SerWB target.
 2. Build and load matching images on both Acorn boards. Check QPLL lock,
    TX/RX initialization, PRBS, polarity and comma alignment.
 3. Run the bidirectional packet pattern test on both DAC lanes, including
