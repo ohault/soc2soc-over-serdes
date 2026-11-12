@@ -195,6 +195,73 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 node_b.node.lane_up_sync2,node_b.node.lane_rx_error_sync2,node_b.node.lane_tx_error_sync2);
     end
 
+    reg a_ctrl0_error_d=0,a_ctrl1_error_d=0,b_ctrl0_error_d=0,b_ctrl1_error_d=0;
+    always @(posedge a_rx0) begin
+        a_ctrl0_error_d<=node_a.node.endpoint.rx_path.control_decoder0.frame_error;
+        if(recovery_debug && node_a.node.endpoint.rx_path.control_decoder0.frame_error && !a_ctrl0_error_d)
+            $display("CTRLERR A0 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
+                node_a.node.endpoint.rx_path.control_decoder0.state,
+                node_a.node.endpoint.rx_path.control_decoder0.rx_count,
+                node_a.node.endpoint.rx_path.control_decoder0.frame_session_id,
+                node_a.node.endpoint.rx_path.control_decoder0.expected_session_id,
+                {node_a.node.endpoint.rx_path.control_decoder0.frame_mem[16],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[17],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[18],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[19]},
+                node_a.node.endpoint.rx_path.control_decoder0.expected_frame_sequence_override,
+                node_a.node.endpoint.rx_path.control_decoder0.frame_mem[21],
+                {node_a.node.endpoint.rx_path.control_decoder0.frame_mem[22],node_a.node.endpoint.rx_path.control_decoder0.frame_mem[23]},
+                node_a.node.endpoint.rx_path.control_decoder0.header_crc,
+                ~node_a.node.endpoint.rx_path.control_decoder0.frame_crc,
+                {node_a.node.endpoint.rx_path.control_decoder0.tail3,node_a.node.endpoint.rx_path.control_decoder0.tail2,node_a.node.endpoint.rx_path.control_decoder0.tail1,node_a.node.endpoint.rx_path.control_decoder0.tail0});
+    end
+    always @(posedge a_rx1) begin
+        a_ctrl1_error_d<=node_a.node.endpoint.rx_path.control_decoder1.frame_error;
+        if(recovery_debug && node_a.node.endpoint.rx_path.control_decoder1.frame_error && !a_ctrl1_error_d)
+            $display("CTRLERR A1 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
+                node_a.node.endpoint.rx_path.control_decoder1.state,
+                node_a.node.endpoint.rx_path.control_decoder1.rx_count,
+                node_a.node.endpoint.rx_path.control_decoder1.frame_session_id,
+                node_a.node.endpoint.rx_path.control_decoder1.expected_session_id,
+                {node_a.node.endpoint.rx_path.control_decoder1.frame_mem[16],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[17],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[18],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[19]},
+                node_a.node.endpoint.rx_path.control_decoder1.expected_frame_sequence_override,
+                node_a.node.endpoint.rx_path.control_decoder1.frame_mem[21],
+                {node_a.node.endpoint.rx_path.control_decoder1.frame_mem[22],node_a.node.endpoint.rx_path.control_decoder1.frame_mem[23]},
+                node_a.node.endpoint.rx_path.control_decoder1.header_crc,
+                ~node_a.node.endpoint.rx_path.control_decoder1.frame_crc,
+                {node_a.node.endpoint.rx_path.control_decoder1.tail3,node_a.node.endpoint.rx_path.control_decoder1.tail2,node_a.node.endpoint.rx_path.control_decoder1.tail1,node_a.node.endpoint.rx_path.control_decoder1.tail0});
+    end
+
+    always @(posedge b_rx0) begin
+        b_ctrl0_error_d<=node_b.node.endpoint.rx_path.control_decoder0.frame_error;
+        if(recovery_debug && node_b.node.endpoint.rx_path.control_decoder0.frame_error && !b_ctrl0_error_d)
+            $display("CTRLERR B0 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
+                node_b.node.endpoint.rx_path.control_decoder0.state,
+                node_b.node.endpoint.rx_path.control_decoder0.rx_count,
+                node_b.node.endpoint.rx_path.control_decoder0.frame_session_id,
+                node_b.node.endpoint.rx_path.control_decoder0.expected_session_id,
+                {node_b.node.endpoint.rx_path.control_decoder0.frame_mem[16],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[17],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[18],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[19]},
+                node_b.node.endpoint.rx_path.control_decoder0.expected_frame_sequence_override,
+                node_b.node.endpoint.rx_path.control_decoder0.frame_mem[21],
+                {node_b.node.endpoint.rx_path.control_decoder0.frame_mem[22],node_b.node.endpoint.rx_path.control_decoder0.frame_mem[23]},
+                node_b.node.endpoint.rx_path.control_decoder0.header_crc,
+                ~node_b.node.endpoint.rx_path.control_decoder0.frame_crc,
+                {node_b.node.endpoint.rx_path.control_decoder0.tail3,node_b.node.endpoint.rx_path.control_decoder0.tail2,node_b.node.endpoint.rx_path.control_decoder0.tail1,node_b.node.endpoint.rx_path.control_decoder0.tail0});
+    end
+    always @(posedge b_rx1) begin
+        b_ctrl1_error_d<=node_b.node.endpoint.rx_path.control_decoder1.frame_error;
+        if(recovery_debug && node_b.node.endpoint.rx_path.control_decoder1.frame_error && !b_ctrl1_error_d)
+            $display("CTRLERR B1 state=%0d count=%0d sid=%h expected_sid=%h seq=%h expected_seq=%h len=%0d hcrc=%h/%h fcrc=%h tail=%h",
+                node_b.node.endpoint.rx_path.control_decoder1.state,
+                node_b.node.endpoint.rx_path.control_decoder1.rx_count,
+                node_b.node.endpoint.rx_path.control_decoder1.frame_session_id,
+                node_b.node.endpoint.rx_path.control_decoder1.expected_session_id,
+                {node_b.node.endpoint.rx_path.control_decoder1.frame_mem[16],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[17],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[18],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[19]},
+                node_b.node.endpoint.rx_path.control_decoder1.expected_frame_sequence_override,
+                node_b.node.endpoint.rx_path.control_decoder1.frame_mem[21],
+                {node_b.node.endpoint.rx_path.control_decoder1.frame_mem[22],node_b.node.endpoint.rx_path.control_decoder1.frame_mem[23]},
+                node_b.node.endpoint.rx_path.control_decoder1.header_crc,
+                ~node_b.node.endpoint.rx_path.control_decoder1.frame_crc,
+                {node_b.node.endpoint.rx_path.control_decoder1.tail3,node_b.node.endpoint.rx_path.control_decoder1.tail2,node_b.node.endpoint.rx_path.control_decoder1.tail1,node_b.node.endpoint.rx_path.control_decoder1.tail0});
+    end
+
     always @(posedge b_rx0)
         if(node_b.node.endpoint.rx_path.lane0_decoder.frame_valid_pulse)
             lane0_data_frames<=lane0_data_frames+1;
