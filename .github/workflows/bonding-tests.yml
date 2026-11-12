@@ -307,6 +307,9 @@ jobs:
             -o /tmp/tb_gowin_phy_map_8 \
             rtl/bonded_gowin_8b10b_word_adapter.sv rtl/tb_bonded_gowin_8b10b_word_adapter.sv
           vvp /tmp/tb_gowin_phy_map_8
+          iverilog -g2012 -Wall -tnull \
+            rtl/bonded_phy_fifo_read_adapter.sv rtl/bonded_gowin_8b10b_word_adapter.sv \
+            rtl/bonded_gowin_phy_fifo_adapter.sv
 
       - name: Compile and run delayed-valid PHY FIFO adapter regression
         run: |
