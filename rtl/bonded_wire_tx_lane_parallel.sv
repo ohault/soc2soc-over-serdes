@@ -34,6 +34,7 @@ module bonded_wire_tx_lane_parallel #(
     reg [7:0] header_mem[0:23];
     reg [7:0] header_tmp[0:23];
     reg [31:0] packet_sequence;
+    reg [15:0] packet_length;
     reg [12:0] payload_bytes_seen;
     reg [DATA_WIDTH-1:0] payload_data;
     reg [KEEP_WIDTH-1:0] payload_keep;
@@ -132,7 +133,7 @@ module bonded_wire_tx_lane_parallel #(
 
     always @(posedge clk) begin
         if(rst) begin
-            state<=ST_IDLE; packet_sequence<=0; payload_bytes_seen<=0;
+            state<=ST_IDLE; packet_sequence<=0; packet_length<=0; payload_bytes_seen<=0;
             payload_data<=0; payload_keep<=0; payload_eop<=0; payload_valid<=0;
             header_word<=0; prefix_word<=0; crc_word<=0;
             frame_crc<=32'hffffffff; frame_error<=0;
@@ -167,6 +168,7 @@ module bonded_wire_tx_lane_parallel #(
                     for(i=0;i<24;i=i+1) header_mem[i]<=header_tmp[i];
 
                     packet_sequence<=in_packet_sequence;
+                    packet_length<=in_packet_length;
                     payload_bytes_seen<=byte_count;
                     payload_data<=in_data; payload_keep<=in_keep;
                     payload_eop<=in_eop; payload_valid<=1'b1;
