@@ -84,6 +84,8 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | `soc2soc/bonded_acorn.py` | Prototype Acorn two-GTP binding for the board-neutral bonded packet node; separate from the existing SerWB target. |
 | `soc2soc/bonded_tester.py` | Bidirectional fixed-size packet generator/checker for link bring-up. |
 | `rtl/bonded_phy_fifo_read_adapter.sv` | Reservation-aware read-enable/data-valid PHY FIFO adapter. |
+| `rtl/bonded_gowin_8b10b_word_adapter.sv` | Parameterized 2/4/8-symbol Gowin TX/RX data, K and error-bit mapper. |
+| `rtl/bonded_gowin_phy_fifo_adapter.sv` | Combined Gowin TX FIFO and delayed-valid RX FIFO adapter for the lane bridge. |
 | `rtl/bonded_gowin_8b10b_word_adapter.sv` | Gowin 40/44-bit and 80/88-bit 8b/10b symbol/error mapper. |
 | `soc2soc/stream.py` | `SerWBStreamPort`: bidirectional 32-bit stream with credit-based flow control, next to register access. `StreamTester`: counter generator/checker. |
 | `soc2soc/serwb_prefetch.py` | SerWB native slave with read prefetch (same protocol, used on the initiator side). |
