@@ -31,6 +31,7 @@ is an integration option, not a dependency of the bonding core.
 
 - `rtl/bonded_two_lane_node.sv`: autonomous byte-oriented node wrapper.
 - `rtl/bonded_two_lane_phy_word_node.sv`: parallel 8b/10b two-lane wrapper.
+- `soc2soc/bonded_acorn.py`: prototype LiteICLink GTP binding for the Acorn; not yet build-validated.
 - `rtl/bonded_lane_phy_word_bridge.sv`: per-lane TX/RX clock-domain PHY bridge.
 - `rtl/bonded_control_manager.sv`: v0 session and credit manager.
 - `rtl/bonded_two_lane_endpoint.sv`: lower-level endpoint with external control ports.
