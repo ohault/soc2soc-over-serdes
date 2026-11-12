@@ -179,7 +179,7 @@ module tb_bonded_wire_rx_lane_parallel;
         if(KEEP_WIDTH>1) begin
             @(negedge clk); rst=1;
             repeat(3) @(posedge clk); @(negedge clk); rst=0;
-            @(negedge clk); in_data=0; in_keep=0; in_keep[0]=1; in_keep[KEEP_WIDTH-1]=1;
+            @(negedge clk); in_data=0; in_keep=0; in_keep[KEEP_WIDTH-1]=1; if(KEEP_WIDTH>2) in_keep[0]=1;
             in_sop=1; in_eop=0; in_valid=1;
             while(!in_ready) @(negedge clk);
             @(posedge clk); @(negedge clk); in_valid=0; in_sop=0; in_keep=0;
