@@ -34,6 +34,7 @@ class BondedAcornSoC(SoC2SoC):
     ):
         # Reuse the established Acorn CRG and shared QPLL setup, but leave both
         # SFP cages unclaimed by the legacy SerWB/GTPSoCLink modules.
+        kwargs.setdefault("ident", "Experimental bonded two-lane packet transport on Acorn CLE-215+")
         SoC2SoC.__init__(
             self,
             variant=variant,
@@ -47,7 +48,6 @@ class BondedAcornSoC(SoC2SoC):
             mailbox_size=0,
             with_bench=False,
             with_led_chaser=False,
-            ident="Experimental bonded two-lane packet transport on Acorn CLE-215+",
             **kwargs,
         )
 
