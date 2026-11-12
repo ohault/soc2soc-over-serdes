@@ -189,8 +189,10 @@ class SoC2SoC(SoCCore):
             heartbeat = Signal(log2_int(int(sys_clk_freq), need_pow2=False))
             self.sync += heartbeat.eq(heartbeat + 1)
             self.comb += platform.request("user_led", 0).eq(heartbeat[-1])
+            self.sfp_leds = {}
             for n in [0, 1]:
                 led = platform.request("user_led", 1 + n)
+                self.sfp_leds[n] = led
                 if n in self.links:
                     self.comb += led.eq(self.links[n].phy.init.ready)
             self.comb += platform.request("user_led", 3).eq(qpll.lock)
