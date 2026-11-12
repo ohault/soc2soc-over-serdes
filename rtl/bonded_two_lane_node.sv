@@ -207,6 +207,7 @@ module bonded_two_lane_node #(
     ) endpoint (
         .bond_clk(bond_clk),.bond_rst_n(bond_rst_n),
         .control_tx_rst_n(control_tx_rst_n),.session_rx_reset_toggle(session_rx_reset_toggle),
+        .session_rx_flush_toggle(session_drop_toggle),
         .tx_session_id(active_session_id),.rx_expected_session_id(active_session_id),
         .remote_byte_limit(remote_byte_limit),.remote_packet_limit(remote_packet_limit),
         .ctrl_tx_valid(ctrl_tx_valid),.ctrl_tx_ready(ctrl_tx_ready),
