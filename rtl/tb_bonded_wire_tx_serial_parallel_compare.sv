@@ -49,6 +49,15 @@ module tb_bonded_wire_tx_serial_parallel_compare;
     );
 
     always @(posedge clk) begin
+        if(!rst && DATA_WIDTH==8 && in_valid && parallel_ready)
+            $display("TXDBG accept keep=%b sop=%b eop=%b bytes_seen=%0d length=%0d state=%0d payload_valid=%b payload_eop=%b",
+                     in_keep,in_sop,in_eop,parallel_tx.payload_bytes_seen,
+                     parallel_tx.packet_length,parallel_tx.state,
+                     parallel_tx.payload_valid,parallel_tx.payload_eop);
+        if(!rst && DATA_WIDTH==8 && parallel_error)
+            $display("TXDBG ERROR state=%0d bytes_seen=%0d length=%0d in_valid=%b keep=%b sop=%b eop=%b",
+                     parallel_tx.state,parallel_tx.payload_bytes_seen,
+                     parallel_tx.packet_length,in_valid,in_keep,in_sop,in_eop);
         if(!rst && serial_valid) begin
             if(serial_count>=FRAME_LEN) $fatal(1,"serial encoder emitted too many bytes");
             if(serial_sop !== (serial_count==0) || serial_eop !== (serial_count==FRAME_LEN-1))
