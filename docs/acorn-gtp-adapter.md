@@ -75,7 +75,12 @@ error pulse directly into the bonding clock domain.
 
 The generic word adapter separately checks illegal K-character placement,
 comma alignment and malformed empty-symbol placement. Those checks do not
-replace the GTP decoder's code/disparity error flags.
+replace the GTP decoder's code/disparity error flags. The wrapper exposes the
+latched GTP decoder error and per-lane readiness for diagnostics. The sticky
+GTP decoder latch clears only when the GTP RX domain is reset; for the first
+prototype, use the GTP RX-enable CSR from `add_base_control()` to restart that
+receiver after a decoder fault. The node then re-negotiates a new session when
+both lanes are ready again.
 
 ## Clock and reset rules
 
