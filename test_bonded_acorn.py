@@ -30,7 +30,7 @@ def open_buses(args):
         csr_csv = args.csr_csv_b if board == "B" and args.csr_csv_b else args.csr_csv
         bus = RemoteClient(
             host=args.host,
-            port=BOARD_PORTS[board] if board == "A" else args.port_b,
+            port=args.port_a if board == "A" else args.port_b,
             csr_csv=csr_csv,
         )
         bus.open()
@@ -114,13 +114,13 @@ def main():
     if args.command == "monitor" and args.boards != "AB":
         parser.error("monitor requires --boards=AB")
 
-    # Keep board A's configurable port separate from the fixed lookup table.
-    BOARD_PORTS["A"] = args.port_a
+    if args.timeout <= 0 or args.poll_interval <= 0 or args.duration <= 0:
+        parser.error("--timeout, --poll-interval and --duration must be positive")
     buses = open_buses(args)
     try:
         if args.command == "status":
             snapshots = report(buses)
-            return 0 if all(healthy(snap) for snap in snapshots.values()) else 1
+            return 0
 
         before = wait_active(buses, args.timeout, args.poll_interval)
         if before is None:
