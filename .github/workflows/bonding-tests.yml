@@ -84,6 +84,13 @@ jobs:
             rtl/bonded_wire_rx_lane.sv rtl/tb_bonded_parallel_tx_serial_rx.sv
           vvp /tmp/tb_parallel_tx_serial_rx
 
+      - name: Compile and run parallel TX/RX loopback
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_parallel_loopback -o /tmp/tb_parallel_loopback \
+            rtl/bonded_crc_parallel.sv rtl/bonded_wire_tx_lane_parallel.sv \
+            rtl/bonded_wire_rx_lane_parallel.sv rtl/tb_bonded_parallel_loopback.sv
+          vvp /tmp/tb_parallel_loopback
+
       - name: Compile and run frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
