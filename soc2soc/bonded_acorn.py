@@ -46,12 +46,35 @@ _BONDED_RTL = (
 )
 
 
-class _StickyRxDecoderError(LiteXModule):
-    """Latch a decoder error in the recovered RX clock domain."""
+class _RxLaneQualifier(LiteXModule):
+    """Qualify a recovered RX lane before the bonded node uses it.
 
-    def __init__(self, invalid):
-        self.error = Signal(reset=0)
-        self.sync += If(invalid, self.error.eq(1))
+    Runs in the recovered RX clock domain. After RX init, the GTP needs some
+    time to align on commas, and the misaligned words decoded meanwhile carry
+    decoder errors. The lane is qualified only after ``good_cycles``
+    consecutive RX words without decoder error. A decoder error removes the
+    qualification: the lane is then held in reset in the bonded node (which
+    also clears the node's sticky RX fault flags) until a new clean run.
+    """
+
+    def __init__(self, rx_ready, invalid, good_cycles=4096):
+        self.qualified = Signal()
+
+        # # #
+
+        count = Signal(max=good_cycles)
+        self.sync += [
+            If(~rx_ready | invalid,
+                count.eq(0),
+                self.qualified.eq(0),
+            ).Elif(~self.qualified,
+                If(count == (good_cycles - 1),
+                    self.qualified.eq(1),
+                ).Else(
+                    count.eq(count + 1),
+                ),
+            ),
+        ]
 
 
 class AcornBondedSerdes(LiteXModule):
@@ -166,7 +189,6 @@ class AcornBondedSerdes(LiteXModule):
             tx_clocks.append(ClockSignal(tx_cd))
             rx_clocks.append(ClockSignal(rx_cd))
             tx_resets_n.append(~ResetSignal(tx_cd))
-            rx_resets_n.append(~ResetSignal(rx_cd))
 
             tx_phy_valid.append(Signal())
             tx_phy_data.append(Signal(16))
@@ -178,17 +200,19 @@ class AcornBondedSerdes(LiteXModule):
             rx_phy_ctrl.append(gtp.source.ctrl)
 
             # LiteICLink exposes continuous TX/RX streams: sink.ready=1 and
-            # source.valid=1. Latch decoder-invalid in recovered RX clock
-            # before crossing it to the system/bond clock for lane supervision.
+            # source.valid=1. Qualify the lane in the recovered RX clock
+            # (comma alignment done, no decoder error) and keep it in reset
+            # in the bonded node until then.
             rx_ready_local = Signal()
             self.specials += MultiReg(gtp.rx_ready, rx_ready_local, rx_cd)
-            invalid = (gtp.decoders[0].invalid | gtp.decoders[1].invalid) & rx_ready_local
-            error_latch = ClockDomainsRenamer(rx_cd)(_StickyRxDecoderError(invalid))
-            setattr(self.submodules, f"gtp{lane}_rx_error_latch", error_latch)
-            invalid_sys = Signal()
-            self.specials += MultiReg(error_latch.error, invalid_sys, "sys")
-            self.comb += self.gtp_rx_invalid[lane].eq(invalid_sys)
-            lane_up.append(gtp.tx_ready & gtp.rx_ready & qpll_lock_sys & ~invalid_sys)
+            invalid = gtp.decoders[0].invalid | gtp.decoders[1].invalid
+            qualifier = ClockDomainsRenamer(rx_cd)(_RxLaneQualifier(rx_ready_local, invalid))
+            setattr(self.submodules, f"gtp{lane}_rx_qualifier", qualifier)
+            rx_resets_n.append(~ResetSignal(rx_cd) & qualifier.qualified)
+            qualified_sys = Signal()
+            self.specials += MultiReg(qualifier.qualified, qualified_sys, "sys")
+            self.comb += self.gtp_rx_invalid[lane].eq(~qualified_sys)
+            lane_up.append(gtp.tx_ready & gtp.rx_ready & qpll_lock_sys & qualified_sys)
 
         # The two channels have independent TX and recovered-RX clocks.
         # Declare their inter-channel paths asynchronous as in the legacy

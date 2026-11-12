@@ -48,11 +48,11 @@ For each of the two SFP channels:
 | `laneN_phy_tx_ctrl[1:0]` | `serdes.sink.ctrl` |
 | `laneN_phy_tx_ready` | `serdes.sink.ready` (constant 1) |
 | `laneN_rx_clk` | GTP recovered RX user clock domain |
-| `laneN_rx_rst_n` | inverse of local RX-domain reset |
+| `laneN_rx_rst_n` | inverse of local RX-domain reset, AND RX lane qualified |
 | `laneN_phy_rx_valid` | `serdes.source.valid` (constant 1) |
 | `laneN_phy_rx_data[15:0]` | `serdes.source.data` |
 | `laneN_phy_rx_ctrl[1:0]` | `serdes.source.ctrl` |
-| `laneN_up` | TX ready AND RX ready AND no latched decoder error |
+| `laneN_up` | TX ready AND RX ready AND RX lane qualified |
 
 Use `SYMBOLS_PER_WORD=2`, `RX_PHY_STALLABLE=0`, and
 `PHY_DATA_BYTES_PER_WORD=1` for the initial Acorn integration. The GTP
@@ -82,20 +82,29 @@ closure or hardware validation.
 
 ## Decoder error handling
 
-The two `Decoder.invalid` flags are in the recovered RX clock domain. Latch
-their OR in that domain until the physical RX reset. Feed the sticky result
-into the lane-up decision so the generic node's normal lane/session
-supervision sees a persistent lane drop. Do not pass a one-cycle asynchronous
-error pulse directly into the bonding clock domain.
+The two `Decoder.invalid` flags are in the recovered RX clock domain. After
+RX init, the GTP still needs to align on commas, and the misaligned words
+decoded meanwhile carry decoder errors. Each lane is therefore qualified in
+its RX clock domain: it becomes qualified after 4096 consecutive RX words
+without decoder error, and loses its qualification on any decoder error or
+when RX is not ready. An unqualified lane is held in reset in the generic node
+(`laneN_rx_rst_n` low, which also clears the node's sticky RX fault flags) and
+reported as down (`laneN_up` low), so the node's lane/session supervision sees
+a lane drop and renegotiates once the lane is qualified again. Only the
+synchronized qualification level crosses into the system/bonding clock
+domain; no one-cycle error pulse crosses clock domains.
+
+On hardware, a latch that held decoder errors from the end of RX init until
+the next RX reset kept every lane down permanently: the misaligned words
+decoded before comma alignment always set it.
 
 The generic word adapter separately checks illegal K-character placement,
 comma alignment and malformed empty-symbol placement. Those checks do not
 replace the GTP decoder's code/disparity error flags. The wrapper exposes the
-latched GTP decoder error and per-lane readiness for diagnostics. The sticky
-GTP decoder latch clears only when the GTP RX domain is reset; for the first
-prototype, use the GTP RX-enable CSR from `add_base_control()` to restart that
-receiver after a decoder fault. The node then re-negotiates a new session when
-both lanes are ready again.
+per-lane qualification and readiness for diagnostics. A decoder fault
+recovers by itself once the lane decodes cleanly again; the GTP RX-enable CSR
+from `add_base_control()` can still restart a receiver. The node then
+re-negotiates a new session when both lanes are ready again.
 
 ## Clock and reset rules
 
@@ -114,8 +123,8 @@ both lanes are ready again.
 
 The LiteX/Migen wrapper in `soc2soc/bonded_acorn.py` instantiates two
 20-bit LiteICLink GTP channels, uses independent per-lane TX and recovered-RX
-clocks, maps data and K-control bits, latches GTP decoder-invalid indications
-in the RX clock domain, and connects the generic two-lane RTL node. It defaults
+clocks, maps data and K-control bits, qualifies each RX lane on GTP decoder-invalid
+indications in the RX clock domain, and connects the generic two-lane RTL node. It defaults
 to the safe one-byte-per-PHY-word mode. The existing SerWB target is unchanged.
 
 The separate `acorn_bonded.py` target reuses the established CRG/QPLL setup
@@ -181,8 +190,10 @@ from the existing Acorn target and may need to be verified with PRBS.
 
 LED1 and LED2 indicate local lane readiness; LED3 remains the QPLL lock
 indicator. The `bond_status` CSR reports session-active, control-fault, both
-local lane-up bits, packet-test errors, per-lane PHY TX/RX errors and GTP
-decoder errors.
+local lane-up bits, packet-test errors, per-lane PHY TX/RX errors and the
+RX lanes that are not qualified (decoder errors or comma alignment pending).
+In `csr.csv` these CSRs are named with a `main_` prefix (`main_bond_status`);
+`test_bonded_acorn.py` accepts both names.
 The `bond_tx_packets` and `bond_rx_packets` CSRs expose packet counts. Each
 board sends 64-byte packets whose contents depend on its peer ID and packet
 counter; the opposite board checks every received byte and packet boundary.

@@ -43,11 +43,19 @@ def open_buses(args):
     return buses
 
 
+def csr(bus, name):
+    # CSRs of the top-level SoC are named with a "main_" prefix in csr.csv.
+    for candidate in (name, f"main_{name}"):
+        if hasattr(bus.regs, candidate):
+            return getattr(bus.regs, candidate)
+    raise KeyError(f"CSR {name} not found in the CSR map")
+
+
 def read_board(bus):
     return {
-        "status": bus.regs.bond_status.read(),
-        "tx": bus.regs.bond_tx_packets.read(),
-        "rx": bus.regs.bond_rx_packets.read(),
+        "status": csr(bus, "bond_status").read(),
+        "tx": csr(bus, "bond_tx_packets").read(),
+        "rx": csr(bus, "bond_rx_packets").read(),
     }
 
 
