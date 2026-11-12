@@ -8,6 +8,8 @@ on:
     paths:
       - 'rtl/bonded_payload_word_ram.sv'
       - 'rtl/tb_bonded_payload_word_ram.sv'
+      - 'rtl/bonded_wire_rx_lane_parallel_ram.sv'
+      - 'rtl/tb_bonded_wire_rx_lane_parallel_ram.sv'
       - '.github/workflows/payload-word-ram.yml'
   pull_request:
     paths:
@@ -43,3 +45,13 @@ jobs:
             rtl/bonded_payload_word_ram.sv rtl/tb_bonded_payload_word_ram.sv
       - name: Simulate
         run: vvp /tmp/payload-ram.vvp
+      - name: Compile RAM-backed RX candidate
+        run: |
+          iverilog -g2012 -s tb_bonded_wire_rx_lane_parallel_ram \
+            -Ptb_bonded_wire_rx_lane_parallel_ram.DATA_WIDTH=${{ matrix.data-width }} \
+            -o /tmp/parallel-rx-ram.vvp \
+            rtl/bonded_payload_word_ram.sv \
+            rtl/bonded_wire_rx_lane_parallel_ram.sv \
+            rtl/tb_bonded_wire_rx_lane_parallel_ram.sv
+      - name: Simulate RAM-backed RX candidate
+        run: vvp /tmp/parallel-rx-ram.vvp
