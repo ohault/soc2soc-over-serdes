@@ -24,13 +24,27 @@ module bonded_wire_rx_lane #(
     localparam [1:0] ST_IDLE=2'd0, ST_COLLECT=2'd1,
                      ST_CHECK=2'd2, ST_OUTPUT=2'd3;
     reg [1:0] state;
-    reg [7:0] frame_mem [0:MAX_FRAME-1];
     reg [12:0] rx_count;
+    reg [12:0] output_index;
+    reg [15:0] payload_length;
+    // Header bytes 0..27 are checked field by field and stay in registers.
+    // Payload bytes (frame offset 28 onwards) go to a RAM with a registered
+    // read so that synthesis maps it to block RAM. Trailing CRC bytes are
+    // tracked by tail0..tail3 and need not be stored.
+    localparam integer HEADER_BYTES = 28;
+    localparam integer PAYLOAD_ADDR_BITS = (MAX_PAYLOAD <= 1) ? 1 : $clog2(MAX_PAYLOAD);
+    reg [7:0] frame_mem [0:HEADER_BYTES-1];
+    reg [7:0] payload_mem [0:MAX_PAYLOAD-1];
+    reg [7:0] payload_rd_data;
+    reg empty_marker;
+    wire [12:0] payload_wr_index = rx_count - HEADER_BYTES;
+    wire payload_we = in_valid && in_ready && (state==ST_COLLECT) && !in_sop &&
+                      !(rx_count>=MAX_FRAME) && (rx_count>=HEADER_BYTES) &&
+                      (payload_wr_index<MAX_PAYLOAD);
+    reg [12:0] payload_rd_index;
     reg [7:0] tail0, tail1, tail2, tail3;
     reg [15:0] header_crc;
     reg [31:0] frame_crc;
-    reg [15:0] payload_length;
-    reg [12:0] output_index;
     reg [63:0] active_session;
 
     function [15:0] crc16_byte(input [15:0] crc_in,input [7:0] data);
@@ -54,7 +68,24 @@ module bonded_wire_rx_lane #(
 
     assign in_ready = !rst && (state==ST_IDLE || state==ST_COLLECT);
     assign out_valid = !rst && (state==ST_OUTPUT);
-    assign out_data = frame_mem[28+output_index];
+    assign out_data = empty_marker ? 8'h00 : payload_rd_data;
+
+    // Read one cycle ahead: index 0 while checking, then the next index as
+    // each byte is consumed.
+    always @* begin
+        payload_rd_index = output_index;
+        if (state==ST_CHECK)
+            payload_rd_index = 0;
+        else if (state==ST_OUTPUT && out_valid && out_ready &&
+                 !(output_index+1'b1>=payload_length))
+            payload_rd_index = output_index + 1'b1;
+    end
+
+    always @(posedge clk) begin
+        if (payload_we)
+            payload_mem[payload_wr_index[PAYLOAD_ADDR_BITS-1:0]] <= in_data;
+        payload_rd_data <= payload_mem[payload_rd_index[PAYLOAD_ADDR_BITS-1:0]];
+    end
     assign out_sop = out_valid && (output_index==0);
     assign out_eop = out_valid && (output_index+1'b1==payload_length);
 
@@ -64,6 +95,7 @@ module bonded_wire_rx_lane #(
             tail0<=0; tail1<=0; tail2<=0; tail3<=0;
             header_crc<=16'hffff; frame_crc<=32'hffffffff;
             payload_length<=0; output_index<=0; active_session<=0;
+            empty_marker<=0;
             out_packet_sequence<=0; out_frame_sequence<=0; out_lane_id<=0;
             expected_frame_sequence<=0; frame_error<=0; frame_valid_pulse<=0;
         end else begin
@@ -93,7 +125,8 @@ module bonded_wire_rx_lane #(
                     end else if(rx_count>=MAX_FRAME) begin
                         frame_error<=1; state<=ST_IDLE; rx_count<=0;
                     end else begin
-                        frame_mem[rx_count]<=in_data;
+                        if(rx_count<HEADER_BYTES)
+                            frame_mem[rx_count]<=in_data;
                         if(rx_count<22)
                             header_crc<=crc16_byte(header_crc,in_data);
                         if(rx_count>=4)
@@ -132,10 +165,11 @@ module bonded_wire_rx_lane #(
                     expected_frame_sequence<=expected_frame_sequence_override+1'b1;
                     payload_length<={frame_mem[20],frame_mem[21]}-16'd4;
                     output_index<=0; frame_valid_pulse<=1;
+                    empty_marker<=0;
                     if({frame_mem[20],frame_mem[21]}==4) begin
                         // Represent a legal empty DATA packet by one zero-byte
                         // SOP/EOP marker on this byte-stream interface.
-                        payload_length<=1; frame_mem[28]<=0;
+                        payload_length<=1; empty_marker<=1;
                     end
                     state<=ST_OUTPUT;
                 end

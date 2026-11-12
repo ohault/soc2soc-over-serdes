@@ -17,11 +17,12 @@ module bonded_wire_rx_framer #(
     output reg frame_error
 );
     localparam [2:0] ST_SEARCH=3'd0, ST_HEADER=3'd1,
-                     ST_RESCAN=3'd2, ST_REPLAY=3'd3, ST_BODY=3'd4;
+                     ST_RESCAN=3'd2, ST_REPLAY=3'd3, ST_BODY=3'd4,
+                     ST_RECRC=3'd5;
     reg [2:0] state;
     reg [7:0] header_mem[0:23];
     reg [7:0] shift0,shift1,shift2;
-    reg [4:0] header_count,replay_index,scan_index;
+    reg [4:0] header_count,replay_index,scan_index,crc_index;
     reg [15:0] header_crc;
     reg [15:0] body_remaining;
     wire [15:0] header_body_length={header_mem[20],header_mem[21]};
@@ -52,7 +53,7 @@ module bonded_wire_rx_framer #(
     always @(posedge clk) begin
         if(rst) begin
             state<=ST_SEARCH;shift0<=0;shift1<=0;shift2<=0;
-            header_count<=0;replay_index<=0;scan_index<=0;
+            header_count<=0;replay_index<=0;scan_index<=0;crc_index<=0;
             header_crc<=16'hffff;body_remaining<=0;frame_error<=0;
         end else begin
             if(state==ST_SEARCH && in_valid && in_ready) begin
@@ -101,16 +102,16 @@ module bonded_wire_rx_framer #(
                    header_mem[scan_index+2'd2]==8'h01 &&
                    (header_mem[scan_index+2'd3]==8'h01 ||
                     header_mem[scan_index+2'd3]==8'h02)) begin
-                    crc_tmp=16'hffff;
-                    for(j=0;j<24;j=j+1)
-                        if(j<22 && j<(24-scan_index))
-                            crc_tmp=crc16_byte(crc_tmp,header_mem[scan_index+j]);
+                    // Shift the candidate header down, then recompute its
+                    // CRC one byte per cycle in ST_RECRC (a single-cycle CRC
+                    // over a variable offset does not meet timing).
                     for(j=0;j<24;j=j+1)
                         if(j<(24-scan_index))
                             header_mem[j]<=header_mem[scan_index+j];
                     header_count<=24-scan_index;
-                    header_crc<=crc_tmp;
-                    state<=ST_HEADER;
+                    header_crc<=16'hffff;
+                    crc_index<=0;
+                    state<=ST_RECRC;
                 end else if(scan_index==20) begin
                     shift0<=header_mem[21];
                     shift1<=header_mem[22];
@@ -118,6 +119,13 @@ module bonded_wire_rx_framer #(
                     state<=ST_SEARCH;
                     scan_index<=0;
                 end else scan_index<=scan_index+1'b1;
+            end
+
+            if(state==ST_RECRC) begin
+                if(crc_index<header_count && crc_index<22) begin
+                    header_crc<=crc16_byte(header_crc,header_mem[crc_index]);
+                    crc_index<=crc_index+1'b1;
+                end else state<=ST_HEADER;
             end
 
             if(state==ST_REPLAY && out_valid && out_ready) begin

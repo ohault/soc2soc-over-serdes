@@ -72,6 +72,13 @@ module bonded_async_fifo #(
             $error("ADDR_WIDTH must be at least two");
     end
 
+    // The storage array has no reset so that synthesis can map it to
+    // distributed RAM; wr_ready is already low while the write side is in reset.
+    always @(posedge wr_clk) begin
+        if (wr_valid && wr_ready)
+            mem[wr_bin[ADDR_WIDTH-1:0]] <= wr_data;
+    end
+
     always @(posedge wr_clk or negedge wr_local_rst_n) begin
         if (!wr_local_rst_n) begin
             wr_bin <= 0;
@@ -82,8 +89,6 @@ module bonded_async_fifo #(
         end else begin
             rd_gray_sync1 <= rd_gray;
             rd_gray_sync2 <= rd_gray_sync1;
-            if (wr_valid && wr_ready)
-                mem[wr_bin[ADDR_WIDTH-1:0]] <= wr_data;
             wr_bin <= wr_bin_next;
             wr_gray <= wr_gray_next;
             full_reg <= (wr_gray_next == rd_gray_full_cmp);

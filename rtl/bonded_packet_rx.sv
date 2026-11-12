@@ -7,7 +7,8 @@ module bonded_packet_rx #(
     parameter integer WINDOW_SIZE = 4,
     parameter integer MAX_PACKET_BYTES = 4096,
     parameter integer WINDOW_BITS = $clog2(WINDOW_SIZE),
-    parameter integer LANE_BITS = (LANE_COUNT <= 1) ? 1 : $clog2(LANE_COUNT)
+    parameter integer LANE_BITS = (LANE_COUNT <= 1) ? 1 : $clog2(LANE_COUNT),
+    parameter integer INDEX_BITS = (MAX_PACKET_BYTES <= 1) ? 1 : $clog2(MAX_PACKET_BYTES)
 ) (
     input wire clk, input wire rst,
     input wire [LANE_COUNT-1:0] lane_valid,
@@ -31,7 +32,11 @@ module bonded_packet_rx #(
     output wire packet_consume_valid,
     output wire [15:0] packet_consume_bytes
 );
-    reg [7:0] packet_mem [0:WINDOW_SIZE-1][0:MAX_PACKET_BYTES-1];
+    // Reorder storage: one flat byte array addressed by {slot, byte index},
+    // with a single write port and a registered read port so that synthesis
+    // maps it to block RAM.
+    localparam integer MEM_ADDR_BITS = WINDOW_BITS + INDEX_BITS;
+    reg [7:0] packet_mem [0:(1<<MEM_ADDR_BITS)-1];
     reg [12:0] slot_length [0:WINDOW_SIZE-1];
     reg [WINDOW_SIZE-1:0] slot_valid;
     reg [WINDOW_SIZE-1:0] slot_filling;
@@ -56,6 +61,70 @@ module bonded_packet_rx #(
             $error("MAX_PACKET_BYTES must be in range 1..4096");
     end
 
+    wire [WINDOW_BITS-1:0] sop_slot =
+        lane_packet_sequence[selected_lane*32 +: WINDOW_BITS];
+    wire sop_reject =
+        lane_active[selected_lane] ||
+        ({1'b0,lane_packet_sequence[selected_lane*32 +: 32]} < {1'b0,expected_packet_sequence}) ||
+        ({1'b0,lane_packet_sequence[selected_lane*32 +: 32]} >=
+         ({1'b0,expected_packet_sequence} + WINDOW_SIZE)) ||
+        slot_valid[sop_slot] || slot_filling[sop_slot];
+
+    // Payload write port: the first byte of an accepted packet goes to index 0
+    // of its slot, later bytes to the lane's running count (same conditions as
+    // the state update below).
+    reg mem_we;
+    reg [MEM_ADDR_BITS-1:0] mem_waddr;
+    wire [7:0] mem_wdata = lane_data[selected_lane*8 +: 8];
+    always @* begin
+        mem_we = 1'b0;
+        mem_waddr = {sop_slot, {INDEX_BITS{1'b0}}};
+        if (selected_valid && lane_ready[selected_lane] && !lane_drop[selected_lane]) begin
+            if (lane_sop[selected_lane]) begin
+                mem_we = !sop_reject;
+            end else if (lane_active[selected_lane] &&
+                         !(lane_count[selected_lane] >= MAX_PACKET_BYTES)) begin
+                mem_we = 1'b1;
+                mem_waddr = {lane_slot[selected_lane],
+                             lane_count[selected_lane][INDEX_BITS-1:0]};
+            end
+        end
+    end
+
+    // Read port: address the byte that will be presented in the next cycle
+    // (next output slot/index) and register the RAM output. A same-cycle write
+    // to that address is forwarded so out_data matches an asynchronous read.
+    reg [WINDOW_BITS-1:0] mem_rd_slot;
+    reg [12:0] mem_rd_index;
+    wire [MEM_ADDR_BITS-1:0] mem_raddr = {mem_rd_slot, mem_rd_index[INDEX_BITS-1:0]};
+    reg [7:0] mem_rd_data, mem_bypass_data;
+    reg mem_bypass;
+    always @* begin
+        mem_rd_slot = output_slot;
+        mem_rd_index = output_index;
+        if (rst) begin
+            mem_rd_slot = 0;
+            mem_rd_index = 0;
+        end else if (out_valid && out_ready) begin
+            if (out_eop) begin
+                mem_rd_index = 0;
+                if (expected_packet_sequence != 32'hffffffff)
+                    mem_rd_slot = output_slot + 1'b1;
+            end else mem_rd_index = output_index + 1'b1;
+        end
+    end
+
+    always @(posedge clk) begin
+        if (mem_we)
+            packet_mem[mem_waddr] <= mem_wdata;
+    end
+
+    always @(posedge clk) begin
+        mem_rd_data <= packet_mem[mem_raddr];
+        mem_bypass <= mem_we && (mem_waddr == mem_raddr);
+        mem_bypass_data <= mem_wdata;
+    end
+
     always @* begin
         lane_ready = {LANE_COUNT{1'b0}};
         selected_lane = arbiter;
@@ -77,7 +146,7 @@ module bonded_packet_rx #(
 
     assign output_slot = expected_packet_sequence[WINDOW_BITS-1:0];
     assign out_valid = !rst && slot_valid[output_slot];
-    assign out_data = packet_mem[output_slot][output_index];
+    assign out_data = mem_bypass ? mem_bypass_data : mem_rd_data;
     assign out_sop = out_valid && (output_index==0);
     assign out_eop = out_valid && (output_index+1'b1==slot_length[output_slot]);
     assign out_packet_sequence = expected_packet_sequence;
@@ -109,12 +178,7 @@ module bonded_packet_rx #(
                 if (lane_drop[selected_lane]) begin
                     if (lane_eop[selected_lane]) lane_drop[selected_lane] <= 0;
                 end else if (lane_sop[selected_lane]) begin
-                    if (lane_active[selected_lane] ||
-                        ({1'b0,lane_packet_sequence[selected_lane*32 +: 32]} < {1'b0,expected_packet_sequence}) ||
-                        ({1'b0,lane_packet_sequence[selected_lane*32 +: 32]} >=
-                         ({1'b0,expected_packet_sequence} + WINDOW_SIZE)) ||
-                        slot_valid[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] ||
-                        slot_filling[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]]) begin
+                    if (sop_reject) begin
                         packet_error <= 1;
                         if (lane_active[selected_lane])
                             slot_filling[lane_slot[selected_lane]] <= 0;
@@ -124,8 +188,6 @@ module bonded_packet_rx #(
                         // Empty payloads are represented upstream by one zero marker.
                         lane_slot[selected_lane] <= lane_packet_sequence[selected_lane*32 +: WINDOW_BITS];
                         lane_count[selected_lane] <= 1;
-                        packet_mem[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]][0]
-                            <= lane_data[selected_lane*8 +: 8];
                         slot_length[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] <= 1;
                         slot_valid[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] <= 1;
                         packet_accept_valid <= 1;
@@ -135,8 +197,6 @@ module bonded_packet_rx #(
                         lane_count[selected_lane] <= 1;
                         lane_active[selected_lane] <= 1;
                         slot_filling[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]] <= 1;
-                        packet_mem[lane_packet_sequence[selected_lane*32 +: WINDOW_BITS]][0]
-                            <= lane_data[selected_lane*8 +: 8];
                     end
                 end else if (!lane_active[selected_lane]) begin
                     packet_error <= 1;
@@ -147,8 +207,6 @@ module bonded_packet_rx #(
                     lane_active[selected_lane] <= 0;
                     lane_drop[selected_lane] <= !lane_eop[selected_lane];
                 end else begin
-                    packet_mem[lane_slot[selected_lane]][lane_count[selected_lane]]
-                        <= lane_data[selected_lane*8 +: 8];
                     lane_count[selected_lane] <= lane_count[selected_lane] + 1'b1;
                     if (lane_eop[selected_lane]) begin
                         slot_length[lane_slot[selected_lane]] <= lane_count[selected_lane] + 1'b1;
