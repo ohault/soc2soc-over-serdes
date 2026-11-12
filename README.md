@@ -22,40 +22,35 @@ memory-mapped protocol. One SoC (the *initiator*) reads and writes the bus of th
 This branch also develops a separate, board- and SoC-agnostic packet transport
 that bonds the two physical SFP/DAC lanes into one logical full-duplex link.
 It is **not yet wired into `acorn_soc2soc.py`**, does not replace the existing
-SerWB implementation, and must remain experimental until hardware validation is completed.
+SerWB implementation, and must remain experimental until hardware validation
+is completed.
 
-The generic RTL includes an autonomous two-lane node, HELLO/READY session
+The common RTL includes an autonomous two-lane node, HELLO/READY session
 negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
-reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
-parallel 8b/10b wrapper (`bonded_two_lane_phy_word_node`) with independent TX
-and recovered-RX clock domains. It discovers remote lane IDs, so crossed SFP
-cables are supported without changing the logical transport. The workflow now
-contains end-to-end two-node regressions with simultaneous bidirectional
-traffic, variable-length packets, both lanes, application RX backpressure,
-crossed-cable lane mapping and malformed-PHY-symbol fault propagation. The
-latest explicitly confirmed GitHub Actions success predates these final
-integration changes; rerunning CI on the current branch is a release gate.
-The generic RTL includes an autonomous two-lane node, HELLO/READY session
-negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
-reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
-parallel 8b/10b wrapper (`bonded_two_lane_phy_word_node`) with independent TX
-and recovered-RX clock domains. It discovers remote lane IDs, so crossed SFP
-cables are supported without changing the logical transport. The end-to-end
-RTL regressions cover simultaneous bidirectional traffic, variable-length
-packets, both lanes, application RX backpressure, crossed-cable lane mapping,
-malformed-PHY-symbol fault propagation and session recovery after asymmetric
-lane loss.
+reordering, raw-byte frame reconstruction, generic 8b/10b adapters, parallel
+PHY-word bridges, and independent TX/recovered-RX clock domains. It discovers
+remote lane IDs, so crossed SFP cables are supported without changing the
+logical transport. End-to-end regressions cover simultaneous bidirectional
+traffic, variable-length packets, application backpressure, crossed-cable
+mapping, malformed-PHY-symbol fault propagation, and asymmetric lane-loss
+recovery.
 
 **Software verification (12 November 2026):** GitHub Actions run
-[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
-passes the Python bonding tests and the complete RTL frame-boundary workflow on
-the clean branch revision. The separate payload-RAM workflow
+[43180251990](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43180251990)
+passes the Python bonding tests, the complete RTL frame-boundary and end-to-end
+regression suite, and Acorn LiteX/Migen elaboration plus generated-Verilog
+structural checks at both 2.5 and 5.0 Gb/s. The structural check confirms one
+shared GTP QPLL and two GTP channel instances. The separate payload-RAM
+workflow
 [43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
 passes the 8/16/32-bit RAM tests, all 27 reference-versus-RAM RX differential
-configurations and the generic Yosys memory-inference check. The same run also successfully elaborates the Acorn target at both 2.5 and
-5.0 Gb/s, including the two GTP channels and shared QPLL. No Vivado synthesis,
-timing closure or physical hardware validation is claimed.
-Board-specific SERDES primitives and clocks remain outside the bonding core.
+configurations, and the generic Yosys memory-inference check. The RAM-backed
+receiver remains an experimental candidate and is not selected into the
+endpoint.
+
+No Vivado synthesis, timing closure, bitstream generation or physical hardware
+validation is claimed. Board-specific SERDES primitives and clocks remain
+outside the common bonding core.
 
 - [Project roadmap](docs/project-roadmap.md)
 - [RTL control transport](docs/rtl-control-transport.md)
@@ -70,8 +65,8 @@ Board-specific SERDES primitives and clocks remain outside the bonding core.
 The conservative one-byte-per-PHY-word mode is suitable for initial bring-up.
 The multi-byte PHY adapter is not yet safe for sustained full-rate traffic:
 the wire framing and final logical RX application interface are still
-byte-wide and must be widened end to end. No hardware
-validation has been performed yet.
+byte-wide and must be widened end to end before claiming full line-rate
+throughput.
 
 ## Existing SerWB scenarios
 
