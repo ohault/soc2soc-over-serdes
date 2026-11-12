@@ -111,6 +111,29 @@ simultaneous DATA traffic in both directions. It passed CI run 43115216096.
 7. The implementation must support both two-symbol and four-symbol PHY
    words, with the same byte sequence and CRC results.
 
+## Current integration throughput limit
+
+The standalone PHY adapter can encode/decode multiple bytes per PHY word,
+but the present bonded node's wire framing interfaces are still byte-wide:
+`bonded_wire_tx_lane` emits one byte per lane clock and
+`bonded_wire_rx_framer` consumes one byte per lane clock. The bridge's RX
+word-to-byte gearbox also drains one byte per RX clock. Consequently, a
+continuous two-symbol PHY stream can deliver up to two decoded bytes per RX
+clock and a four-symbol stream up to four; the current byte-wide receiver
+cannot sustain either rate. Its small elasticity FIFO will eventually
+overflow under continuous full-rate input.
+
+The current two-node regression proves finite-packet interoperability,
+ordering, backpressure and fault handling, but it is not a sustained
+line-rate test. **Do not treat the current parallel-PHY node as a full-rate
+implementation or connect it to an unthrottled live PHY for sustained DATA.**
+
+The next datapath milestone must widen both sides of the wire boundary:
+parallel TX framing/CRC generation and parallel RX framing/CRC validation,
+with multi-byte ready/valid lane streams carried into the packet scheduler and
+reorder path. Until that is done, use the one-byte-per-word bring-up profile
+or enforce an explicit PHY-side rate limit compatible with the byte-wide core.
+
 ## Integration strategy
 
 Keep the current byte-wide node and `bonded_phy_8b10b_adapter` as the simple
