@@ -26,6 +26,10 @@
 #   failed look-ahead block only ends the stream (the next read misses and is retried).
 #
 # Same interface and write path as SERWBMMAPSlave (protocol compatible with SERWBMMAPMaster).
+#
+# ``response_timeout`` is accepted for compatibility with SERWBCore (LiteICLink passes it to the
+# slave since its read response timeout was added) but is not implemented here: as with
+# SERWBMMAPSlave before that change, a read waits for its response until the link is reset.
 
 from migen import *
 
@@ -43,7 +47,7 @@ from liteiclink.serwb.core   import SERWBCore
 # SerWB MMAP Slave with Prefetch -------------------------------------------------------------------
 
 class SERWBMMAPSlavePrefetch(LiteXModule):
-    def __init__(self, burst_depth=4, coalescing_timeout=4, lookahead_boundary=4096):
+    def __init__(self, burst_depth=4, coalescing_timeout=4, lookahead_boundary=4096, response_timeout=None):
         assert 1 <= burst_depth <= 256
         assert burst_depth & (burst_depth - 1) == 0, "burst_depth must be a power of 2."
         assert lookahead_boundary & (lookahead_boundary - 1) == 0
