@@ -168,6 +168,13 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen,
                 a1txerr,a0txerr,a1rxerr,a0rxerr,a1tf,a0tf,a1rf,a0rf,
                 node_a.node.lane_up_sync2,node_a.node.lane_rx_error_sync2,node_a.node.lane_tx_error_sync2);
+            $display("RECOV A RXDETAIL framer=%b%b demux=%b%b ctrl=%b%b data=%b%b map=%b%b duplicate=%b",
+                node_a.node.lane1_framer_error,node_a.node.lane0_framer_error,
+                node_a.node.endpoint.rx_path.ctrl1_demux_error,node_a.node.endpoint.rx_path.ctrl0_demux_error,
+                node_a.node.endpoint.rx_path.ctrl1_frame_error,node_a.node.endpoint.rx_path.ctrl0_frame_error,
+                node_a.node.endpoint.rx_path.lane1_data_frame_error,node_a.node.endpoint.rx_path.lane0_data_frame_error,
+                node_a.node.endpoint.rx_path.lane1_map_error,node_a.node.endpoint.rx_path.lane0_map_error,
+                node_a.node.endpoint.rx_path.duplicate_remote_lane_id);
     end
     always @(posedge bond_b) begin
         fault_b_d<=fault_b;
