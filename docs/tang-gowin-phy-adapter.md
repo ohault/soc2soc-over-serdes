@@ -115,7 +115,9 @@ not a same-cycle ready/valid handshake.
 Use the generic `rtl/bonded_phy_fifo_read_adapter.sv` between the Gowin RX
 FIFO and the lane bridge:
 
-- `fifo_empty` = Gowin RX FIFO empty flag.
+- `fifo_empty` = Gowin RX FIFO empty flag, or the almost-empty flag if that
+  is the only safe read guard exposed by the generated IP (as in the Sipeed
+  example).
 - `fifo_rdreq` = Gowin RX FIFO read-enable.
 - `fifo_data_valid` = Gowin `rx_valid_o`.
 - `fifo_data` = Gowin 88-bit RX data.
