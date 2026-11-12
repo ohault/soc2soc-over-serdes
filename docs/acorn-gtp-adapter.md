@@ -104,13 +104,16 @@ control bits, latches GTP decoder-invalid indications in the RX clock domain,
 and connects the generic two-lane RTL node. It defaults to the safe
 one-byte-per-PHY-word mode. The existing SerWB target is not modified.
 
-This module has not yet been imported in a LiteX build, elaborated to Verilog,
-synthesized or hardware-tested. The next steps are:
+The separate `acorn_bonded.py` target now reuses the established CRG/QPLL
+setup while leaving the existing SerWB target unchanged. The image starts the
+control plane but leaves application DATA idle; a packet generator/checker is
+still needed. The wrapper and target have not yet been imported in a LiteX
+build, elaborated to Verilog, synthesized or hardware-tested. The next steps
+are:
 
-1. Add a separate Acorn bonded-transport target using the existing CRG/QPLL
-   setup, without changing the current SerWB target or its GTP ownership.
-2. Add a generated-Verilog build smoke test and verify both SFP channels map
-   to the correct GTP clocks and byte/control slices.
+1. Elaborate the target in a LiteX environment and verify both SFP channels
+   map to the correct GTP clocks and byte/control slices.
+2. Add a hardware-free packet generator/checker for bidirectional DATA tests.
 3. Run the full RTL CI suite before attempting Vivado synthesis.
 4. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
    and sustained one-byte-per-word traffic on hardware.
