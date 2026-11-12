@@ -38,6 +38,7 @@ is an integration option, not a dependency of the bonding core.
 - `rtl/bonded_sync_byte_fifo.sv`: per-lane RX elastic buffering.
 - `docs/physical-byte-stream-interface.md`: contract for a board PHY adapter.
 - `docs/dynamic-lane-mapping.md`: remote lane-ID discovery, crossed cabling and duplicate-ID rejection.
+- `docs/acorn-gtp-adapter.md`: exact LiteICLink GTP stream, clock, reset and error mapping for the Acorn.
 - `docs/rtl-control-transport.md`: RTL control architecture and limitations.
 
 ## Current limitations
@@ -103,9 +104,10 @@ integrity, FPGA resource utilization or timing closure.
 4. Audit the epoch-change reset boundary, delayed CONTROL frames, stale
    complete DATA frames and asymmetric peer reboot. The epoch counter is
    volatile across independent cold boots.
-5. Implement the Acorn GTP/LiteICLink wrapper, keeping all vendor primitives
-   outside the generic bonding RTL. The Acorn GTP's current 20-bit datapath is
-   two 8b/10b symbols per user clock.
+5. Implement the Acorn GTP/LiteICLink wrapper described in
+   `docs/acorn-gtp-adapter.md`, keeping all vendor primitives outside the
+   generic bonding RTL. The Acorn GTP's current 20-bit datapath is two
+   8b/10b symbols per user clock.
 6. Synthesize and time the generic core and wrapper, then validate lock,
    PRBS/loopback, lane skew and sustained traffic on the Acorn.
 7. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
