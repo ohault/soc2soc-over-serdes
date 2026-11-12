@@ -76,10 +76,11 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | File | Description |
 |------|-------------|
 | `acorn_soc2soc.py` | Existing LiteX SerWB target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |
-| `acorn_bonded.py` | Separate experimental bonded-link bring-up target; leaves the SerWB target unchanged. |
+| `acorn_bonded.py` | Separate experimental bonded-link target with bidirectional packet-pattern testing; leaves the SerWB target unchanged. |
 | `soc2soc/link.py` | SerDes link layer: 32-bit stream over a 2-byte 8b/10b transceiver, link-up handshake, error detection. Can be used as a SerWB PHY. |
 | `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window + optional stream port. |
 | `soc2soc/bonded_acorn.py` | Prototype Acorn two-GTP binding for the board-neutral bonded packet node; separate from the existing SerWB target. |
+| `soc2soc/bonded_tester.py` | Bidirectional fixed-size packet generator/checker for link bring-up. |
 | `soc2soc/stream.py` | `SerWBStreamPort`: bidirectional 32-bit stream with credit-based flow control, next to register access. `StreamTester`: counter generator/checker. |
 | `soc2soc/serwb_prefetch.py` | SerWB native slave with read prefetch (same protocol, used on the initiator side). |
 | `soc2soc/bench.py` | `WishboneBench`: Wishbone traffic generator to measure bandwidth and latency from the FPGA. |
