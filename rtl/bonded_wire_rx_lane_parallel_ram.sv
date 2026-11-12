@@ -221,7 +221,7 @@ module bonded_wire_rx_lane_parallel_ram #(
                     output_byte_index<=0;
                     frame_valid_pulse<=1;
                     if(({header_mem[20],header_mem[21]}-16'd4)==0) begin
-                        out_data<=0; out_keep<=1'b1;
+                        out_data<=0; out_keep<={KEEP_WIDTH{1'b0}};
                         out_valid<=1; state<=ST_OUTPUT;
                     end else begin
                         payload_rd_addr<=0;
