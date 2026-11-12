@@ -175,6 +175,19 @@ module tb_bonded_wire_rx_lane_parallel;
         if(out_valid || got!=0 || frame_error)
             $fatal(1,"WIDTH=%0d reset did not flush stalled output",DATA_WIDTH);
         $display("PASS: parallel DATA RX reset during stalled output");
+
+        if(KEEP_WIDTH>1) begin
+            @(negedge clk); rst=1;
+            repeat(3) @(posedge clk); @(negedge clk); rst=0;
+            @(negedge clk); in_data=0; in_keep=0; in_keep[0]=1; in_keep[KEEP_WIDTH-1]=1;
+            in_sop=1; in_eop=0; in_valid=1;
+            while(!in_ready) @(negedge clk);
+            @(posedge clk); @(negedge clk); in_valid=0; in_sop=0; in_keep=0;
+            repeat(4) @(posedge clk);
+            if(!frame_error || out_valid)
+                $fatal(1,"WIDTH=%0d non-contiguous KEEP was not rejected",DATA_WIDTH);
+            $display("PASS: parallel DATA RX rejects non-contiguous KEEP");
+        end
         $finish;
     end
 endmodule
