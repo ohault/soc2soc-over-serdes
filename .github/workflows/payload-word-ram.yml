@@ -12,10 +12,10 @@ on:
       - 'rtl/tb_bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_differential.sv'
       - 'scripts/check_rx_memory_inference.py'
-      - 'scripts/check_rx_memory_inference.py'
       - '.github/workflows/payload-word-ram.yml'
   pull_request:
     paths:
+      - 'scripts/check_rx_memory_inference.py'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_differential.sv'
       - 'rtl/bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_ram.sv'
