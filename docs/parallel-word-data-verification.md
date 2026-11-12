@@ -46,3 +46,21 @@ compatibility test structure.
 The testbenches are committed but have not yet been executed in an available
 simulator. Their inclusion in CI is not evidence of a passing result; inspect
 the GitHub Actions job output after the branch push.
+
+
+## Receiver robustness coverage
+
+The parallel RX width-matrix regression now exercises, at 8, 16 and 32 bits:
+
+- A valid seven-byte DATA frame with dynamic lane ID `0xA5`, proving the
+  parser is not restricted to the initial two-lane prototype.
+- A corrupted frame CRC, which must set `frame_error` and release no payload.
+- A frame from a different session, which must be discarded without treating
+  stale traffic as physical-link corruption.
+- Reset while a validated payload is stalled, which must flush the pending
+  payload and return the receiver to idle.
+
+Both byte-serial and parallel receivers now accept the full eight-bit lane-ID
+field when configured for dynamic lane checking. These are source-level
+regressions registered in CI; they remain unverified until the Icarus job
+actually runs and its logs are inspected.
