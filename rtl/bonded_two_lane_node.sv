@@ -89,7 +89,7 @@ module bonded_two_lane_node #(
     end
     wire [1:0] lane_up=lane_up_sync2 & ~lane_rx_error_sync2 & ~lane_tx_error_sync2;
 
-    // Convert a bonding-clock session drop into one reset pulse in each
+    // Convert bonding-clock session transitions into reset toggles for each
     // recovered RX clock domain. CONTROL negotiation remains alive.
     reg session_active_d,session_drop_toggle;
     always @(posedge bond_clk or negedge bond_rst_n) begin
@@ -137,7 +137,7 @@ module bonded_two_lane_node #(
     reg session_rx_reset_toggle;
     always @(posedge bond_clk or negedge bond_rst_n) begin
         if(!bond_rst_n) session_rx_reset_toggle<=1'b0;
-        else if(session_initiated) session_rx_reset_toggle<=~session_rx_reset_toggle;
+        else if(session_changed) session_rx_reset_toggle<=~session_rx_reset_toggle;
     end
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
     wire lane0_tx_sop_internal,lane0_tx_eop_internal,lane1_tx_sop_internal,lane1_tx_eop_internal;
