@@ -111,6 +111,24 @@ pip3 install --user meson ninja && python3 litex_setup.py --gcc=riscv   # For th
 ./acorn_soc2soc.py --load --usb-port=1-5      # Board B.
 ```
 
+The experimental bonded transport has a separate target and does not modify
+the existing SerWB target. Build matching images with complementary peer IDs
+and the same initial session seed:
+
+```sh
+# Board A
+./acorn_bonded.py --build --peer-id=1 --expected-peer-id=2 --session-id=1
+
+# Board B
+./acorn_bonded.py --build --peer-id=2 --expected-peer-id=1 --session-id=1
+```
+
+Load each image onto its corresponding board with the same `--load` and
+`--usb-port` options. Connect both SFP DAC paths between the boards. The
+bonded target starts a bidirectional 64-byte packet pattern test after session
+negotiation; see [Acorn bonded adapter](docs/acorn-gtp-adapter.md).
+
+
 The board's FTDI chip has no USB serial number: with several boards connected, `--usb-port` selects
 a board by the host USB port it is plugged into (see `/sys/bus/usb/devices`, and
 [docs/test-procedure.md](docs/test-procedure.md#22-load-or-flash)), and detects that board's FTDI
