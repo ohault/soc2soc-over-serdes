@@ -52,9 +52,9 @@ the wire framing and final logical RX application interface are still
 byte-wide and must be widened end to end. No hardware
 validation has been performed yet.
 
-## Scenarios
+## Existing SerWB scenarios
 
-Every board runs the same gateware: **SFP0 is the initiator and SFP1 the target**. Every DAC cable
+For the legacy SerWB target, every board runs the same gateware: **SFP0 is the initiator and SFP1 the target**. Every DAC cable
 joins an SFP0 to an SFP1, so going from one scenario to another only means moving cables (no
 rebuild, no reload), and `test_soc2soc.py` detects the cabling by itself.
 
