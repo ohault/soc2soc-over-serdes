@@ -153,8 +153,28 @@ module tb_bonded_wire_rx_lane_parallel;
             $fatal(1,"WIDTH=%0d stale session was not silently discarded",DATA_WIDTH);
         $display("PASS: parallel DATA RX stale-session discard");
 
+        // A valid frame with an unexpected frame sequence is rejected.
+        @(negedge clk); rst=1; got=0; expected_session_id=64'h0102030405060708;
+        expected_frame_sequence_override=1;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        offset=0;
+        while(offset<FRAME_LEN) begin
+            if(offset<28) count=WORD_BYTES;
+            else if(offset<28+PAYLOAD_LEN) begin
+                count=WORD_BYTES; if(offset+count>28+PAYLOAD_LEN) count=28+PAYLOAD_LEN-offset;
+            end else count=WORD_BYTES;
+            if(offset+count>FRAME_LEN) count=FRAME_LEN-offset;
+            send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
+            offset=offset+count;
+        end
+        repeat(100) @(posedge clk);
+        if(!frame_error || got!=0)
+            $fatal(1,"WIDTH=%0d unexpected frame sequence was not rejected",DATA_WIDTH);
+        $display("PASS: parallel DATA RX frame-sequence rejection");
+
         // Reset while a validated payload is stalled must flush the frame.
         @(negedge clk); rst=1; got=0; expected_session_id=64'h0102030405060708;
+        expected_frame_sequence_override=0;
         force_stall=1;
         repeat(3) @(posedge clk); @(negedge clk); rst=0;
         offset=0;
