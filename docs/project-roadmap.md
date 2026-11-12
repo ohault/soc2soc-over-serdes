@@ -76,8 +76,8 @@ two-node test with unrelated lane and bonding clocks.
 [43117263747](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43117263747)
 completed successfully for commit
 `dc0e46f6ece177cd11c9df483a8758a7f7069970`. Both the Python reference-model
-and RTL simulation jobs passed. The current branch is 29 commits ahead of that
-baseline; the later session-epoch, dynamic lane-map and parallel-PHY node
+and RTL simulation jobs passed. The feature branch has advanced substantially since that baseline; the later
+session-epoch, dynamic lane-map, parallel-PHY, Acorn-wrapper and packet-tester
 changes must be rerun in GitHub Actions before they can be marked CI-verified. The end-to-end test at that baseline connects two byte-oriented
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
