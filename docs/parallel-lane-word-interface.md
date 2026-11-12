@@ -3,7 +3,7 @@
 ## Motivation
 
 The current node consumes and emits one byte per lane clock. The generic
-8b/10b bring-up adapter maps one byte into a 2- or 4-symbol PHY word and fills
+8b/10b bring-up adapter maps one byte into a 2-, 4- or 8-symbol PHY word and fills
 the rest with control/filler symbols. This is portable and useful for initial
 hardware bring-up, but it leaves most of a 20-/40-bit transceiver interface
 unused.
@@ -49,7 +49,9 @@ carry four bytes.
 
 For a 20-bit encoded PHY word (two symbols), the decoded data bus is 16 bits
 wide. The first frame word carries one data byte after the comma; continuation
-words carry two bytes.
+words carry two bytes. For an 80-bit encoded PHY word (eight symbols), the
+decoded data bus is 64 bits wide with eight control-character flags; the first
+frame word can carry seven data bytes and continuation words eight.
 
 The RX adapter removes control characters and emits data words with a keep
 mask and SOP indication. An idle comma word has no data bytes and is not
@@ -153,10 +155,11 @@ transceivers.
 
 The target configurations are:
 
-- Acorn GTP: two or four 8b/10b symbols per user clock (20-/40-bit encoded
-  datapath), using LiteICLink only in the board wrapper.
-- Tang Mega 138K Pro: a four-symbol 8b/10b user datapath using Gowin Customized
-  PHY only in the board wrapper.
+- Acorn GTP: two 8b/10b symbols per user clock (20-bit encoded datapath),
+  using LiteICLink only in the board wrapper.
+- Tang Mega 138K Pro: four symbols with the 1:2 Gowin ratio for the candidate
+  common 5-Gb/s profile, or eight symbols with the 1:4 ratio used by the Sipeed
+  reference project.
 
 The bonding scheduler, packet sequence space, cumulative credits, session
 manager and application packet interface remain independent of the PHY word
