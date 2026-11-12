@@ -1,0 +1,45 @@
+name: Payload word RAM RTL tests
+
+on:
+  push:
+    branches:
+      - main
+      - feature/bonded-serdes-interconnect
+    paths:
+      - 'rtl/bonded_payload_word_ram.sv'
+      - 'rtl/tb_bonded_payload_word_ram.sv'
+      - '.github/workflows/payload-word-ram.yml'
+  pull_request:
+    paths:
+      - 'rtl/bonded_payload_word_ram.sv'
+      - 'rtl/tb_bonded_payload_word_ram.sv'
+      - '.github/workflows/payload-word-ram.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payload-word-ram-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  payload-word-ram:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        data-width: [8, 16, 32]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+      - name: Compile
+        run: |
+          iverilog -g2012 -s tb_bonded_payload_word_ram \
+            -Ptb_bonded_payload_word_ram.DATA_WIDTH=${{ matrix.data-width }} \
+            -o /tmp/payload-ram.vvp \
+            rtl/bonded_payload_word_ram.sv rtl/tb_bonded_payload_word_ram.sv
+      - name: Simulate
+        run: vvp /tmp/payload-ram.vvp
