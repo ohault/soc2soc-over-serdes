@@ -40,6 +40,13 @@ jobs:
             rtl/bonded_crc_parallel.sv rtl/tb_bonded_crc_parallel.sv
           vvp /tmp/tb_crc_parallel
 
+      - name: Compile and run parallel DATA frame TX testbench
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_wire_tx_lane_parallel -o /tmp/tb_wire_tx_parallel \
+            rtl/bonded_crc_parallel.sv rtl/bonded_wire_tx_lane_parallel.sv \
+            rtl/tb_bonded_wire_tx_lane_parallel.sv
+          vvp /tmp/tb_wire_tx_parallel
+
       - name: Compile and run frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
