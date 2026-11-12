@@ -28,7 +28,7 @@ module tb_bonded_two_lane_rx_control;
   .out_sop(tx_sop),.out_eop(tx_eop),.next_frame_sequence(tx_seq),.frame_error(tx_error));
  assign tx_out_ready=lane0_ready;
  bonded_two_lane_rx #(.FIFO_DEPTH(16),.REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) dut(
-  .bond_rst_n(rst_n),.control_rst_n(rst_n),.expected_session_id(64'h0123456789abcdef),.session_rx_reset_toggle(1'b0),
+  .bond_rst_n(rst_n),.control_rst_n(rst_n),.expected_session_id(64'h0123456789abcdef),.session_rx_reset_toggle(1'b0),.session_rx_flush_toggle(1'b0),
   .lane0_clk(lane0_clk),.lane0_rst_n(rst_n),.lane0_valid(tx_out_valid),.lane0_ready(lane0_ready),
   .lane0_data(tx_data),.lane0_sop(tx_sop),.lane0_eop(tx_eop),
   .lane1_clk(lane1_clk),.lane1_rst_n(rst_n),.lane1_valid(1'b0),.lane1_ready(lane1_ready),
