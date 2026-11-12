@@ -173,3 +173,9 @@ These tests broaden boundary coverage but do not yet replace the need for
 independent reset, premature-SOP, malformed-header, session, lane and
 sequence differential scenarios. Simulation results must be checked in
 GitHub Actions before considering the candidate for integration.
+
+
+The differential bench also checks stale-session discard, unexpected frame
+sequence rejection, and dynamic lane-ID mismatch rejection. For each case,
+both receivers must agree on whether a link error is raised and neither may
+release payload bytes from a rejected frame.
