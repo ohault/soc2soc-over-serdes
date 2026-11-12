@@ -148,5 +148,8 @@ local lane-up bits, packet-test errors, PHY errors and GTP decoder errors.
 The `bond_tx_packets` and `bond_rx_packets` CSRs expose packet counts. Each
 board sends 64-byte packets whose contents depend on its peer ID and packet
 counter; the opposite board checks every received byte and packet boundary.
+This is a continuous integrity/interop test, not a calibrated throughput
+measurement; the current byte-wide application RX path remains the throughput
+limit.
 
 No board-specific wrapper is hardware-validated by this document.
