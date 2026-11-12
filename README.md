@@ -83,6 +83,8 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 | `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window + optional stream port. |
 | `soc2soc/bonded_acorn.py` | Prototype Acorn two-GTP binding for the board-neutral bonded packet node; separate from the existing SerWB target. |
 | `soc2soc/bonded_tester.py` | Bidirectional fixed-size packet generator/checker for link bring-up. |
+| `rtl/bonded_phy_fifo_read_adapter.sv` | Reservation-aware read-enable/data-valid PHY FIFO adapter. |
+| `rtl/bonded_gowin_8b10b_word_adapter.sv` | Gowin 40/44-bit and 80/88-bit 8b/10b symbol/error mapper. |
 | `soc2soc/stream.py` | `SerWBStreamPort`: bidirectional 32-bit stream with credit-based flow control, next to register access. `StreamTester`: counter generator/checker. |
 | `soc2soc/serwb_prefetch.py` | SerWB native slave with read prefetch (same protocol, used on the initiator side). |
 | `soc2soc/bench.py` | `WishboneBench`: Wishbone traffic generator to measure bandwidth and latency from the FPGA. |
@@ -124,6 +126,10 @@ and the same initial session seed:
 # Board B
 ./acorn_bonded.py --build --peer-id=2 --expected-peer-id=1 --session-id=1
 ```
+
+For the candidate common Acorn/Tang 5.0-Gb/s profile, add
+`--linerate=5e9` to both build commands after the QPLL and timing checks pass.
+The Acorn target otherwise defaults to 2.5 Gb/s.
 
 Load each image onto its corresponding board with the same `--load` and
 `--usb-port` options. Connect both SFP DAC paths between the boards. The
