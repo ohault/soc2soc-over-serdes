@@ -190,9 +190,11 @@ module bonded_wire_rx_lane_parallel #(
         end
     end
 
+    `ifndef SYNTHESIS
     initial begin
         if((DATA_WIDTH!=8)&&(DATA_WIDTH!=16)&&(DATA_WIDTH!=32)) $error("DATA_WIDTH must be 8, 16 or 32");
         if(KEEP_WIDTH!=WORD_BYTES) $error("KEEP_WIDTH must equal DATA_WIDTH/8");
         if(MAX_PAYLOAD<1||MAX_PAYLOAD>4096) $error("MAX_PAYLOAD must be 1..4096");
     end
+    `endif
 endmodule
