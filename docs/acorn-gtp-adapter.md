@@ -144,7 +144,8 @@ from the existing Acorn target and may need to be verified with PRBS.
 
 LED1 and LED2 indicate local lane readiness; LED3 remains the QPLL lock
 indicator. The `bond_status` CSR reports session-active, control-fault, both
-local lane-up bits, packet-test errors, PHY errors and GTP decoder errors.
+local lane-up bits, packet-test errors, per-lane PHY TX/RX errors and GTP
+decoder errors.
 The `bond_tx_packets` and `bond_rx_packets` CSRs expose packet counts. Each
 board sends 64-byte packets whose contents depend on its peer ID and packet
 counter; the opposite board checks every received byte and packet boundary.
