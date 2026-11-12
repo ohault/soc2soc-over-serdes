@@ -22,7 +22,7 @@ memory-mapped protocol. One SoC (the *initiator*) reads and writes the bus of th
 This branch also develops a separate, board- and SoC-agnostic packet transport
 that bonds the two physical SFP/DAC lanes into one logical full-duplex link.
 It is **not yet wired into `acorn_soc2soc.py`**, does not replace the existing
-SerWB implementation, and must be treated as experimental until its RTL regressions pass and hardware validation is completed.
+SerWB implementation, and must remain experimental until hardware validation is completed.
 
 The generic RTL includes an autonomous two-lane node, HELLO/READY session
 negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
@@ -35,6 +35,26 @@ traffic, variable-length packets, both lanes, application RX backpressure,
 crossed-cable lane mapping and malformed-PHY-symbol fault propagation. The
 latest explicitly confirmed GitHub Actions success predates these final
 integration changes; rerunning CI on the current branch is a release gate.
+The generic RTL includes an autonomous two-lane node, HELLO/READY session
+negotiation, cumulative byte/packet credits, DATA/CONTROL framing, packet
+reordering, raw-byte frame reconstruction, a generic 8b/10b byte adapter and a
+parallel 8b/10b wrapper (`bonded_two_lane_phy_word_node`) with independent TX
+and recovered-RX clock domains. It discovers remote lane IDs, so crossed SFP
+cables are supported without changing the logical transport. The end-to-end
+RTL regressions cover simultaneous bidirectional traffic, variable-length
+packets, both lanes, application RX backpressure, crossed-cable lane mapping,
+malformed-PHY-symbol fault propagation and session recovery after asymmetric
+lane loss.
+
+**Software verification (12 November 2026):** GitHub Actions run
+[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
+passes the Python bonding tests and the complete RTL frame-boundary workflow on
+the clean branch revision. The separate payload-RAM workflow
+[43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
+passes the 8/16/32-bit RAM tests, all 27 reference-versus-RAM RX differential
+configurations and the generic Yosys memory-inference check. The Acorn LiteX
+elaboration job in run 43178198151 is still running; no Vivado synthesis,
+timing closure or physical hardware validation is claimed.
 Board-specific SERDES primitives and clocks remain outside the bonding core.
 
 - [Project roadmap](docs/project-roadmap.md)
