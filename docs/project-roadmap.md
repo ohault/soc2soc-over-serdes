@@ -75,8 +75,8 @@ the full-duplex endpoint, and an autonomous two-node parallel-PHY test with
 unrelated lane and bonding clocks.
 
 **Current code verification (12 November 2026):** GitHub Actions run
-[43180251990](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43180251990)
-on commit `917f58d381e6b92d2f71968a3c5678f94b4323e5` passes all three jobs:
+[43191182453](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43191182453)
+on commit `0bce58f346540d575053cdee192e876d9f75ccc8` passes all three jobs:
 Python bonding tests, the complete RTL frame-boundary workflow (including
 serial/parallel TX equivalence, two-node parallel-PHY transport, asymmetric
 lane-loss recovery, PHY session-flush recovery, crossed-lane mapping and

@@ -81,6 +81,14 @@ jobs:
           python scripts/check_acorn_bonded_verilog.py --build-dir build/acorn-2p5
           python acorn_bonded.py --cpu-type=None --uart-name=uartbone --linerate=5e9 --output-dir=build/acorn-5g
           python scripts/check_acorn_bonded_verilog.py --build-dir build/acorn-5g
+      - name: Preserve generated Acorn bonded Verilog for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: acorn-bonded-generated-verilog
+          path: |
+            build/acorn-2p5/**/*.v
+            build/acorn-5g/**/*.v
+          if-no-files-found: error
 
   rtl-frame-boundary:
     runs-on: ubuntu-latest
