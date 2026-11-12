@@ -21,9 +21,9 @@ is an integration option, not a dependency of the bonding core.
 | Autonomous two-lane node | Integrated | Control manager owns session state and drives the byte-oriented endpoint |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
-| Parallel 8b/10b word adapter and byte/word gearboxes | Integrated; CI passing | Multi-byte words, SOP comma, independent TX/RX clocks, backpressure, session flush and PHY fault propagation |
+| Parallel 8b/10b word adapter and byte/word gearboxes | Integrated prototype; sustained throughput limited | Multi-byte PHY words are decoded, but the bonded wire TX/RX framing core remains byte-wide and cannot consume full-rate multi-byte RX traffic |
 | Per-lane PHY bridge | Integrated as generic RTL | Independent TX/recovered-RX clocks, word packer/decoder, byte unpacker, session-drop flushing and sticky PHY faults |
-| Two-lane parallel-PHY node wrapper | Integrated; full-duplex regression passing | Simultaneous traffic both ways, eight variable-length packets, both lanes, RX backpressure and malformed-symbol session invalidation |
+| Two-lane parallel-PHY node wrapper | Integrated RTL; regression authored, current CI unverified | Full-duplex packet tests exist, but they do not establish sustained PHY line-rate capability |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
@@ -92,17 +92,22 @@ behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Rerun the complete Python and RTL CI suite against the current branch head;
+1. Widen the wire TX/RX framing path so CRC, frame boundaries, CONTROL/DATA
+   arbitration and packet scheduling can accept and emit multiple bytes per
+   lane clock. The current byte-wide core is the bottleneck and the parallel
+   PHY RX gearbox will overflow under sustained full-rate input.
+2. Add sustained-rate and long-duration backpressure regressions for both
+   two-symbol and four-symbol PHY configurations, including overflow checks.
+3. Rerun the complete Python and RTL CI suite against the current branch head;
    fix any compile, simulation or regression failures before board integration.
-2. Audit the epoch-change reset boundary, especially delayed CONTROL frames,
-   stale complete DATA frames, asymmetric peer reboot and cold-boot seed
-   persistence. The epoch counter is volatile across power loss.
-3. Implement the first board-specific SERDES wrapper, beginning with the
-   Acorn GTP and LiteICLink integration while keeping vendor primitives
-   outside the generic bonding RTL.
-4. Synthesize and time the generic core and board wrapper, then validate
-   transceiver lock, PRBS/loopback, lane skew and sustained traffic on the Acorn.
-5. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
-6. Only after the generic transport is stable on hardware, add PCIe and USB
-   protocol adapters as separate layers. The one-byte adapter remains the
-   conservative bring-up path; the parallel adapter is the performance path.
+4. Audit the epoch-change reset boundary, delayed CONTROL frames, stale
+   complete DATA frames and asymmetric peer reboot. The epoch counter is
+   volatile across independent cold boots.
+5. Implement the Acorn GTP/LiteICLink wrapper, keeping all vendor primitives
+   outside the generic bonding RTL. The Acorn GTP's current 20-bit datapath is
+   two 8b/10b symbols per user clock.
+6. Synthesize and time the generic core and wrapper, then validate lock,
+   PRBS/loopback, lane skew and sustained traffic on the Acorn.
+7. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
+8. Add PCIe and USB protocol adapters only after the generic transport is
+   stable on hardware.
