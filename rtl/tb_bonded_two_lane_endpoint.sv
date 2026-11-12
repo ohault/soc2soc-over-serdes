@@ -84,7 +84,7 @@ module tb_bonded_two_lane_endpoint;
 
     bonded_two_lane_endpoint #(.DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
         .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) endpoint_b (
-        .bond_clk(bond_b),.bond_rst_n(rst_n),.control_tx_rst_n(rst_n),.session_rx_reset_toggle(1'b0),.tx_session_id(64'hB0B),
+        .bond_clk(bond_b),.bond_rst_n(rst_n),.control_tx_rst_n(rst_n),.session_rx_reset_toggle(1'b0),.session_rx_flush_toggle(1'b0),.tx_session_id(64'hB0B),
         .rx_expected_session_id(64'hA11CE),.remote_byte_limit(a_local_bytes),.remote_packet_limit(a_local_packets),
         .ctrl_tx_valid(1'b0),.ctrl_tx_ready(),.ctrl_tx_body(208'd0),.ctrl_tx_body_length(6'd0),.session_established(session_established),.session_active(session_b),
         .local_byte_limit(b_local_bytes),.local_packet_limit(b_local_packets),.rx_credit_error(b_credit_error),
