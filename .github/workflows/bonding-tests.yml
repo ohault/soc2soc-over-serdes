@@ -60,6 +60,16 @@ jobs:
             vvp /tmp/tb_wire_tx_parallel_$width
           done
 
+      - name: Compile and run parallel DATA RX width matrix
+        run: |
+          for width in 8 16 32; do
+            iverilog -g2012 -Wall -s tb_bonded_wire_rx_lane_parallel \
+              -Ptb_bonded_wire_rx_lane_parallel.DATA_WIDTH=$width \
+              -o /tmp/tb_wire_rx_parallel_$width \
+              rtl/bonded_wire_rx_lane_parallel.sv rtl/tb_bonded_wire_rx_lane_parallel.sv
+            vvp /tmp/tb_wire_rx_parallel_$width
+          done
+
       - name: Compile and run frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
