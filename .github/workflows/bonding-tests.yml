@@ -95,6 +95,17 @@ jobs:
             rtl/bonded_crc_parallel.sv rtl/tb_bonded_crc_parallel.sv
           vvp /tmp/tb_crc_parallel
 
+      - name: Compare byte-serial and parallel DATA TX streams
+        run: |
+          for width in 8 16 32; do
+            iverilog -g2012 -Wall -s tb_bonded_wire_tx_serial_parallel_compare \
+              -Ptb_bonded_wire_tx_serial_parallel_compare.DATA_WIDTH=$width \
+              -o /tmp/tb_tx_serial_parallel_$width \
+              rtl/bonded_crc_parallel.sv rtl/bonded_wire_tx_lane.sv \
+              rtl/bonded_wire_tx_lane_parallel.sv rtl/tb_bonded_wire_tx_serial_parallel_compare.sv
+            vvp /tmp/tb_tx_serial_parallel_$width
+          done
+
       - name: Compile and run parallel DATA frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_wire_tx_lane_parallel -o /tmp/tb_wire_tx_parallel \
