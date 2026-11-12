@@ -92,7 +92,7 @@ class BondedAcornSoC(SoC2SoC):
             self.sfp_leds[1].eq(self.bonded.lane_up[1]),
         ]
 
-        self._bond_status = CSRStatus(9, description="Bonded status: session active, control fault, lane 0 up, lane 1 up, packet tester error, two PHY RX errors and two GTP decoder errors.")
+        self._bond_status = CSRStatus(11, description="Bonded status: session active, control fault, two lane-up bits, packet tester error, two PHY TX errors, two PHY RX errors and two GTP decoder errors.")
         self._bond_tx_packets = CSRStatus(32, description="Bidirectional test packets transmitted.")
         self._bond_rx_packets = CSRStatus(32, description="Bidirectional test packets received and checked.")
         self.comb += [
@@ -102,6 +102,8 @@ class BondedAcornSoC(SoC2SoC):
                 self.bonded.lane_up[0],
                 self.bonded.lane_up[1],
                 self.tester.error,
+                self.bonded.phy_tx_error[0],
+                self.bonded.phy_tx_error[1],
                 self.bonded.phy_rx_error[0],
                 self.bonded.phy_rx_error[1],
                 self.bonded.gtp_rx_invalid[0],
