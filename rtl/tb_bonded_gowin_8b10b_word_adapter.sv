@@ -32,21 +32,21 @@ module tb_bonded_gowin_8b10b_word_adapter #(parameter integer SYMBOLS_PER_WORD=4
         end
         tx_ctrl=expected_ctrl;
         #1;
-        for(i=0;i<8;i=i+1) begin
+        for(i=0;i<SYMBOLS_PER_WORD;i=i+1) begin
             if(gowin_tx_data[10*i +: 8]!==tx_data[8*i +: 8] ||
                gowin_tx_data[10*i+8]!==tx_ctrl[i] ||
                gowin_tx_data[10*i+9]!==1'b0)
                 $fatal(1,"Gowin TX symbol %0d mapping incorrect",i);
         end
 
-        // RX table 3-9: eight 10-bit symbol groups plus decoder flags [87:80].
+        // RX table 3-9: 10-bit symbol groups plus one decoder-error bit per symbol.
         gowin_rx_data=0;
-        for(i=0;i<8;i=i+1) begin
+        for(i=0;i<SYMBOLS_PER_WORD;i=i+1) begin
             gowin_rx_data[10*i +: 8]=8'hA0+i;
             gowin_rx_data[10*i+8]=((i%2)==0);
         end
         #1;
-        for(i=0;i<8;i=i+1) begin
+        for(i=0;i<SYMBOLS_PER_WORD;i=i+1) begin
             if(rx_data[8*i +: 8] !== (8'hA0+i) ||
                rx_ctrl[i] !== ((i%2)==0))
                 $fatal(1,"Gowin RX symbol %0d data/K mapping incorrect",i);
@@ -65,7 +65,7 @@ module tb_bonded_gowin_8b10b_word_adapter #(parameter integer SYMBOLS_PER_WORD=4
         if(!rx_symbol_error || !rx_decoder_error[SYMBOLS_PER_WORD-2])
             $fatal(1,"RX decoder error bit not propagated");
 
-        $display("PASS: Gowin 80/88-bit TX/RX symbol and error-bit mapping");
+        $display("PASS: Gowin parameterized TX/RX symbol and error-bit mapping");
         $finish;
     end
 endmodule
