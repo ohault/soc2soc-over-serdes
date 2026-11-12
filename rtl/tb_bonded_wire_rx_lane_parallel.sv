@@ -73,6 +73,7 @@ module tb_bonded_wire_rx_lane_parallel;
                 got=got+1;
             end
             if(out_eop && got!=PAYLOAD_LEN) $fatal(1,"early EOP");
+            if(got==PAYLOAD_LEN && !out_eop) $fatal(1,"missing EOP");
         end
         if(!rst) cycles=cycles+1;
     end
