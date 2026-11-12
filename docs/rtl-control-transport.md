@@ -89,13 +89,24 @@ Dedicated regressions cover:
 - Frame atomicity when CONTROL arrives during an active DATA frame.
 - Reserved CONTROL queue capacity, ordering and backpressure.
 - Shared frame sequence allocation across DATA and CONTROL.
+- HELLO/READY negotiation, per-lane reception and cumulative credits.
+- PING/PONG timeout, stale-heartbeat clearing and session re-arm.
+- Crossed lane mapping and duplicate remote lane-ID rejection.
+- Two-node full-duplex PHY-word transport, application backpressure,
+  asymmetric lane loss, session-flush recovery and malformed-PHY-symbol faults.
 
-These tests are included in `.github/workflows/bonding-tests.yml`. A successful
-CI result has not yet been observed for the current branch revision.
+The Python and RTL jobs passed in GitHub Actions run
+[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151).
+The payload-RAM candidate has a separate passing 8/16/32-bit regression and
+27-case reference-versus-RAM differential matrix in run
+[43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427).
+The Acorn LiteX target also elaborated at 2.5 and 5.0 Gb/s in run 43178198151.
+A generated-Verilog primitive-count check is now being added to the Acorn job;
+it is not a Vivado synthesis or timing check.
 
 ## RTL control manager and autonomous node
 
-`bonded_control_manager` now implements the v0 control state machine:
+`bonded_control_manager` implements the v0 control state machine:
 
 - HELLO transmission and per-lane HELLO reception.
 - READY transmission after both lane HELLOs, and per-lane READY tracking.
@@ -104,40 +115,49 @@ CI result has not yet been observed for the current branch revision.
 - CREDIT generation when local cumulative grants change.
 - PING/PONG heartbeat and timeout detection.
 - RESET/ERROR and physical-lane-down fault indication.
+- Deterministic restart: the lower peer ID initiates a strictly newer runtime
+  epoch after local lanes recover; the higher peer adopts that epoch.
+- Stale heartbeat and queued control work are cleared when the old session
+  faults, so an expired PING cannot prevent re-arm.
 
 `bonded_two_lane_node` composes the manager with the full-duplex endpoint.
-It exposes application packet streams, physical lane byte streams, and lane-up
-status. The manager is no longer dependent on an out-of-band session-active
-input.
+It exposes application packet streams, physical lane byte streams and lane-up
+status. Crossed SFP cables are discovered from remote lane IDs; duplicate
+remote lane IDs are rejected.
 
 The reset architecture separates the always-available CONTROL path from the
-session-scoped DATA path.
-A session drop is synchronized into each recovered RX clock domain and flushes
-that lane's raw-byte elastic FIFO and frame-boundary parser. The CONTROL
-manager and CONTROL decoders remain alive so the control plane is not reset
-with the DATA path. Before session establishment, DATA is held reset or discarded by the RX
-demultiplexer, while HELLO/READY can still traverse both physical lanes. A
-DATA-only datapath reset does not reset the CONTROL encoder or decoder. A
-session-drop flush at the shared raw-byte RX boundary can discard a partially
-received physical frame of either type; the CONTROL decoder remains alive and
-resynchronizes on the next SOP.
+session-scoped DATA path:
 
-For v0, both peers must be provisioned with the same non-zero session ID.
-The manager currently assumes the peer's physical lane IDs map directly to
-the local lane indices. Deterministic session-ID election, crossed-lane
-discovery, and automatic restart after a control fault remain future work.
+- A session drop is propagated with toggles into independent TX and recovered
+  RX clock domains; no one-bond-clock reset pulse is assumed to be sampled by
+  every lane clock.
+- TX lane encoders and CONTROL FIFO read sides are flushed on session drop;
+  the CONTROL FIFO write sides are reset at the same event.
+- The raw-byte RX FIFO and frame-boundary parser are flushed per lane.
+  CONTROL demultiplexers, decoders and their asynchronous message queues are
+  flushed without prematurely resetting the old session's expected frame
+  sequence.
+- The local initiator resets its per-lane expected frame sequence when it
+  actually starts the new epoch. The higher peer can accept the newer HELLO
+  and rebase each lane's sequence from that frame.
+- DATA is held reset or discarded until the two-lane session is established;
+  HELLO/READY and other required CONTROL messages remain available.
+
+For v0, both peers must be provisioned with the same non-zero initial session
+seed at cold boot. Runtime epochs are volatile; independent cold boots do not
+yet have persistent monotonic epoch storage.
 
 ## Remaining work before hardware validation
 
-- Connect decoded CONTROL messages to the RTL session manager and credit
-  manager.
-- Generate HELLO/READY, CREDIT and heartbeat messages automatically.
-- Add CREDIT coalescing before queue insertion.
-- Define reset/error propagation and timeout policy in RTL.
-- Connect decoded CONTROL messages to the RTL session manager and credit manager.
-- Add two-endpoint tests that exchange HELLO/READY and CREDIT over the physical stream.
-- Test two complete endpoints with no out-of-band credit wiring.
-- Run all Python and RTL regressions and close any failures before board work.
-
-The current implementation is a per-lane building block, not yet a complete
-automatic RTL control plane or a hardware-validated interconnect.
+1. Complete the generated-Verilog structural smoke check for one shared
+   `GTPE2_COMMON` and two `GTPE2_CHANNEL` instances at both Acorn line rates.
+2. Run Vivado synthesis and timing analysis; inspect QPLL, CDC constraints,
+   clock/reset mapping, resource use and timing.
+3. Validate the conservative one-byte-per-PHY-word profile on the Acorn boards:
+   PLL lock, TX/RX initialization, PRBS, polarity, comma alignment, lane
+   mapping, session recovery and bidirectional packet integrity.
+4. Measure sustained throughput and long-duration backpressure on hardware.
+   The current byte-wide framing and application RX path are not full-rate
+   multi-byte datapaths.
+5. After hardware bring-up, widen the framing, CRC, CONTROL/DATA arbitration,
+   CDC, reorder/reassembly and application RX paths for aggregate throughput.
