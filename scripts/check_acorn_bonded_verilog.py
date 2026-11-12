@@ -24,6 +24,9 @@ def main() -> None:
     for path in candidates:
         print(f"  {path}")
     verilog = "\n".join(path.read_text(encoding="utf-8") for path in candidates)
+    for line_number, line in enumerate(verilog.splitlines(), start=1):
+        if "GTPE2_" in line:
+            print(f"{line_number}: {line.strip()}")
 
     def count(primitive: str) -> int:
         return len(re.findall(rf"\b{re.escape(primitive)}\b", verilog))
