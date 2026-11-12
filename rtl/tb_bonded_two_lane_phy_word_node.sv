@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: BSD-2-Clause
 `timescale 1ns/1ps
-module tb_bonded_two_lane_phy_word_node;
+module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
+    localparam integer PHY_DATA_WIDTH=SYMBOLS_PER_WORD*8;
+    localparam integer PHY_CTRL_WIDTH=SYMBOLS_PER_WORD;
+    localparam integer PHY_FIFO_WIDTH=PHY_DATA_WIDTH+PHY_CTRL_WIDTH;
+    localparam [PHY_DATA_WIDTH-1:0] BAD_PHY_WORD=(SYMBOLS_PER_WORD==2)?16'hbc00:BAD_PHY_WORD;
+    localparam [PHY_CTRL_WIDTH-1:0] BAD_PHY_CTRL=(SYMBOLS_PER_WORD==2)?2'b10:BAD_PHY_CTRL;
     reg bond_a=0,bond_b=0;
     always #4 bond_a=~bond_a;
     always #4.5 bond_b=~bond_b;
@@ -19,25 +24,25 @@ module tb_bonded_two_lane_phy_word_node;
     reg inject_a0_bad=0,inject_b0_bad=0;
     wire a0_phy_rx_valid=a0_rxv || inject_a0_bad;
     wire b0_phy_rx_valid=b0_rxv || inject_b0_bad;
-    wire [31:0] a0_phy_rx_data=inject_a0_bad ? 32'h0000bc00 : a0_rxd;
-    wire [31:0] b0_phy_rx_data=inject_b0_bad ? 32'h0000bc00 : b0_rxd;
-    wire [3:0] a0_phy_rx_ctrl=inject_a0_bad ? 4'b0010 : a0_rxc;
-    wire [3:0] b0_phy_rx_ctrl=inject_b0_bad ? 4'b0010 : b0_rxc;
+    wire [PHY_DATA_WIDTH-1:0] a0_phy_rx_data=inject_a0_bad ? 32'h0000bc00 : a0_rxd;
+    wire [PHY_DATA_WIDTH-1:0] b0_phy_rx_data=inject_b0_bad ? 32'h0000bc00 : b0_rxd;
+    wire [PHY_CTRL_WIDTH-1:0] a0_phy_rx_ctrl=inject_a0_bad ? 4'b0010 : a0_rxc;
+    wire [PHY_CTRL_WIDTH-1:0] b0_phy_rx_ctrl=inject_b0_bad ? 4'b0010 : b0_rxc;
     wire a0_fifo_rx_ready=a0_rxr && !inject_a0_bad;
     wire b0_fifo_rx_ready=b0_rxr && !inject_b0_bad;
 
     wire a0_txv,a1_txv,b0_txv,b1_txv;
     wire a0_txr,a1_txr,b0_txr,b1_txr;
-    wire [31:0] a0_txd,a1_txd,b0_txd,b1_txd;
-    wire [3:0] a0_txc,a1_txc,b0_txc,b1_txc;
+    wire [PHY_DATA_WIDTH-1:0] a0_txd,a1_txd,b0_txd,b1_txd;
+    wire [PHY_CTRL_WIDTH-1:0] a0_txc,a1_txc,b0_txc,b1_txc;
     wire a0_rxv,a1_rxv,b0_rxv,b1_rxv;
     wire a0_rxr,a1_rxr,b0_rxr,b1_rxr;
-    wire [31:0] a0_rxd,a1_rxd,b0_rxd,b1_rxd;
-    wire [3:0] a0_rxc,a1_rxc,b0_rxc,b1_rxc;
+    wire [PHY_DATA_WIDTH-1:0] a0_rxd,a1_rxd,b0_rxd,b1_rxd;
+    wire [PHY_CTRL_WIDTH-1:0] a0_rxc,a1_rxc,b0_rxc,b1_rxc;
 
     // Cross the two physical paths: local RX0 receives remote TX1 and vice
     // versa. The RX side must discover the remote lane IDs from frame headers.
-    bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab0(
+    bonded_async_fifo #(.DATA_WIDTH(PHY_FIFO_WIDTH),.DEPTH(32)) ab0(
         .wr_clk(a_tx0),.wr_rst_n(phy_rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
         .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx1),.rd_rst_n(phy_rst_n),
         .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
@@ -74,7 +79,7 @@ module tb_bonded_two_lane_phy_word_node;
 
     bonded_two_lane_phy_word_node #(
         .DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
-        .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(4),
+        .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD),
         .SESSION_ID(64'h123456789abcdef0),.LOCAL_PEER_ID(64'd1),
         .EXPECTED_PEER_ID(64'd2),.MAX_PAYLOAD(16'd64),
         .PING_INTERVAL_CYCLES(32'd5000),.PONG_TIMEOUT_CYCLES(32'd15000)
