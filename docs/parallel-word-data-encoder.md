@@ -31,20 +31,26 @@ admission, so later changes on those input signals do not alter an active frame.
 
 ## Current limitations
 
-- The first regression exercises a 32-bit output and a one-beat payload.
-- The module is not yet connected to `bonded_lane_tx_mux`.
-- There is not yet a matching parallel-word RX parser.
-- Multi-beat payload refill, sustained backpressure, malformed packet lengths,
-  reset during a frame, and 8-/16-bit elaboration still require regression.
+- Neither parallel DATA module is connected to `bonded_lane_tx_mux` or the
+  integrated two-lane node.
+- The parallel RX buffers the complete frame and currently performs its CRC
+  scan in a single clocked procedural loop. This is a correctness prototype,
+  not an acceptable timing/resource architecture until redesigned or measured.
+- Negative coverage is growing, but malformed header/length, truncation,
+  premature SOP recovery, sequence mismatch and reset during collection still
+  need dedicated regressions.
 - No synthesis, timing, resource or physical SerDes measurements have been made.
 
 ## Next verification gates
 
-1. Run the golden-vector regression in Icarus Verilog CI.
-2. Add multi-beat and randomized backpressure tests.
-3. Test all supported word widths and compare byte-for-byte with the reference
-   encoder.
-4. Add a parallel-word RX path and prove cross-compatibility in both directions.
+1. Obtain passing Icarus results for the CRC, TX, RX and interoperability
+   regressions; inspect simulator warnings rather than treating workflow
+   configuration as proof.
+2. Complete malformed-frame, reset, resynchronization and sequence regressions.
+3. Compare complete byte streams from the serial and parallel TX encoders at
+   all supported widths and payload lengths.
+4. Replace or justify the parallel RX full-frame/CRC architecture with measured
+   memory inference, timing and resource reports.
 5. Integrate through an explicit selectable implementation in the lane mux.
 6. Measure post-synthesis throughput and timing before selecting a default.
 
@@ -71,9 +77,11 @@ full-width CRC trailer.
 
 ## Remaining interoperability gates
 
-- Cross-test byte-serial TX into parallel RX and parallel TX into byte-serial RX.
-- Corrupt header, payload, CRC, lane, session and frame sequence independently.
-- Exercise truncated frames, premature SOP resynchronization, overlength frames,
-  output backpressure, and reset during collection/output.
-- Compare parallel TX output byte-for-byte against the byte-serial TX module.
+- The three main encoder/decoder cross-path testbenches are now present.
+- Continue corruption coverage for header, payload, CRC, lane, session and
+  frame sequence independently.
+- Exercise truncated frames, premature SOP resynchronization and overlength
+  frames, plus reset during collection and output.
+- Compare parallel TX output byte-for-byte against the byte-serial TX module
+  over multiple payload lengths and all supported widths.
 - Run Icarus regressions and inspect warnings before claiming RTL verification.
