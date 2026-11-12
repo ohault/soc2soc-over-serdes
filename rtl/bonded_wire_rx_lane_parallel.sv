@@ -105,7 +105,7 @@ module bonded_wire_rx_lane_parallel #(
             end
         end
         if(state==ST_OUTPUT && payload_length==0) begin
-            out_data=0; out_keep={{(KEEP_WIDTH-1){1'b0}},1'b1};
+            out_data=0; out_keep={KEEP_WIDTH{1'b0}};
         end
     end
 
