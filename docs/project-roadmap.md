@@ -97,7 +97,7 @@ timing closure or bitstream behavior.
 
 ## Next engineering steps
 
-1. Add a generated-Verilog structural check for exactly two GTP channel
+1. Validate the generated-Verilog structural check for exactly two GTP channel
    primitives and one shared QPLL, then inspect the clock, data/control,
    reset and decoder-error wiring. Keep the existing SerWB target unchanged.
 2. Run Vivado synthesis and timing analysis for the conservative
