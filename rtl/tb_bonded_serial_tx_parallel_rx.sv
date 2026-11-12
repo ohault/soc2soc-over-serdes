@@ -82,9 +82,9 @@ module tb_bonded_serial_tx_parallel_rx;
             if(rx_out_sop && got!=0) $fatal(1,"unexpected second SOP");
             for(i=0;i<4;i=i+1) if(rx_out_keep[i]) begin
                 case(got)
-                    0: if(rx_out_data[i*8 +: 8]!==8'hbb) $fatal(1,"payload byte 0 mismatch");
-                    1: if(rx_out_data[i*8 +: 8]!==8'hcc) $fatal(1,"payload byte 1 mismatch");
-                    2: if(rx_out_data[i*8 +: 8]!==8'haa) $fatal(1,"payload byte 2 mismatch");
+                    0: if(rx_out_data[i*8 +: 8]!==8'haa) $fatal(1,"payload byte 0 mismatch");
+                    1: if(rx_out_data[i*8 +: 8]!==8'hbb) $fatal(1,"payload byte 1 mismatch");
+                    2: if(rx_out_data[i*8 +: 8]!==8'hcc) $fatal(1,"payload byte 2 mismatch");
                     default: $fatal(1,"unexpected extra payload");
                 endcase
                 got=got+1;
