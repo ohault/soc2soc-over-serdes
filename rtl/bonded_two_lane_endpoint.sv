@@ -17,6 +17,7 @@ module bonded_two_lane_endpoint #(
     input wire bond_rst_n,
     input wire control_tx_rst_n,
     input wire session_rx_reset_toggle,
+    input wire session_rx_flush_toggle,
     input wire [63:0] tx_session_id,
     input wire [63:0] rx_expected_session_id,
     input wire [63:0] remote_byte_limit,
@@ -101,7 +102,7 @@ module bonded_two_lane_endpoint #(
         .LANE0_ID(LANE0_ID), .LANE1_ID(LANE1_ID)
     ) tx_path (
         .bond_clk(bond_clk), .bond_rst_n(datapath_rst_n), .global_rst_n(bond_rst_n),
-        .control_rst_n(control_tx_rst_n), .session_reset_toggle(session_rx_reset_toggle),
+        .control_rst_n(control_tx_rst_n), .session_reset_toggle(session_rx_flush_toggle),
         .session_id(tx_session_id),
         .remote_byte_limit(remote_byte_limit), .remote_packet_limit(remote_packet_limit),
         .ctrl_valid(ctrl_tx_valid),.ctrl_ready(ctrl_tx_ready),
@@ -129,6 +130,7 @@ module bonded_two_lane_endpoint #(
     ) rx_path (
         .bond_rst_n(datapath_rst_n), .control_rst_n(bond_rst_n), .expected_session_id(rx_expected_session_id),
         .session_rx_reset_toggle(session_rx_reset_toggle),
+        .session_rx_flush_toggle(session_rx_flush_toggle),
         .lane0_clk(lane0_rx_clk), .lane0_rst_n(lane0_rx_rst_n),
         .lane0_valid(lane0_rx_valid), .lane0_ready(lane0_rx_ready),
         .lane0_data(lane0_rx_data), .lane0_sop(lane0_rx_sop), .lane0_eop(lane0_rx_eop),
