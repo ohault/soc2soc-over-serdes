@@ -14,15 +14,16 @@ def main() -> None:
     parser.add_argument("--build-dir", type=Path, required=True)
     args = parser.parse_args()
 
-    candidates = sorted(args.build_dir.rglob("top.v"))
-    if len(candidates) != 1:
+    candidates = sorted(args.build_dir.rglob("*.v"))
+    if not candidates:
         raise SystemExit(
-            f"expected exactly one generated top.v under {args.build_dir}, "
-            f"found {len(candidates)}"
+            f"no generated Verilog files found under {args.build_dir}"
         )
 
-    top = candidates[0]
-    verilog = top.read_text(encoding="utf-8")
+    print("Generated Verilog files:")
+    for path in candidates:
+        print(f"  {path}")
+    verilog = "\\n".join(path.read_text(encoding="utf-8") for path in candidates)
 
     def count(primitive: str) -> int:
         return len(re.findall(rf"\b{re.escape(primitive)}\b", verilog))
@@ -47,7 +48,7 @@ def main() -> None:
         "TXOUTCLK": 2,
         "RXOUTCLK": 2,
     }
-    print(f"Generated top: {top}")
+    print(f"Inspected {len(candidates)} generated Verilog files under {args.build_dir}")
     for name, value in counts.items():
         print(f"{name}: {value}")
     failures = [
