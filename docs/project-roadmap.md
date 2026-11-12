@@ -18,11 +18,11 @@ is an integration option, not a dependency of the bonding core.
 | Cumulative flow control | Integrated for v0; CI passing | TX reserves whole-packet byte/packet credits including partial final KEEP; RX reports post-admission overrun |
 | RTL CONTROL frame TX/RX | Implemented as building blocks | Dedicated queues, frame-boundary priority, raw frame decode |
 | RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
-| Autonomous two-lane node | Composed | No externally forced session-active signal |
+| Autonomous two-lane node | Integrated | Control manager owns session state and drives the byte-oriented endpoint |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4 symbols per PHY word, comma/empty markers, byte FIFO |
 | Parallel 8b/10b word adapter and byte/word gearboxes | Integrated; CI passing | Multi-byte words, SOP comma, independent TX/RX clocks, backpressure, session flush and PHY fault propagation |
-| Per-lane PHY bridge | Integrated as generic RTL | TX packer, 8b/10b word adapter, RX unpacker; session-drop flushing |
+| Per-lane PHY bridge | Integrated as generic RTL | Independent TX/recovered-RX clocks, word packer/decoder, byte unpacker, session-drop flushing and sticky PHY faults |
 | Two-lane parallel-PHY node wrapper | Integrated; full-duplex regression passing | Simultaneous traffic both ways, eight variable-length packets, both lanes, RX backpressure and malformed-symbol session invalidation |
 | Board-specific transceiver adapters | Not started | Requires vendor PHY primitive, reference clock and line-rate decisions |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
@@ -72,11 +72,13 @@ regressions for the control encoder/decoder, queueing, frame arbitration,
 receiver credits, raw-byte framing, session-abort recovery, and an autonomous
 two-node test with unrelated lane and bonding clocks.
 
-**Verified CI baseline for the integrated parallel-PHY path:** GitHub Actions run
+**Last explicitly verified CI baseline (not the current branch head):** GitHub Actions run
 [43117263747](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43117263747)
 completed successfully for commit
 `dc0e46f6ece177cd11c9df483a8758a7f7069970`. Both the Python reference-model
-and RTL simulation jobs passed. The end-to-end test connects two parallel-PHY
+and RTL simulation jobs passed. The current branch is 27 commits ahead of that
+baseline; the later session-epoch, dynamic lane-map and parallel-PHY node
+changes must be rerun in GitHub Actions before they can be marked CI-verified. The end-to-end test connects two parallel-PHY
 nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
 clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
 16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
@@ -96,15 +98,17 @@ behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
 integrity, FPGA resource utilization or timing closure.
 ## Next engineering steps
 
-1. Add a fresh per-session epoch so stale complete frames cannot be accepted
-   after a coordinated reset; the current bridge flush only discards stale
-   continuation words until the next SOP.
-2. Implement the first board-specific SERDES wrapper, beginning with the
-   Acorn GTP and LiteICLink integration while keeping all vendor primitives
+1. Rerun the complete Python and RTL CI suite against the current branch head;
+   fix any compile, simulation or regression failures before board integration.
+2. Audit the epoch-change reset boundary, especially delayed CONTROL frames,
+   stale complete DATA frames, asymmetric peer reboot and cold-boot seed
+   persistence. The epoch counter is volatile across power loss.
+3. Implement the first board-specific SERDES wrapper, beginning with the
+   Acorn GTP and LiteICLink integration while keeping vendor primitives
    outside the generic bonding RTL.
-3. Synthesize and time the generic core and board wrapper, then validate
+4. Synthesize and time the generic core and board wrapper, then validate
    transceiver lock, PRBS/loopback, lane skew and sustained traffic on the Acorn.
-4. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
-5. Only after the generic transport is stable on hardware, add PCIe and USB
+5. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
+6. Only after the generic transport is stable on hardware, add PCIe and USB
    protocol adapters as separate layers. The one-byte adapter remains the
    conservative bring-up path; the parallel adapter is the performance path.
