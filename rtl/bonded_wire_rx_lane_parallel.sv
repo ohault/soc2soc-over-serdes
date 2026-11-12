@@ -84,8 +84,7 @@ module bonded_wire_rx_lane_parallel #(
             frame_valid_pulse<=0;
             if(in_valid&&in_ready) begin
                 if(state==ST_IDLE) begin
-                    if(!in_sop || expected_session_id==0 || !keep_contiguous(in_keep) ||
-                       (!in_eop && in_keep!={KEEP_WIDTH{1'b1}})) begin
+                    if(!in_sop || expected_session_id==0 || !keep_contiguous(in_keep)) begin
                         frame_error<=1;
                     end else begin
                         byte_count=count_keep(in_keep);
@@ -100,7 +99,7 @@ module bonded_wire_rx_lane_parallel #(
                     if(in_sop) begin
                         // Explicit SOP is a resynchronization point.
                         frame_error<=1; byte_count=count_keep(in_keep);
-                        if(!keep_contiguous(in_keep)||(!in_eop&&in_keep!={KEEP_WIDTH{1'b1}})||byte_count>MAX_FRAME) begin
+                        if(!keep_contiguous(in_keep)||byte_count>MAX_FRAME) begin
                             state<=ST_IDLE; rx_count<=0;
                         end else begin
                             for(i=0;i<KEEP_WIDTH;i=i+1)
@@ -109,7 +108,7 @@ module bonded_wire_rx_lane_parallel #(
                         end
                     end else begin
                         byte_count=count_keep(in_keep);
-                        if(!keep_contiguous(in_keep)||(!in_eop&&in_keep!={KEEP_WIDTH{1'b1}})||
+                        if(!keep_contiguous(in_keep)||
                            rx_count+byte_count>MAX_FRAME) begin
                             frame_error<=1; state<=ST_IDLE; rx_count<=0;
                         end else begin
