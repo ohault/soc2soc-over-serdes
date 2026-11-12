@@ -39,9 +39,9 @@ admission, so later changes on those input signals do not alter an active frame.
 - The byte-addressed frame buffer still needs synthesis inspection: its
   multi-byte writes and parallel output reads may map to registers or LUT RAM
   rather than block RAM. A payload-word buffer may be preferable.
-- Negative coverage is growing, but malformed header/length, truncation,
-  premature SOP recovery, sequence mismatch and reset during collection still
-  need dedicated regressions.
+- Negative coverage is growing, but malformed header/length, truncation, premature SOP recovery and reset during
+  collection still need dedicated regressions. Frame-sequence rejection is now
+  covered by the parallel RX width-matrix test.
 - No synthesis, timing, resource or physical SerDes measurements have been made.
 
 ## Next verification gates
