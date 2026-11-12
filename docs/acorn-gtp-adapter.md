@@ -115,4 +115,32 @@ synthesized or hardware-tested. The next steps are:
 4. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
    and sustained one-byte-per-word traffic on hardware.
 
+## Separate Acorn bring-up target
+
+The target `acorn_bonded.py` reuses the existing Acorn CRG and shared QPLL,
+but leaves the legacy SerWB GTP links uninstantiated. It creates the two GTP
+channels through `AcornBondedSerdes` and leaves the application packet stream
+idle so the automatic HELLO/READY session can be checked first.
+
+Build one image per peer with complementary identities and the same initial
+session seed:
+
+```sh
+# Board A
+./acorn_bonded.py --build --peer-id=1 --expected-peer-id=2 --session-id=1
+
+# Board B
+./acorn_bonded.py --build --peer-id=2 --expected-peer-id=1 --session-id=1
+```
+
+Both SFP ports on each board belong to this bonded transport. Connect both DAC
+cables between the boards; either straight or crossed lane wiring is supported
+by dynamic remote lane-ID discovery. The default polarity values are inherited
+from the existing Acorn target and may need to be verified with PRBS.
+
+LED1 and LED2 indicate local lane readiness; LED3 remains the QPLL lock
+indicator. The `bond_status` CSR reports session-active, control-fault and
+both local lane-up bits. This image does not yet generate application DATA
+packets; a packet traffic generator/checker is the next board-target step.
+
 No board-specific wrapper is hardware-validated by this document.
