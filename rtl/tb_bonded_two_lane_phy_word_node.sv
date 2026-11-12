@@ -151,6 +151,36 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
     reg expected_sop[0:127],expected_eop[0:127];
     integer expected_count=0,got=0,cycles=0,packet_number=0;
     integer lane0_data_frames=0,lane1_data_frames=0;
+    reg recovery_debug=0;
+    reg fault_a_d=0,fault_b_d=0;
+    always @(posedge bond_a) begin
+        fault_a_d<=fault_a;
+        if(recovery_debug && node_a.node.control_manager.rx_handshake)
+            $display("RECOV A RX opcode=%02x session=%h lane=%b len=%0d fault=%b restart=%b epoch=%h",
+                node_a.node.control_manager.rx_opcode,node_a.node.control_manager.ctrl_rx_session_id,
+                node_a.node.control_manager.ctrl_rx_lane,node_a.node.control_manager.ctrl_rx_body_length,
+                fault_a,node_a.node.control_manager.restart_pending,
+                node_a.node.control_manager.active_session_id);
+        if(recovery_debug && fault_a && !fault_a_d)
+            $display("RECOV A FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b",
+                node_a.node.control_manager.active_session_id,node_a.node.control_manager.rx_opcode,
+                node_a.node.control_manager.ctrl_rx_session_id,node_a.node.control_manager.all_lanes_up,
+                node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen);
+    end
+    always @(posedge bond_b) begin
+        fault_b_d<=fault_b;
+        if(recovery_debug && node_b.node.control_manager.rx_handshake)
+            $display("RECOV B RX opcode=%02x session=%h lane=%b len=%0d fault=%b restart=%b epoch=%h",
+                node_b.node.control_manager.rx_opcode,node_b.node.control_manager.ctrl_rx_session_id,
+                node_b.node.control_manager.ctrl_rx_lane,node_b.node.control_manager.ctrl_rx_body_length,
+                fault_b,node_b.node.control_manager.restart_pending,
+                node_b.node.control_manager.active_session_id);
+        if(recovery_debug && fault_b && !fault_b_d)
+            $display("RECOV B FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b",
+                node_b.node.control_manager.active_session_id,node_b.node.control_manager.rx_opcode,
+                node_b.node.control_manager.ctrl_rx_session_id,node_b.node.control_manager.all_lanes_up,
+                node_b.node.control_manager.hello_seen,node_b.node.control_manager.ready_seen);
+    end
 
     always @(posedge b_rx0)
         if(node_b.node.endpoint.rx_path.lane0_decoder.frame_valid_pulse)
@@ -287,7 +317,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        if(!active_a || !active_b || fault_a || fault_b) begin
+        recovery_debug=0;\n        if(!active_a || !active_b || fault_a || fault_b) begin
             $display("HELLO diag PHY RX=%b%b/%b%b wire RX=%b%b/%b%b wire TX=%b%b/%b%b lane_up=%b%b/%b%b",
                 a1rxerr,a0rxerr,b1rxerr,b0rxerr,a1rf,a0rf,b1rf,b0rf,
                 a1tf,a0tf,b1tf,b0tf,lane1_up_a,lane0_up_a,lane1_up_b,lane0_up_b);
@@ -372,7 +402,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        // A loses one local lane. A must fault immediately; B still has
+        recovery_debug=1;\n        // A loses one local lane. A must fault immediately; B still has
         // both local lanes up and can only discover the remote failure through
         // its PING/PONG timeout.
         @(negedge bond_a);lane0_up_a=0;
