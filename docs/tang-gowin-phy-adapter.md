@@ -28,9 +28,10 @@ The Sipeed Customized PHY example exposes:
 - PLL lock, RX CDR lock, lane ready, K-lock and word-alignment status.
 
 The Gowin IP guide defines the user fabric width as
-`internal_width * external_ratio`. With a 20-bit internal datapath and 1:4
-external ratio, the user-side width is 80 bits. The corresponding RX bus is
-88 bits because it also carries per-symbol error flags.
+`internal_width * external_ratio`. With a 20-bit internal datapath, ratio
+1:2 gives a 40-bit TX / 44-bit RX interface (four symbols), while ratio1:4
+gives an 80-bit TX / 88-bit RX interface (eight symbols). The RX bus is wider
+because it also carries one decoder-error flag per symbol.
 
 For the 8b/10b-enabled 80-bit TX bus, each of the eight 10-bit symbol slots is:
 
@@ -53,20 +54,33 @@ one bit per symbol. These mappings are from Gowin IPUG1024-1.7.1E, Tables
 3-6 and 3-9.
 
 The new `rtl/bonded_gowin_8b10b_word_adapter.sv` performs this exact mapping
-between Gowin's 80/88-bit buses and the generic eight-symbol interface
-(64 data bits plus eight K flags). It also combines the eight disparity and
-eight decoder error flags into a lane error indication. Its standalone
-regression checks all symbol slots and both error classes.
+for two, four or eight symbols per word. It maps the Gowin 10-bit TX slots to
+generic data/K fields, and maps the RX data/K/disparity/decoder-error fields
+back to generic data/K plus error vectors. Its regression checks both
+four-symbol and eight-symbol mappings.
 
-## Recommended first IP configuration
+## Recommended common Acorn/Tang profile
+
+A useful *candidate* common serial line rate is 5.0 Gb/s per lane. It is
+within the Acorn GTP's documented line-rate ceiling and the Gowin PHY's
+1--12.5 Gb/s range. With the Gowin IP configured for internal width20 and
+ratio1:2, its user clock is 5.0 Gb/s / 40 = 125 MHz and the interface is
+40-bit TX / 44-bit RX (four symbols). The Acorn GTP uses its 20-bit interface
+(two symbols) and a 250 MHz user clock at the same 5.0 Gb/s line rate. The
+user clocks are deliberately independent; the lane bridge handles them.
+
+This is a candidate only: the Acorn 250 MHz timing path and the Gowin QPLL
+configuration must pass their respective build/timing checks before adopting
+it. The current Acorn target remains at its conservative 2.5 Gb/s default.
 
 Use the Gowin IP with:
 
 - Two independent lanes in SERDES Quad Q1.
 - QPLL selected for both lanes, sharing the quad's QPLL resource.
 - Internal data width 20.
-- TX external data ratio 1:4 (80-bit TX user word).
-- RX external data ratio 1:4 (88-bit RX user word).
+- TX and RX external data ratio 1:2 for the common four-symbol profile
+  (40-bit TX / 44-bit RX). Ratio 1:4 (80/88-bit, eight-symbol profile) is
+  also supported by the generic mapper.
 - 8b/10b TX encoding enabled.
 - 8b/10b RX decoding enabled.
 - RX word alignment enabled, using K28.5 as the alignment pattern.
@@ -110,7 +124,8 @@ FIFO and the lane bridge:
 
 The adapter reserves a word slot for every outstanding read request, so the
 three-cycle response latency cannot overrun its output FIFO during downstream
-backpressure. Configure it with `DATA_WIDTH=88`; choose a depth large enough
+backpressure. Configure it with `DATA_WIDTH=44` for the common four-symbol profile or
+`DATA_WIDTH=88` for the eight-symbol profile; choose a depth large enough
 for the expected read latency and local backpressure.
 
 On TX, map the generic eight-symbol adapter to Gowin's TX FIFO:
@@ -142,9 +157,10 @@ The future `soc2soc/bonded_tang.py` wrapper should:
 1. Instantiate two independent Gowin Customized PHY channels on SERDES Q1.
 2. Select the same valid reference-clock/PLL profile for both lanes.
 3. Export separate TX PCS clocks and recovered RX PCS clocks.
-4. Map the 80-bit TX interface through the generic Gowin symbol mapper.
-5. Map the 88-bit RX FIFO through the reservation-aware read adapter and
-   88-to-72 symbol mapper.
+4. Map the 40-bit TX (or optional 80-bit) interface through the generic Gowin
+   symbol mapper.
+5. Map the 44-bit RX FIFO (or optional 88-bit) through the reservation-aware
+   read adapter and corresponding RX symbol mapper.
 6. Latch disparity/decoder errors in each recovered RX clock domain before
    crossing lane health into the bonding clock domain.
 7. Feed PLL/CDR lock, lane-ready and K-lock/word-align status into local
