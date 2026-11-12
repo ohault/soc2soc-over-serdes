@@ -66,7 +66,6 @@ class BondedAcornSoC(SoC2SoC):
             rx_fifo_depth=rx_fifo_depth,
             qpll=self.qpll,
         )
-        self.add_module(name="bonded", module=self.bonded)
 
         # This first target is a link/session bring-up image. Application
         # traffic is deliberately idle until a packet generator/checker is
@@ -78,8 +77,8 @@ class BondedAcornSoC(SoC2SoC):
             self.bonded.sink.sop.eq(0),
             self.bonded.sink.eop.eq(0),
             self.bonded.source.ready.eq(1),
-            self.platform.request("user_led", 1).eq(self.bonded.lane_up[0]),
-            self.platform.request("user_led", 2).eq(self.bonded.lane_up[1]),
+            self.sfp_leds[0].eq(self.bonded.lane_up[0]),
+            self.sfp_leds[1].eq(self.bonded.lane_up[1]),
         ]
 
         self._bond_status = CSRStatus(4, description="Bonded link status: session active, control fault, lane 0 up, lane 1 up.")
