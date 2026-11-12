@@ -75,13 +75,15 @@ the full-duplex endpoint, and an autonomous two-node parallel-PHY test with
 unrelated lane and bonding clocks.
 
 **Current code verification (12 November 2026):** GitHub Actions run
-[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
-on commit `eb0f3026fda8a1c501aedc3cad0251c55959e0c9` passes all three jobs:
+[43180251990](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43180251990)
+on commit `917f58d381e6b92d2f71968a3c5678f94b4323e5` passes all three jobs:
 Python bonding tests, the complete RTL frame-boundary workflow (including
-two-node parallel-PHY transport, asymmetric lane-loss recovery, PHY
-session-flush recovery, crossed-lane mapping and full-duplex backpressure),
-and Acorn LiteX/Migen elaboration at both 2.5 and 5.0 Gb/s. The elaboration
-confirms one shared QPLL and two GTP channel instances; it does not run Vivado.
+serial/parallel TX equivalence, two-node parallel-PHY transport, asymmetric
+lane-loss recovery, PHY session-flush recovery, crossed-lane mapping and
+full-duplex backpressure), and Acorn LiteX/Migen elaboration at both 2.5 and
+5.0 Gb/s. The generated-Verilog structural checker also confirms one shared
+GTP QPLL and two GTP channel instances. This is elaboration and structural
+inspection, not vendor synthesis.
 
 The separate payload-RAM workflow
 [43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
@@ -97,15 +99,15 @@ timing closure or bitstream behavior.
 
 ## Next engineering steps
 
-1. Validate the generated-Verilog structural check for exactly two GTP channel
-   primitives and one shared QPLL, then inspect the clock, data/control,
-   reset and decoder-error wiring. Keep the existing SerWB target unchanged.
+1. Review the generated Acorn GTP wiring beyond the structural instance
+   counts: clocks, resets, TX/RX data and character-is-K paths, decoder errors,
+   and lane-to-SFP mapping. Keep the existing SerWB target unchanged.
 2. Run Vivado synthesis and timing analysis for the conservative
    one-byte-per-PHY-word profile. Check QPLL configuration, resource use, CDC
    constraints and timing before generating a bitstream.
 3. Bring up the Acorn boards with the two-DAC topology. Validate QPLL lock,
    TX/RX initialization, PRBS, polarity, comma alignment, lane mapping, session
-   recovery and sustained packet integrity.
+   recovery and sustained packet integrity on hardware.
 4. Measure aggregate throughput and long-duration backpressure behavior on
    hardware; the current byte-wide framing and application RX path are not a
    full-rate multi-byte datapath.
