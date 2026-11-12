@@ -1,116 +1,166 @@
-# Tang Mega 138K Pro / Gowin Customized PHY adapter plan
+# Tang Mega 138K Pro / Gowin Customized PHY adapter
 
 ## Board resources and clocking
 
-The Tang Mega 138K Pro uses the GW5AST-LV138FPG676A. The device provides
-eight high-speed transceivers rated up to 12.5 Gb/s. The two SFP+ cages route
-to SERDES Quad Q1; the PCIe x4 interface uses Quad Q0. Two MS5351 clock
-generators provide reference clocks. The Sipeed reference-clock procedure
-supports 100 MHz, 125 MHz and 156.25 MHz differential outputs and selects the
-clock generator with the debugger UART command `pll_switch 0` or
-`pll_switch 1`.
+The Tang Mega 138K Pro uses the GW5AST device. The two SFP+ cages route to
+SERDES Quad Q1; the PCIe x4 interface uses Quad Q0. The GW5AT-138 SerDes has
+two QPLLs and four CPLLs per quad; a QPLL can be shared by the four lanes in
+that quad. The Gowin IP guide recommends QPLL for multi-lane use.
 
-The clock output must be selected and measured/configured to match the
-Gowin PHY PLL profile. Do not infer the SFP line rate from the board's
-separate PCIe 8 GT/s x4 interface.
+The two MS5351 clock generators provide reference clocks. The Sipeed
+reference-clock procedure supports 100 MHz, 125 MHz and 156.25 MHz differential
+outputs and selects the generator with the debugger UART command
+`pll_switch 0` or `pll_switch 1`. The exact MS5351 output-to-Q1_REFCLK pin
+mapping and selected output must be checked against the board schematic and
+the generated IP constraints.
 
-## Candidate PHY configuration
+Do not infer the SFP line rate from the separate PCIe 8 GT/s x4 interface.
 
-The Gowin Customized PHY supports configurable internal width and external
-fabric width. Its documentation describes a 40-bit fabric datapath built
-from a 20-bit internal interface with a 1:2 ratio. It also provides 8b/10b
-encode/decode for supported 10-/20-bit internal widths. For a first
-four-symbol adapter experiment, the candidate is:
+## Gowin fabric interface: exact 80/88-bit format
 
-- Two SFP+ lanes, each independently configured.
-- 20-bit internal PHY datapath and 1:2 external data ratio.
-- 40-bit external/fabric word, representing four 8b/10b symbols.
-- 32 decoded data bits plus four K-character flags at the generic boundary.
-- A 156.25 MHz user clock, if the selected line rate and 8b/10b profile
-  calculate to that frequency (for example, 6.25 Gb/s at 40 encoded bits per
-  user clock).
+The Sipeed Customized PHY example exposes:
 
-This is a candidate configuration, not a validated bitstream. The exact
-generated-IP port widths, K-character flag polarity, word byte order, line
-rate and PLL divider values must be checked against the generated Gowin IP
-and its timing report before writing the board wrapper.
+- TX data: 80 bits.
+- RX data: 88 bits.
+- Separate TX PCS and recovered RX PCS clocks.
+- TX FIFO almost-full/full and write-enable.
+- RX FIFO almost-empty/empty, read-enable, read-data-valid and occupancy.
+- PLL lock, RX CDR lock, lane ready, K-lock and word-alignment status.
 
-Enable RX word alignment required by 8b/10b decoding. Disable the PHY's
-optional cross-lane channel-bonding feature for the initial experiment: this
-project performs packet-level bonding, lane discovery, sequencing, credits
-and reassembly above two independent PHY lanes.
+The Gowin IP guide defines the user fabric width as
+`internal_width * external_ratio`. With a 20-bit internal datapath and 1:4
+external ratio, the user-side width is 80 bits. The corresponding RX bus is
+88 bits because it also carries per-symbol error flags.
 
-## FIFO-style user interface
+For the 8b/10b-enabled 80-bit TX bus, each of the eight 10-bit symbol slots is:
 
-The Gowin PHY user interface is not assumed to be a ready/valid stream:
+| Bits within symbol slot | Meaning |
+|---|---|
+| `[7:0]` | 8-bit data character |
+| `[8]` | K-character indicator |
+| `[9]` | Reserved / unused; drive zero |
 
-- TX writes are controlled by a write-enable and a FIFO-full indication.
-- RX data is requested with a read-enable; returned data has a separate
-  data-valid indication and a documented latency.
-- The PHY wrapper must keep the TX and recovered RX clocks separate.
-- Decoder code/disparity errors, PLL/CDR lock, TX/RX initialization status and
-  FIFO overflow must be surfaced to the generic lane/session supervisor.
+For the 8b/10b-decoded 88-bit RX bus, each symbol's 10-bit slot has:
 
-TX mapping is straightforward:
+| Bits | Meaning |
+|---|---|
+| `[10*i +: 8]` | Decoded data byte for symbol `i` |
+| `[10*i + 8]` | K-character indicator for symbol `i` |
+| `[10*i + 9]` | Disparity error for symbol `i` |
 
-- `tx_phy_ready = !tx_fifo_full`.
-- `tx_fifo_wr_en = tx_phy_valid && tx_phy_ready`.
-- Drive the decoded data and K-character flag buses from the generic PHY
-  adapter into the Gowin TX FIFO.
+The eight decoder-error flags are packed separately in `rx_data[87:80]`,
+one bit per symbol. These mappings are from Gowin IPUG1024-1.7.1E, Tables
+3-6 and 3-9.
 
-RX needs reservation-aware buffering. The generic lane bridge's
-`rx_phy_ready` is a ready/valid capacity indication, but a Gowin read request
-may return several clocks later. Issuing multiple reads based only on the
-current ready signal can overrun the downstream FIFO when responses arrive.
+The new `rtl/bonded_gowin_8b10b_word_adapter.sv` performs this exact mapping
+between Gowin's 80/88-bit buses and the generic eight-symbol interface
+(64 data bits plus eight K flags). It also combines the eight disparity and
+eight decoder error flags into a lane error indication. Its standalone
+regression checks all symbol slots and both error classes.
 
-The new generic module `rtl/bonded_phy_fifo_read_adapter.sv` converts a
-read-enable/data-valid FIFO into a ready/valid stream. It reserves one output
-slot for every outstanding read request, tracks responses until the
-data-valid pulse arrives, and only issues another read when reserved capacity
-is available. Its depth, data width and returned-data latency are independent
-of Gowin and can be reused for other vendor FIFO interfaces. The regression
-`rtl/tb_bonded_phy_fifo_read_adapter.sv` models a delayed response and
-downstream backpressure.
+## Recommended first IP configuration
 
-For a four-symbol decoded interface, instantiate it with
-`DATA_WIDTH=44` (32 data bits plus four control flags). Connect its
-ready/valid output to the generic lane bridge with
-`RX_PHY_STALLABLE=1`. The bridge must see decoded data and K flags, not raw
-10-bit serial symbols. If the selected Gowin IP configuration exposes raw
-encoded symbols instead, add a separate decoder stage before this adapter.
+Use the Gowin IP with:
+
+- Two independent lanes in SERDES Quad Q1.
+- QPLL selected for both lanes, sharing the quad's QPLL resource.
+- Internal data width 20.
+- TX external data ratio 1:4 (80-bit TX user word).
+- RX external data ratio 1:4 (88-bit RX user word).
+- 8b/10b TX encoding enabled.
+- 8b/10b RX decoding enabled.
+- RX word alignment enabled, using K28.5 as the alignment pattern.
+- RX and TX channel bonding disabled in the PHY IP; packet-level bonding is
+  performed by this project above the two independent lanes.
+- RX clock correction disabled for the initial profile unless the generated
+  IP requires it for the selected clocking mode.
+
+The Sipeed example's checked-in `.ipc` files currently show
+`ENABLE_ENCODING=false`, `ENABLE_DECODING=false`, and
+`WORD_ALIGNMENT=false`, despite the example top-level logic using K-character
+patterns. Those settings are not the recommended profile for this transport:
+the generic adapter expects decoded bytes plus K flags. Generate a separate
+IP configuration with encoding/decoding and RX word alignment enabled, then
+verify the generated port list and timing report.
+
+The line rate and reference-clock pair must be selected together in Gowin
+Designer. For an 80-bit user word, the user clock is line-rate / 80. Thus
+10.0 Gb/s corresponds to 125 MHz and 12.5 Gb/s corresponds to 156.25 MHz.
+The checked-in Sipeed `12.5G` and `10.3125G` project configuration files
+both currently report `TX_RATE=10`, `RX_RATE=10` and
+`REFERENCE_CLOCK_FREQ=100`; do not treat the directory names as proof of
+the configured line rate.
+
+## RX FIFO and clock-domain adapter
+
+The Gowin guide specifies that an RX FIFO read request produces valid data
+after **three RX clock cycles**, and `rx_valid_o` indicates when
+`rx_data_o` is valid. The read request and data-valid pulse are therefore
+not a same-cycle ready/valid handshake.
+
+Use the generic `rtl/bonded_phy_fifo_read_adapter.sv` between the Gowin RX
+FIFO and the lane bridge:
+
+- `fifo_empty` = Gowin RX FIFO empty flag.
+- `fifo_rdreq` = Gowin RX FIFO read-enable.
+- `fifo_data_valid` = Gowin `rx_valid_o`.
+- `fifo_data` = Gowin 88-bit RX data.
+- `out_valid/out_ready/out_data` = ready/valid word stream to the
+  Gowin 88-to-72 mapper and then to the generic lane bridge.
+
+The adapter reserves a word slot for every outstanding read request, so the
+three-cycle response latency cannot overrun its output FIFO during downstream
+backpressure. Configure it with `DATA_WIDTH=88`; choose a depth large enough
+for the expected read latency and local backpressure.
+
+On TX, map the generic eight-symbol adapter to Gowin's TX FIFO:
+
+- `tx_phy_ready = !tx_fifo_afull` (or use `!tx_fifo_full` if a more
+  conservative margin is desired).
+- `tx_fifo_wren = tx_phy_valid && tx_phy_ready`.
+- `tx_fifo_data = gowin_tx_data[79:0]`.
+
+The TX and RX bridge clock domains are separate. Use the Gowin TX PCS clock
+for the TX bridge and the recovered RX PCS clock for the RX bridge. The Gowin
+FIFO read/write clock inputs must be connected as required by the selected IP
+clocking mode; do not assume the TX and RX clocks are identical.
+
+## Generic bonded node integration
+
+The generic RTL now accepts `SYMBOLS_PER_WORD=8` in its byte packer, 8b/10b
+word adapter, lane bridge and two-lane node. The end-to-end two-node regression
+is parameterized for 2-, 4- and 8-symbol PHY words. The safe initial setting
+remains `PHY_DATA_BYTES_PER_WORD=1`: one payload byte per PHY word, with
+K28.5 comma and K28.0 empty symbols. Do not enable eight payload bytes per
+word in the integrated node until the complete multi-byte framing, reorder
+and logical RX datapath is widened end to end.
 
 ## Board-wrapper responsibilities
 
 The future `soc2soc/bonded_tang.py` wrapper should:
 
 1. Instantiate two independent Gowin Customized PHY channels on SERDES Q1.
-2. Use one reference-clock source/profile consistently for both lanes.
-3. Export separate TX user clocks and recovered RX user clocks.
-4. Map TX FIFO full/write-enable and RX FIFO read-enable/data-valid through
-   the generic FIFO adapter.
-5. Latch decoder errors in each recovered RX clock domain before crossing
-   lane health into the bonding clock domain.
-6. Feed PLL/CDR lock and TX/RX initialization into the local lane-up signals.
-7. Configure `SYMBOLS_PER_WORD=4` and keep
-   `PHY_DATA_BYTES_PER_WORD=1` for the initial safe byte-wide node profile.
+2. Select the same valid reference-clock/PLL profile for both lanes.
+3. Export separate TX PCS clocks and recovered RX PCS clocks.
+4. Map the 80-bit TX interface through the generic Gowin symbol mapper.
+5. Map the 88-bit RX FIFO through the reservation-aware read adapter and
+   88-to-72 symbol mapper.
+6. Latch disparity/decoder errors in each recovered RX clock domain before
+   crossing lane health into the bonding clock domain.
+7. Feed PLL/CDR lock, lane-ready and K-lock/word-align status into local
+   lane-up signals.
 8. Keep all Gowin primitives and generated-IP dependencies outside the
    generic bonding RTL.
 
-The one-byte-per-PHY-word profile is important: the current logical wire
-framing and packet RX/application path is byte-wide. Do not enable four
-payload bytes per PHY word in the integrated node until the complete
-multi-byte datapath is implemented.
-
 ## Remaining checks before a Tang wrapper can be called build-ready
 
-- Confirm the exact MS5351 output connected to SERDES Q1 and its selected
-  156.25 MHz setting.
-- Confirm the Gowin IP's external data/control widths and K-flag convention.
-- Confirm RX FIFO read latency and whether data-valid can be asserted in the
-  same cycle as read-enable.
-- Confirm how the IP exposes per-symbol code/disparity errors and lock.
-- Generate the PHY IP and inspect the actual Verilog ports before connecting
-  the generic adapter.
-- Run a Gowin synthesis/timing build, then PRBS/loopback and two-board tests.
+- Confirm the MS5351 output connected to SERDES Q1_REFCLK0/1 from the board
+  schematic and choose the actual frequency.
+- Generate the Gowin IP with 20-bit internal width, 1:4 ratio, 8b/10b encode
+  and decode enabled, and RX word alignment enabled.
+- Confirm the generated IP's exact port names, polarity and reset sequencing.
+- Confirm that `rx_valid_o` is exactly three RX clock cycles after an
+  accepted read request in the generated IP version.
+- Run Gowin synthesis and timing, then PRBS/loopback and two-board tests.
 
-No Tang hardware or generated Gowin IP has been validated by this document.
+No Tang bitstream or hardware has been validated yet.
