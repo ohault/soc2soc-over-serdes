@@ -317,7 +317,8 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
-        recovery_debug=0;\n        if(!active_a || !active_b || fault_a || fault_b) begin
+        recovery_debug=0;
+        if(!active_a || !active_b || fault_a || fault_b) begin
             $display("HELLO diag PHY RX=%b%b/%b%b wire RX=%b%b/%b%b wire TX=%b%b/%b%b lane_up=%b%b/%b%b",
                 a1rxerr,a0rxerr,b1rxerr,b0rxerr,a1rf,a0rf,b1rf,b0rf,
                 a1tf,a0tf,b1tf,b0tf,lane1_up_a,lane0_up_a,lane1_up_b,lane0_up_b);
@@ -402,7 +403,8 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 $fatal(1,"parallel two-node PHY transport failed got=%0d expected=%0d",
                        got,expected_count);
             end
-        recovery_debug=1;\n        // A loses one local lane. A must fault immediately; B still has
+        recovery_debug=1;
+        // A loses one local lane. A must fault immediately; B still has
         // both local lanes up and can only discover the remote failure through
         // its PING/PONG timeout.
         @(negedge bond_a);lane0_up_a=0;
