@@ -89,17 +89,21 @@ module bonded_two_lane_node #(
     end
     wire [1:0] lane_up=lane_up_sync2 & ~lane_rx_error_sync2 & ~lane_tx_error_sync2;
 
-    // Convert bonding-clock session transitions into reset toggles for each
-    // recovered RX clock domain. CONTROL negotiation remains alive.
-    reg session_active_d,session_drop_toggle;
+    // A session drop flushes both the recovered RX streams and each
+    // independent TX lane encoder/packer. Use one toggle per transition so
+    // unrelated lane clocks cannot miss a one-bond-clock reset pulse.
+    reg session_active_d,session_drop_toggle,session_rx_reset_toggle;
     always @(posedge bond_clk or negedge bond_rst_n) begin
         if(!bond_rst_n) begin
             session_active_d<=1'b0;
             session_drop_toggle<=1'b0;
+            session_rx_reset_toggle<=1'b0;
         end else begin
             session_active_d<=session_active;
-            if(session_active_d && !session_active)
+            if(session_active_d && !session_active) begin
                 session_drop_toggle<=~session_drop_toggle;
+                session_rx_reset_toggle<=~session_rx_reset_toggle;
+            end
         end
     end
 
@@ -134,11 +138,6 @@ module bonded_two_lane_node #(
     wire [63:0] active_session_id,ctrl_rx_session_id;
     wire session_changed,session_initiated;
     wire control_tx_rst_n=bond_rst_n && !session_changed;
-    reg session_rx_reset_toggle;
-    always @(posedge bond_clk or negedge bond_rst_n) begin
-        if(!bond_rst_n) session_rx_reset_toggle<=1'b0;
-        else if(session_changed) session_rx_reset_toggle<=~session_rx_reset_toggle;
-    end
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
     wire lane0_tx_sop_internal,lane0_tx_eop_internal,lane1_tx_sop_internal,lane1_tx_eop_internal;
     wire lane0_framed_valid,lane0_framed_ready,lane0_framed_sop,lane0_framed_eop;
