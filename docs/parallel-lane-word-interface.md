@@ -80,8 +80,8 @@ encoding, CDR behavior, clock tolerance or actual transceiver timing.
 ## RTL prototype
 
 `rtl/bonded_phy_8b10b_word_adapter.sv` implements the parallel symbol-word
-mapping independently of the existing byte-wide node. It supports two- and
-four-symbol words, SOP comma insertion/reconstruction, K28.0 partial-word
+mapping independently of the existing byte-wide node. It supports two-, four- and
+eight-symbol words, SOP comma insertion/reconstruction, K28.0 partial-word
 markers, contiguous keep validation, RX buffering/backpressure and overflow/
 symbol-error reporting. `rtl/bonded_byte_to_phy_word.sv` packs the existing
 byte-framed TX stream into N-1-byte SOP words and N-byte continuation words;
@@ -95,7 +95,9 @@ flushing. `rtl/bonded_two_lane_phy_word_node.sv` connects two such bridges to
 the unchanged byte-oriented autonomous node. Its end-to-end two-node regression
 is `rtl/tb_bonded_two_lane_phy_word_node.sv`; it exercises eight packet
 lengths, both physical lanes, partial words, application backpressure and
-simultaneous DATA traffic in both directions. It passed CI run 43115216096.
+simultaneous DATA traffic in both directions. The earlier two-/four-symbol version passed CI run 43115216096; the new
+8-symbol parameterization and Gowin mapper regressions are awaiting a fresh
+CI result.
 
 ## TX/RX adapter requirements
 
