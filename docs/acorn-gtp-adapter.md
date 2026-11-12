@@ -126,7 +126,7 @@ settling interval.
 
 **LiteX/Migen elaboration and generated-Verilog structural checks passed**
 in GitHub Actions run
-[43191182453](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43191182453)
+[43196352941](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43196352941)
 for both the default 2.5-Gb/s profile and the candidate 5.0-Gb/s profile. For
 each generated build, the checker confirms one `GTPE2_COMMON`, two
 `GTPE2_CHANNEL` instances, and two occurrences each of TX/RX data,
@@ -134,9 +134,14 @@ character-is-K, TXOUTCLK and RXOUTCLK connections. This is a structural
 smoke check; it does not prove correct pin constraints, clock quality,
 transceiver analog behavior or timing closure.
 
-The workflow is configured to retain the generated Verilog for both line-rate
-profiles as the `acorn-bonded-generated-verilog` artifact so the GTP port,
-clock and reset connections can be reviewed directly after a successful run.
+The generated-Verilog review in run
+[43196352941](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43196352941)
+confirmed that each channel connects to its matching SFP, its own buffered TX
+and RX user clocks, and the matching generic-node lane ports. TX data and K
+flags pass through the LiteICLink encoder path; RX data, K flags and decoder
+errors return through that lane's decoder and node ports. Both generated line
+rate profiles show the same mapping. The workflow retains both files as the
+`acorn-bonded-generated-verilog` artifact for future inspection.
 
 No Vivado synthesis, timing closure, bitstream generation or physical hardware
 validation has been performed. The remaining steps are:

@@ -75,8 +75,8 @@ the full-duplex endpoint, and an autonomous two-node parallel-PHY test with
 unrelated lane and bonding clocks.
 
 **Current code verification (12 November 2026):** GitHub Actions run
-[43191182453](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43191182453)
-on commit `0bce58f346540d575053cdee192e876d9f75ccc8` passes all three jobs:
+[43196352941](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43196352941)
+on commit `63ce5c2fc153ad9b7b005bc2203717b3b0ceb413` passes all three jobs:
 Python bonding tests, the complete RTL frame-boundary workflow (including
 serial/parallel TX equivalence, two-node parallel-PHY transport, asymmetric
 lane-loss recovery, PHY session-flush recovery, crossed-lane mapping and
@@ -97,30 +97,39 @@ model analogue SERDES behavior, PLL/CDR lock, actual transceiver code/disparity
 indications, signal integrity, vendor BRAM mapping, FPGA resource utilization,
 timing closure or bitstream behavior.
 
+**Generated Acorn wiring review (12 November 2026):** the `acorn-bonded-generated-verilog`
+artifact from run [43196352941](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43196352941)
+was inspected at both 2.5 and 5.0 Gb/s. Each output has one shared `GTPE2_COMMON`
+and two `GTPE2_CHANNEL` instances. The channels use the shared QPLL and map to
+their matching SFP pin pairs. Separate buffered TXOUTCLK and RXOUTCLK signals
+drive each lane's GTP user clocks and the corresponding generic-node clocks;
+the node reset inputs also match each lane's TX/RX domains. TX data and K flags
+enter the matching LiteICLink encoder path, while each lane's decoded RX data,
+K flags and decoder errors return through that lane's node ports. No lane swap
+or shared recovered RX clock was found. This confirms elaborated connectivity;
+it does not establish vendor timing closure or hardware operation.
+
 ## Next engineering steps
 
-1. Review the generated Acorn GTP wiring beyond the structural instance
-   counts: clocks, resets, TX/RX data and character-is-K paths, decoder errors,
-   and lane-to-SFP mapping. Keep the existing SerWB target unchanged.
-2. Run Vivado synthesis and timing analysis for the conservative
+1. Run Vivado synthesis and timing analysis for the conservative
    one-byte-per-PHY-word profile. Check QPLL configuration, resource use, CDC
    constraints and timing before generating a bitstream.
-3. Bring up the Acorn boards with the two-DAC topology. Validate QPLL lock,
+2. Bring up the Acorn boards with the two-DAC topology. Validate QPLL lock,
    TX/RX initialization, PRBS, polarity, comma alignment, lane mapping, session
    recovery and sustained packet integrity on hardware.
-4. Measure aggregate throughput and long-duration backpressure behavior on
+3. Measure aggregate throughput and long-duration backpressure behavior on
    hardware; the current byte-wide framing and application RX path are not a
    full-rate multi-byte datapath.
-5. Widen the entire datapath for full-rate operation: TX/RX wire framing and
+4. Widen the entire datapath for full-rate operation: TX/RX wire framing and
    CRC, CONTROL/DATA arbitration, per-lane CDC, packet reorder/reassembly and
    the logical application RX interface. Add sustained-rate regressions for
    two-, four- and eight-symbol PHY words, including overflow checks.
-6. Audit asymmetric peer reboot, delayed CONTROL frames and stale complete
+5. Audit asymmetric peer reboot, delayed CONTROL frames and stale complete
    DATA frames. The runtime epoch counter is volatile across cold boots and
    both peers still need the same non-zero initial session seed.
-7. Generate the candidate 5.0-Gb/s Gowin PHY IP (20-bit internal width,
+6. Generate the candidate 5.0-Gb/s Gowin PHY IP (20-bit internal width,
    1:2 ratio, 8b/10b encode/decode and RX word alignment), then add the
    board-specific Tang wrapper using the 40/44-bit FIFO adapter. Keep the
    80/88-bit 1:4 profile available as an alternative.
-8. Add PCIe and USB protocol adapters only after the generic transport is
+7. Add PCIe and USB protocol adapters only after the generic transport is
    stable and validated on hardware.

@@ -36,11 +36,12 @@ mapping, malformed-PHY-symbol fault propagation, and asymmetric lane-loss
 recovery.
 
 **Software verification (12 November 2026):** GitHub Actions run
-[43191182453](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43191182453)
+[43196352941](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43196352941)
 passes the Python bonding tests, the complete RTL frame-boundary and end-to-end
 regression suite, and Acorn LiteX/Migen elaboration plus generated-Verilog
-structural checks at both 2.5 and 5.0 Gb/s on commit `0bce58f`. The structural
-check confirms one shared GTP QPLL and two GTP channel instances. The separate
+structural checks at both 2.5 and 5.0 Gb/s on commit `63ce5c2`. The structural
+check confirms one shared GTP QPLL and two GTP channel instances. The run also
+retains both generated gateware files for detailed review. The separate
 payload-RAM workflow
 [43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
 passes the 8/16/32-bit RAM tests, all 27 reference-versus-RAM RX differential
