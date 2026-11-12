@@ -90,16 +90,24 @@ replace the GTP decoder's code/disparity error flags.
 - The GTP RX source is continuous; configure the generic RX adapter as
   non-stallable and rely on its buffering plus the byte-wide one-byte profile.
 
-## Implementation sequence
+## Implementation status
 
-1. Add a LiteX/Migen wrapper module that instantiates two existing LiteICLink
-   GTPs and one `bonded_two_lane_phy_word_node` RTL instance.
-2. Add a separate Acorn bonded-transport target using the existing CRG/QPLL
+A first LiteX/Migen wrapper prototype is now present in
+`soc2soc/bonded_acorn.py`. It instantiates two 20-bit LiteICLink GTP channels,
+uses independent per-lane TX and recovered-RX clocks, maps the two data and K
+control bits, latches GTP decoder-invalid indications in the RX clock domain,
+and connects the generic two-lane RTL node. It defaults to the safe
+one-byte-per-PHY-word mode. The existing SerWB target is not modified.
+
+This module has not yet been imported in a LiteX build, elaborated to Verilog,
+synthesized or hardware-tested. The next steps are:
+
+1. Add a separate Acorn bonded-transport target using the existing CRG/QPLL
    setup, without changing the current SerWB target or its GTP ownership.
-3. Add a generated-Verilog build smoke test and verify both SFP channels map
+2. Add a generated-Verilog build smoke test and verify both SFP channels map
    to the correct GTP clocks and byte/control slices.
-4. Run the full RTL CI suite before attempting Vivado synthesis.
-5. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
+3. Run the full RTL CI suite before attempting Vivado synthesis.
+4. Check GTP PLL lock, TX/RX initialization, PRBS, polarity, comma alignment,
    and sustained one-byte-per-word traffic on hardware.
 
 No board-specific wrapper is hardware-validated by this document.
