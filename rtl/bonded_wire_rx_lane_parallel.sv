@@ -39,7 +39,6 @@ module bonded_wire_rx_lane_parallel #(
     reg [7:0] tail0,tail1,tail2,tail3;
     reg [31:0] frame_sequence_received;
     integer byte_count;
-    integer i;
 
     // Update integrity state as bytes arrive. The four-byte rolling tail keeps
     // the received CRC trailer out of the CRC-32C calculation.
