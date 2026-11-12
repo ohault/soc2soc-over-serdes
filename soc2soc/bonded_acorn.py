@@ -76,6 +76,7 @@ class AcornBondedSerdes(LiteXModule):
         tx_polarities=(0, 0),
         rx_polarities=(1, 1),
         rx_fifo_depth=16,
+        qpll=None,
     ):
         self.sink = stream.Endpoint([
             ("data", 32), ("keep", 4), ("sop", 1), ("eop", 1),
@@ -100,9 +101,10 @@ class AcornBondedSerdes(LiteXModule):
         for filename in _BONDED_RTL:
             platform.add_source(os.path.join(rtl_dir, filename))
 
-        self.qpll = qpll = GTPQuadPLL(
-            refclk, refclk_freq, linerate, refclk_from_fabric=True
-        )
+        if qpll is None:
+            self.qpll = qpll = GTPQuadPLL(
+                refclk, refclk_freq, linerate, refclk_from_fabric=True
+            )
 
         qpll_lock_sys = Signal()
         self.specials += MultiReg(qpll.lock, qpll_lock_sys, "sys")
