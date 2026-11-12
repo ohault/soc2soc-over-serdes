@@ -148,3 +148,13 @@ current regression cases. This is an initial independent regression, not yet
 a true side-by-side differential comparison. Do not select the candidate for
 the bonded endpoint until the dedicated CI matrix is green and a differential
 test compares both implementations under identical input and backpressure.
+
+
+A side-by-side differential testbench now instantiates both receivers on the
+same input stream and applies the same downstream backpressure. It compares
+the delivered byte stream and frame metadata while allowing the candidate's
+synchronous RAM pipeline to add latency. It also checks that a corrupted
+frame trailer is rejected by both implementations without payload leakage.
+The CI width matrix runs this comparison at 8, 16 and 32 bits. This is still
+an initial differential test (short valid payload and trailer corruption);
+boundary-length and extended stall/error matrices remain necessary.
