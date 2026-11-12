@@ -14,6 +14,7 @@ on:
       - '.github/workflows/payload-word-ram.yml'
   pull_request:
     paths:
+      - 'rtl/tb_bonded_wire_rx_lane_parallel_differential.sv'
       - 'rtl/bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/bonded_payload_word_ram.sv'
