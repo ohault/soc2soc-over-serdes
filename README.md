@@ -42,7 +42,8 @@ Board-specific SERDES primitives and clocks remain outside the bonding core.
 - [Physical byte-stream contract](docs/physical-byte-stream-interface.md)
 - [SERDES adapter research and throughput limits](docs/serdes-adapter-research.md)
 - [Parallel lane-word interface proposal](docs/parallel-lane-word-interface.md)
-- [Acorn CLE-215+ GTP adapter plan](docs/acorn-gtp-adapter.md)\n- [Tang Mega 138K Pro Gowin PHY adapter plan](docs/tang-gowin-phy-adapter.md)
+- [Acorn CLE-215+ GTP adapter plan](docs/acorn-gtp-adapter.md)
+- [Tang Mega 138K Pro Gowin PHY adapter plan](docs/tang-gowin-phy-adapter.md)
 - [Dynamic lane mapping and crossed-cable behavior](docs/dynamic-lane-mapping.md)
 - [RTL session epoch v1 proposal](docs/session-epoch-v1.md)
 
