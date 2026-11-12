@@ -75,3 +75,24 @@ incrementally while collecting each accepted word. A four-byte rolling tail
 excludes the received CRC-32C trailer. This avoids a frame-length-sized CRC
 loop at end of frame; it does not yet resolve the frame buffer's memory-port
 and inference questions.
+
+## Additional negative and encoder-equivalence regressions
+
+The parallel RX width-matrix test now also covers:
+
+- An input stream that stops before EOP: no payload or completed-frame pulse
+  may be produced while the frame remains incomplete.
+- Reset during frame collection: partial bytes are discarded and the next
+  complete frame must be accepted.
+- Premature SOP recovery: the abandoned frame is flagged and the new frame
+  is parsed and delivered.
+
+A separate `tb_bonded_wire_tx_serial_parallel_compare` regression drives the
+same packet into the byte-serial and parallel DATA transmitters, collects both
+wire streams, and compares every byte. The test runs at 8, 16 and 32 bits,
+using a seven-byte payload so that each width exercises its final partial
+payload beat.
+
+These tests are registered in GitHub Actions. They are source-level coverage
+until the corresponding simulator job completes successfully; no RTL pass is
+claimed from merely adding the tests.
