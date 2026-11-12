@@ -114,29 +114,29 @@ not a same-cycle ready/valid handshake.
 
 Use the combined `rtl/bonded_gowin_phy_fifo_adapter.sv` between the Gowin
 PHY FIFO and the lane bridge. It instantiates the generic read adapter and
-symbol mapper internally:
+symbol mapper internally. Configure `SYMBOLS_PER_WORD=4` for the common
+40/44-bit profile or `SYMBOLS_PER_WORD=8` for the 80/88-bit profile.
 
-- `fifo_empty` = Gowin RX FIFO empty flag, or the almost-empty flag if that
-  is the only safe read guard exposed by the generated IP (as in the Sipeed
-  example).
-- `fifo_rdreq` = Gowin RX FIFO read-enable.
-- `fifo_data_valid` = Gowin `rx_valid_o`.
-- `fifo_data` = Gowin 88-bit RX data.
-- `out_valid/out_ready/out_data` = ready/valid word stream to the
-  Gowin 88-to-72 mapper and then to the generic lane bridge.
+RX connections:
 
-The adapter reserves a word slot for every outstanding read request, so the
-three-cycle response latency cannot overrun its output FIFO during downstream
-backpressure. Configure it with `DATA_WIDTH=44` for the common four-symbol profile or
-`DATA_WIDTH=88` for the eight-symbol profile; choose a depth large enough
-for the expected read latency and local backpressure.
+- `rx_fifo_aempty` = Gowin RX FIFO empty/almost-empty read guard.
+- `rx_fifo_rden` = Gowin RX FIFO read-enable.
+- `rx_fifo_data_valid` = Gowin `rx_valid_o`.
+- `rx_fifo_data` = Gowin 44-bit or 88-bit RX data bus.
+- `rx_phy_valid`, `rx_phy_ready`, `rx_phy_data` and `rx_phy_ctrl` connect
+  directly to the generic lane bridge.
+- `rx_disparity_error` and `rx_decoder_error` are per-symbol error vectors;
+  latch their OR in the recovered RX clock domain and include it in lane health.
+- `rx_fifo_overflow` and `rx_fifo_protocol_error` are sticky FIFO-adapter
+  diagnostics.
 
-On TX, map the generic eight-symbol adapter to Gowin's TX FIFO:
+TX connections:
 
-- `tx_phy_ready = !tx_fifo_afull` (or use `!tx_fifo_full` if a more
-  conservative margin is desired).
+- `tx_phy_data` and `tx_phy_ctrl` come from the generic lane bridge.
+- `tx_phy_ready = !tx_fifo_afull` (or use `!tx_fifo_full` for a more
+  conservative margin).
 - `tx_fifo_wren = tx_phy_valid && tx_phy_ready`.
-- `tx_fifo_data = gowin_tx_data[79:0]`.
+- `tx_fifo_data` is the mapped 40-bit or 80-bit Gowin TX word.
 
 The TX and RX bridge clock domains are separate. Use the Gowin TX PCS clock
 for the TX bridge and the recovered RX PCS clock for the RX bridge. The Gowin
