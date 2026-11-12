@@ -34,6 +34,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
+      - name: Compile and run parallel CRC regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_crc_parallel -o /tmp/tb_crc_parallel \
+            rtl/bonded_crc_parallel.sv rtl/tb_bonded_crc_parallel.sv
+          vvp /tmp/tb_crc_parallel
+
       - name: Compile and run frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
