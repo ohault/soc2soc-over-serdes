@@ -49,15 +49,6 @@ module tb_bonded_wire_tx_serial_parallel_compare;
     );
 
     always @(posedge clk) begin
-        if(!rst && DATA_WIDTH==8 && in_valid && parallel_ready)
-            $display("TXDBG accept keep=%b sop=%b eop=%b bytes_seen=%0d length=%0d state=%0d payload_valid=%b payload_eop=%b",
-                     in_keep,in_sop,in_eop,parallel_tx.payload_bytes_seen,
-                     parallel_tx.packet_length,parallel_tx.state,
-                     parallel_tx.payload_valid,parallel_tx.payload_eop);
-        if(!rst && DATA_WIDTH==8 && parallel_error)
-            $display("TXDBG ERROR state=%0d bytes_seen=%0d length=%0d in_valid=%b keep=%b sop=%b eop=%b",
-                     parallel_tx.state,parallel_tx.payload_bytes_seen,
-                     parallel_tx.packet_length,in_valid,in_keep,in_sop,in_eop);
         if(!rst && serial_valid) begin
             if(serial_count>=FRAME_LEN) $fatal(1,"serial encoder emitted too many bytes");
             if(serial_sop !== (serial_count==0) || serial_eop !== (serial_count==FRAME_LEN-1))
@@ -86,8 +77,13 @@ module tb_bonded_wire_tx_serial_parallel_compare;
                 in_data[k*8 +: 8]=(8'h31+first_byte+k);
                 in_keep[k]=1'b1;
             end
-            in_sop=first; in_eop=last; in_valid=1;
+            in_sop=first; in_eop=last; in_valid=0;
+            // Both independent encoders must be ready before VALID is raised.
+            // Otherwise the faster encoder can accept the beat while the task
+            // is still waiting for the slower encoder, duplicating/diverging
+            // the two input streams.
             while(!(serial_ready && parallel_ready)) @(negedge clk);
+            in_valid=1;
             @(posedge clk);
             @(negedge clk);
             in_valid=0; in_sop=0; in_eop=0; in_keep=0;
