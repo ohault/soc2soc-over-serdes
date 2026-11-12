@@ -100,7 +100,7 @@ module bonded_wire_rx_lane_parallel_ram #(
 
                     if(absolute_index<28)
                         header_mem[absolute_index]<=word_data[n*8 +: 8];
-                    else if(absolute_index<28+MAX_PAYLOAD) begin
+                    else if(absolute_index<(28+{header_mem[20],header_mem[21]}-16'd4)) begin
                         lane=(absolute_index-28)%WORD_BYTES;
                         if(selected_addr==-1)
                             selected_addr=(absolute_index-28)/WORD_BYTES;
