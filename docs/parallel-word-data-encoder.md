@@ -59,6 +59,15 @@ admission, so later changes on those input signals do not alter an active frame.
 6. Measure post-synthesis throughput and timing before selecting a default.
 
 
+## RX memory architecture decision
+
+The proposed replacement for the byte-addressed full-frame store is documented
+in [parallel RX payload-memory architecture](parallel-rx-payload-memory-architecture.md).
+It specifies a header/metadata register bank, a word-wide payload RAM, and a
+registered synchronous-read output pipeline. This remains a design specification:
+the existing receiver is retained as the reference until differential simulation
+and synthesis reports demonstrate correctness and an actual memory-inference benefit.
+
 ## Parallel-word receiver
 
 An experimental counterpart, `bonded_wire_rx_lane_parallel`, has been added.
