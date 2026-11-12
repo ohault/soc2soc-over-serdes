@@ -67,6 +67,23 @@ module bonded_control_manager #(
     wire [31:0] rx_nonce = ctrl_rx_body[199:168];
     wire [1:0] rx_lane_mask = ctrl_rx_lane ? 2'b10 : 2'b01;
     wire all_lanes_up = &lane_up;
+
+    // A new epoch invalidates any outstanding heartbeat from the previous
+    // session. Suppress its timeout on the same clock edge as adoption or
+    // local epoch initiation, otherwise the old ping_pending value can
+    // reassert fault after the transition has cleared it.
+    wire peer_epoch_adopt = rx_handshake && ctrl_rx_session_id!=active_session_id &&
+        rx_opcode==8'h01 && ctrl_rx_session_id!=0 &&
+        ctrl_rx_session_id>highest_peer_session_id &&
+        LOCAL_PEER_ID>EXPECTED_PEER_ID && all_lanes_up &&
+        ctrl_rx_body_length==26 && rx_peer_id==EXPECTED_PEER_ID &&
+        rx_lane_count==2 && rx_profile==PROFILE_ID &&
+        rx_max_payload==MAX_PAYLOAD;
+    wire local_epoch_restart = restart_pending && all_lanes_up &&
+        LOCAL_PEER_ID<EXPECTED_PEER_ID &&
+        restart_age>=RESTART_BACKOFF_CYCLES &&
+        active_session_id!=64'hffff_ffff_ffff_ffff;
+    wire epoch_transition = peer_epoch_adopt || local_epoch_restart;
     assign ctrl_rx_ready = !rst;
     assign ctrl_tx_valid = tx_pending;
 
@@ -271,7 +288,7 @@ module bonded_control_manager #(
                 endcase
             end
 
-            if(ping_pending) begin
+            if(ping_pending && !epoch_transition) begin
                 if(ping_age<PONG_TIMEOUT_CYCLES) ping_age<=ping_age+1'b1;
                 else begin fault<=1;session_established<=0;restart_pending<=1;restart_age<=0; end
             end
