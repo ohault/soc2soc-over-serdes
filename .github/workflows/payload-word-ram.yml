@@ -75,13 +75,13 @@ jobs:
           sudo apt-get install -y iverilog
       - name: Compile differential RX test
         run: |
-          iverilog -g2012 -s tb_bonded_wire_rx_lane_parallel_differential \\
-            -Ptb_bonded_wire_rx_lane_parallel_differential.DATA_WIDTH=${{ matrix.data-width }} \\
-            -Ptb_bonded_wire_rx_lane_parallel_differential.PAYLOAD_LEN=${{ matrix.payload-length }} \\
-            -o /tmp/parallel-rx-diff.vvp \\
-            rtl/bonded_payload_word_ram.sv \\
-            rtl/bonded_wire_rx_lane_parallel.sv \\
-            rtl/bonded_wire_rx_lane_parallel_ram.sv \\
+          iverilog -g2012 -s tb_bonded_wire_rx_lane_parallel_differential \
+            -Ptb_bonded_wire_rx_lane_parallel_differential.DATA_WIDTH=${{ matrix.data-width }} \
+            -Ptb_bonded_wire_rx_lane_parallel_differential.PAYLOAD_LEN=${{ matrix.payload-length }} \
+            -o /tmp/parallel-rx-diff.vvp \
+            rtl/bonded_payload_word_ram.sv \
+            rtl/bonded_wire_rx_lane_parallel.sv \
+            rtl/bonded_wire_rx_lane_parallel_ram.sv \
             rtl/tb_bonded_wire_rx_lane_parallel_differential.sv
       - name: Simulate differential RX test
         run: vvp /tmp/parallel-rx-diff.vvp
