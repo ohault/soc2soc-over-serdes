@@ -75,7 +75,7 @@ The roles can still be changed with `--sfp0` / `--sfp1` (`none`, `initiator` or 
 
 | File | Description |
 |------|-------------|
-| `acorn_soc2soc.py` | LiteX target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |
+| `acorn_soc2soc.py` | Existing LiteX SerWB target for the Acorn Baseboard Mini: CRG, GTP QPLL, SFP links, mailbox and LEDs. |\n| `acorn_bonded.py` | Separate experimental bonded-link bring-up target; leaves the SerWB target unchanged. |
 | `soc2soc/link.py` | SerDes link layer: 32-bit stream over a 2-byte 8b/10b transceiver, link-up handshake, error detection. Can be used as a SerWB PHY. |
 | `soc2soc/serdes_link.py` | `GTPSoCLink`: LiteICLink GTP + link layer + SerWB core + remote window + optional stream port. |
 | `soc2soc/bonded_acorn.py` | Prototype Acorn two-GTP binding for the board-neutral bonded packet node; separate from the existing SerWB target. |
