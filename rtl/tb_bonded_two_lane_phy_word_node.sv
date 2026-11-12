@@ -4,8 +4,8 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
     localparam integer PHY_DATA_WIDTH=SYMBOLS_PER_WORD*8;
     localparam integer PHY_CTRL_WIDTH=SYMBOLS_PER_WORD;
     localparam integer PHY_FIFO_WIDTH=PHY_DATA_WIDTH+PHY_CTRL_WIDTH;
-    localparam [PHY_DATA_WIDTH-1:0] BAD_PHY_WORD=(SYMBOLS_PER_WORD==2)?16'hbc00:BAD_PHY_WORD;
-    localparam [PHY_CTRL_WIDTH-1:0] BAD_PHY_CTRL=(SYMBOLS_PER_WORD==2)?2'b10:BAD_PHY_CTRL;
+    localparam [PHY_DATA_WIDTH-1:0] BAD_PHY_WORD=(SYMBOLS_PER_WORD==2)?16'hbc00:32'h0000bc00;
+    localparam [PHY_CTRL_WIDTH-1:0] BAD_PHY_CTRL=(SYMBOLS_PER_WORD==2)?2'b10:4'b0010;
     reg bond_a=0,bond_b=0;
     always #4 bond_a=~bond_a;
     always #4.5 bond_b=~bond_b;
@@ -24,10 +24,10 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
     reg inject_a0_bad=0,inject_b0_bad=0;
     wire a0_phy_rx_valid=a0_rxv || inject_a0_bad;
     wire b0_phy_rx_valid=b0_rxv || inject_b0_bad;
-    wire [PHY_DATA_WIDTH-1:0] a0_phy_rx_data=inject_a0_bad ? 32'h0000bc00 : a0_rxd;
-    wire [PHY_DATA_WIDTH-1:0] b0_phy_rx_data=inject_b0_bad ? 32'h0000bc00 : b0_rxd;
-    wire [PHY_CTRL_WIDTH-1:0] a0_phy_rx_ctrl=inject_a0_bad ? 4'b0010 : a0_rxc;
-    wire [PHY_CTRL_WIDTH-1:0] b0_phy_rx_ctrl=inject_b0_bad ? 4'b0010 : b0_rxc;
+    wire [PHY_DATA_WIDTH-1:0] a0_phy_rx_data=inject_a0_bad ? BAD_PHY_WORD : a0_rxd;
+    wire [PHY_DATA_WIDTH-1:0] b0_phy_rx_data=inject_b0_bad ? BAD_PHY_WORD : b0_rxd;
+    wire [PHY_CTRL_WIDTH-1:0] a0_phy_rx_ctrl=inject_a0_bad ? BAD_PHY_CTRL : a0_rxc;
+    wire [PHY_CTRL_WIDTH-1:0] b0_phy_rx_ctrl=inject_b0_bad ? BAD_PHY_CTRL : b0_rxc;
     wire a0_fifo_rx_ready=a0_rxr && !inject_a0_bad;
     wire b0_fifo_rx_ready=b0_rxr && !inject_b0_bad;
 
@@ -46,15 +46,15 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         .wr_clk(a_tx0),.wr_rst_n(phy_rst_n),.wr_valid(a0_txv),.wr_ready(a0_txr),
         .wr_data({a0_txc,a0_txd}),.rd_clk(b_rx1),.rd_rst_n(phy_rst_n),
         .rd_valid(b1_rxv),.rd_ready(b1_rxr),.rd_data({b1_rxc,b1_rxd}));
-    bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ab1(
+    bonded_async_fifo #(.DATA_WIDTH(PHY_FIFO_WIDTH),.DEPTH(32)) ab1(
         .wr_clk(a_tx1),.wr_rst_n(phy_rst_n),.wr_valid(a1_txv),.wr_ready(a1_txr),
         .wr_data({a1_txc,a1_txd}),.rd_clk(b_rx0),.rd_rst_n(phy_rst_n),
         .rd_valid(b0_rxv),.rd_ready(b0_fifo_rx_ready),.rd_data({b0_rxc,b0_rxd}));
-    bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba0(
+    bonded_async_fifo #(.DATA_WIDTH(PHY_FIFO_WIDTH),.DEPTH(32)) ba0(
         .wr_clk(b_tx0),.wr_rst_n(phy_rst_n),.wr_valid(b0_txv),.wr_ready(b0_txr),
         .wr_data({b0_txc,b0_txd}),.rd_clk(a_rx1),.rd_rst_n(phy_rst_n),
         .rd_valid(a1_rxv),.rd_ready(a1_rxr),.rd_data({a1_rxc,a1_rxd}));
-    bonded_async_fifo #(.DATA_WIDTH(36),.DEPTH(32)) ba1(
+    bonded_async_fifo #(.DATA_WIDTH(PHY_FIFO_WIDTH),.DEPTH(32)) ba1(
         .wr_clk(b_tx1),.wr_rst_n(phy_rst_n),.wr_valid(b1_txv),.wr_ready(b1_txr),
         .wr_data({b1_txc,b1_txd}),.rd_clk(a_rx0),.rd_rst_n(phy_rst_n),
         .rd_valid(a0_rxv),.rd_ready(a0_fifo_rx_ready),.rd_data({a0_rxc,a0_rxd}));
@@ -111,7 +111,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
 
     bonded_two_lane_phy_word_node #(
         .DATA_WIDTH(32),.TX_FIFO_DEPTH(16),.RX_FIFO_DEPTH(16),
-        .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(4),
+        .REORDER_WINDOW(4),.MAX_PACKET_BYTES(64),.SYMBOLS_PER_WORD(SYMBOLS_PER_WORD),
         .SESSION_ID(64'h123456789abcdef0),.LOCAL_PEER_ID(64'd2),
         .EXPECTED_PEER_ID(64'd1),.MAX_PAYLOAD(16'd64),
         .PING_INTERVAL_CYCLES(32'd5000),.PONG_TIMEOUT_CYCLES(32'd15000)
