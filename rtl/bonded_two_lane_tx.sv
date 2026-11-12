@@ -11,7 +11,9 @@ module bonded_two_lane_tx #(
 ) (
     input wire bond_clk,
     input wire bond_rst_n,
+    input wire global_rst_n,
     input wire control_rst_n,
+    input wire session_reset_toggle,
     input wire [63:0] session_id,
     // Latest cumulative grants received from the peer's CONTROL/CREDIT frames.
     input wire [63:0] remote_byte_limit,
@@ -53,7 +55,39 @@ module bonded_two_lane_tx #(
     wire lane0_data_error,lane1_data_error;
     wire [213:0] ctrl_fifo_in={ctrl_body_length,ctrl_body};
     wire [213:0] ctrl0_fifo_out,ctrl1_fifo_out;
-    wire ctrl_broadcast_ready = ctrl0_wr_ready && ctrl1_wr_ready;
+    (* async_reg = "true" *) reg [1:0] lane0_session_sync,lane1_session_sync;
+    reg lane0_session_seen,lane1_session_seen;
+    wire lane0_session_reset_pulse = lane0_session_sync[1] != lane0_session_seen;
+    wire lane1_session_reset_pulse = lane1_session_sync[1] != lane1_session_seen;
+    (* async_reg = "true" *) reg [1:0] lane0_seen_bond_sync,lane1_seen_bond_sync;
+    always @(posedge lane0_clk or negedge global_rst_n or negedge lane0_rst_n) begin
+        if(!global_rst_n || !lane0_rst_n) begin
+            lane0_session_sync<=0;lane0_session_seen<=0;
+        end else begin
+            lane0_session_sync<={lane0_session_sync[0],session_reset_toggle};
+            if(lane0_session_reset_pulse) lane0_session_seen<=lane0_session_sync[1];
+        end
+    end
+    always @(posedge lane1_clk or negedge global_rst_n or negedge lane1_rst_n) begin
+        if(!global_rst_n || !lane1_rst_n) begin
+            lane1_session_sync<=0;lane1_session_seen<=0;
+        end else begin
+            lane1_session_sync<={lane1_session_sync[0],session_reset_toggle};
+            if(lane1_session_reset_pulse) lane1_session_seen<=lane1_session_sync[1];
+        end
+    end
+    always @(posedge bond_clk or negedge global_rst_n) begin
+        if(!global_rst_n) begin
+            lane0_seen_bond_sync<=0;lane1_seen_bond_sync<=0;
+        end else begin
+            lane0_seen_bond_sync<={lane0_seen_bond_sync[0],lane0_session_seen};
+            lane1_seen_bond_sync<={lane1_seen_bond_sync[0],lane1_session_seen};
+        end
+    end
+    wire control_reset_ready =
+        (lane0_seen_bond_sync[1]==session_reset_toggle) &&
+        (lane1_seen_bond_sync[1]==session_reset_toggle);
+    wire ctrl_broadcast_ready = ctrl0_wr_ready && ctrl1_wr_ready && control_reset_ready;
     wire ctrl_broadcast_valid = ctrl_valid && ctrl_broadcast_ready;
     assign ctrl_ready = ctrl_broadcast_ready;
     wire credit_reserve_ready, credit_reserve_valid;
@@ -119,17 +153,17 @@ module bonded_two_lane_tx #(
     bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane0_control_fifo (
         .wr_clk(bond_clk),.wr_rst_n(control_rst_n && lane0_rst_n),
         .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl0_wr_ready),.wr_data(ctrl_fifo_in),
-        .rd_clk(lane0_clk),.rd_rst_n(control_rst_n && lane0_rst_n),
+        .rd_clk(lane0_clk),.rd_rst_n(global_rst_n && lane0_rst_n && !lane0_session_reset_pulse),
         .rd_valid(ctrl0_rd_valid),.rd_ready(ctrl0_encoder_ready),.rd_data(ctrl0_fifo_out)
     );
     bonded_async_fifo #(.DATA_WIDTH(214),.DEPTH(FIFO_DEPTH)) lane1_control_fifo (
         .wr_clk(bond_clk),.wr_rst_n(control_rst_n && lane1_rst_n),
         .wr_valid(ctrl_broadcast_valid),.wr_ready(ctrl1_wr_ready),.wr_data(ctrl_fifo_in),
-        .rd_clk(lane1_clk),.rd_rst_n(control_rst_n && lane1_rst_n),
+        .rd_clk(lane1_clk),.rd_rst_n(global_rst_n && lane1_rst_n && !lane1_session_reset_pulse),
         .rd_valid(ctrl1_rd_valid),.rd_ready(ctrl1_encoder_ready),.rd_data(ctrl1_fifo_out)
     );
     bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE0_ID)) encoder0 (
-        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n),.data_rst(!bond_rst_n),.session_id(session_id),
+        .clk(lane0_clk),.rst(!control_rst_n || !lane0_rst_n || lane0_session_reset_pulse),.data_rst(!bond_rst_n),.session_id(session_id),
         .ctrl_valid(ctrl0_rd_valid),.ctrl_ready(ctrl0_encoder_ready),
         .ctrl_body(ctrl0_fifo_out[207:0]),.ctrl_body_length(ctrl0_fifo_out[213:208]),
         .data_valid(fifo0_rd_valid),.data_ready(enc0_in_ready),
@@ -146,7 +180,7 @@ module bonded_two_lane_tx #(
         .arbiter_protocol_error(arb0_error)
     );
     bonded_lane_tx_mux #(.DATA_WIDTH(DATA_WIDTH),.KEEP_WIDTH(KEEP_WIDTH),.LANE_ID(LANE1_ID)) encoder1 (
-        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n),.data_rst(!bond_rst_n),.session_id(session_id),
+        .clk(lane1_clk),.rst(!control_rst_n || !lane1_rst_n || lane1_session_reset_pulse),.data_rst(!bond_rst_n),.session_id(session_id),
         .ctrl_valid(ctrl1_rd_valid),.ctrl_ready(ctrl1_encoder_ready),
         .ctrl_body(ctrl1_fifo_out[207:0]),.ctrl_body_length(ctrl1_fifo_out[213:208]),
         .data_valid(fifo1_rd_valid),.data_ready(enc1_in_ready),
