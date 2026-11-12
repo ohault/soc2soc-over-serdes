@@ -115,6 +115,9 @@ integrity, FPGA resource utilization or timing closure.
    two-symbol and four-symbol PHY configurations, including overflow checks.
 7. Audit epoch transitions, delayed CONTROL frames, stale complete DATA frames
    and asymmetric peer reboot. The epoch counter is volatile across cold boots.
-8. Port the same board-neutral core to the Tang Mega 138K Pro/Gowin PHY.
+8. Generate the candidate 5.0-Gb/s Gowin PHY IP (20-bit internal width,
+   1:2 ratio, 8b/10b encode/decode and RX word alignment), then add the
+   board-specific Tang wrapper using the 40/44-bit FIFO adapter. Keep the
+   80/88-bit 1:4 profile available as an alternative.
 9. Add PCIe and USB protocol adapters only after the generic transport is
    stable on hardware.
