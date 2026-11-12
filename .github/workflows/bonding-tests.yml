@@ -5,9 +5,42 @@ on:
     branches:
       - main
       - feature/bonded-serdes-interconnect
+    # Documentation-only commits do not need to rerun the HDL/Python regression
+    # matrix. Keep the workflow itself in the filter so CI changes are checked.
+    paths:
+      - "**.py"
+      - "**.sv"
+      - "**.v"
+      - "**.vh"
+      - "**.svh"
+      - ".github/workflows/**"
+      - "**/requirements*.txt"
+      - "pyproject.toml"
+      - "setup.py"
+      - "setup.cfg"
+      - "Makefile"
   pull_request:
     branches:
       - main
+    paths:
+      - "**.py"
+      - "**.sv"
+      - "**.v"
+      - "**.vh"
+      - "**.svh"
+      - ".github/workflows/**"
+      - "**/requirements*.txt"
+      - "pyproject.toml"
+      - "setup.py"
+      - "setup.cfg"
+      - "Makefile"
+
+# Superseded runs are cancelled when another commit is pushed to the same ref.
+# This avoids spending runner time (and generating redundant notifications) on
+# intermediate revisions while keeping the newest regression run.
+concurrency:
+  group: bonding-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
