@@ -6,6 +6,8 @@ own its GTP channels whenever that target is selected.
 """
 import os
 
+from migen import Cat
+
 from litex.build.parser import LiteXArgumentParser
 from litex.soc.integration.builder import Builder
 from litex.soc.interconnect.csr import CSRStatus
