@@ -11,6 +11,8 @@ on:
       - 'rtl/bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_ram.sv'
       - 'rtl/tb_bonded_wire_rx_lane_parallel_differential.sv'
+      - 'scripts/check_rx_memory_inference.py'
+      - 'scripts/check_rx_memory_inference.py'
       - '.github/workflows/payload-word-ram.yml'
   pull_request:
     paths:
@@ -85,3 +87,20 @@ jobs:
             rtl/tb_bonded_wire_rx_lane_parallel_differential.sv
       - name: Simulate differential RX test
         run: vvp /tmp/parallel-rx-diff.vvp
+
+  rx-memory-inference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Yosys
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys
+      - name: Inspect reference receiver memory
+        run: |
+          yosys -p "read_verilog -sv rtl/bonded_wire_rx_lane_parallel.sv; hierarchy -top bonded_wire_rx_lane_parallel; proc; memory_dff; memory_collect; write_json /tmp/reference-rx.json; stat"
+          python3 scripts/check_rx_memory_inference.py /tmp/reference-rx.json 0 0
+      - name: Check word-wide payload RAM inference
+        run: |
+          yosys -p "read_verilog -sv rtl/bonded_payload_word_ram.sv rtl/bonded_wire_rx_lane_parallel_ram.sv; hierarchy -top bonded_wire_rx_lane_parallel_ram; proc; memory_dff; memory_collect; write_json /tmp/ram-rx.json; stat"
+          python3 scripts/check_rx_memory_inference.py /tmp/ram-rx.json 32 1024
