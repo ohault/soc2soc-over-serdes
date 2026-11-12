@@ -40,6 +40,8 @@ module tb_bonded_wire_rx_lane_parallel_differential;
     reg [DATA_WIDTH-1:0] ref_stall_data,ram_stall_data;
     reg [KEEP_WIDTH-1:0] ref_stall_keep,ram_stall_keep;
     reg ref_stall_sop,ref_stall_eop,ram_stall_sop,ram_stall_eop;
+    reg [31:0] ref_stall_packet,ref_stall_frame,ram_stall_packet,ram_stall_frame;
+    reg [7:0] ref_stall_lane,ram_stall_lane;
 
     bonded_wire_rx_lane_parallel #(
         .DATA_WIDTH(DATA_WIDTH),.LANE_ID(0),.DYNAMIC_LANE_ID(1)
@@ -103,20 +105,24 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             cycles=cycles+1;
 
             if(ref_stalled && (!ref_valid || ref_data!==ref_stall_data ||
-               ref_keep!==ref_stall_keep || ref_sop!==ref_stall_sop || ref_eop!==ref_stall_eop))
+               ref_keep!==ref_stall_keep || ref_sop!==ref_stall_sop || ref_eop!==ref_stall_eop ||
+               ref_packet!==ref_stall_packet || ref_frame!==ref_stall_frame || ref_lane!==ref_stall_lane))
                 $fatal(1,"WIDTH=%0d reference output changed while stalled",DATA_WIDTH);
             if(ram_stalled && (!ram_valid || ram_data!==ram_stall_data ||
-               ram_keep!==ram_stall_keep || ram_sop!==ram_stall_sop || ram_eop!==ram_stall_eop))
+               ram_keep!==ram_stall_keep || ram_sop!==ram_stall_sop || ram_eop!==ram_stall_eop ||
+               ram_packet!==ram_stall_packet || ram_frame!==ram_stall_frame || ram_lane!==ram_stall_lane))
                 $fatal(1,"WIDTH=%0d RAM candidate output changed while stalled",DATA_WIDTH);
             ref_stalled <= ref_valid && !out_ready;
             ram_stalled <= ram_valid && !out_ready;
             if(ref_valid && !out_ready) begin
                 ref_stall_data<=ref_data; ref_stall_keep<=ref_keep;
                 ref_stall_sop<=ref_sop; ref_stall_eop<=ref_eop;
+                ref_stall_packet<=ref_packet; ref_stall_frame<=ref_frame; ref_stall_lane<=ref_lane;
             end
             if(ram_valid && !out_ready) begin
                 ram_stall_data<=ram_data; ram_stall_keep<=ram_keep;
                 ram_stall_sop<=ram_sop; ram_stall_eop<=ram_eop;
+                ram_stall_packet<=ram_packet; ram_stall_frame<=ram_frame; ram_stall_lane<=ram_lane;
             end
             if(ref_valid && out_ready) begin
                 if(got_ref==0 && !ref_sop) $fatal(1,"reference missing SOP");
@@ -178,6 +184,20 @@ module tb_bonded_wire_rx_lane_parallel_differential;
                 send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
                 offset=offset+count;
             end
+        end
+    endtask
+
+    task send_noncontiguous_keep;
+        begin
+            @(negedge clk);
+            in_data=0; in_keep=0;
+            in_keep[0]=1'b1;
+            if(KEEP_WIDTH>1) in_keep[KEEP_WIDTH-1]=1'b1;
+            in_sop=1; in_eop=0; in_valid=1;
+            while(!in_ready_ref || !in_ready_ram) @(negedge clk);
+            @(posedge clk);
+            @(negedge clk);
+            in_valid=0; in_sop=0; in_eop=0; in_keep=0;
         end
     endtask
 
@@ -323,6 +343,38 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         wait_for_both_eop(20000);
         if(ref_error || ram_error || got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
             $fatal(1,"WIDTH=%0d reset-during-output recovery differs",DATA_WIDTH);
+
+        // A malformed version with a freshly computed header CRC is rejected.
+        reset_pair();
+        expected_lane_id=8'ha5; expected_frame_sequence_override=0;
+        build_frame();
+        frame[2]=8'h7f;
+        hcrc=16'hffff;
+        for(i=0;i<22;i=i+1) hcrc=crc16_byte(hcrc,frame[i]);
+        frame[22]=hcrc[15:8]; frame[23]=hcrc[7:0];
+        fcrc=32'hffffffff;
+        for(i=0;i<FRAME_LEN-4;i=i+1) fcrc=crc32_byte(fcrc,frame[i]);
+        frame[FRAME_LEN-4]=~fcrc[31:24]; frame[FRAME_LEN-3]=~fcrc[23:16];
+        frame[FRAME_LEN-2]=~fcrc[15:8]; frame[FRAME_LEN-1]=~fcrc[7:0];
+        send_complete_frame();
+        repeat(100) @(posedge clk);
+        if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d malformed version handling differs",DATA_WIDTH);
+
+        // A bad header CRC must be rejected before payload release.
+        reset_pair();
+        build_frame(); frame[22]=frame[22]^8'h01;
+        send_complete_frame();
+        repeat(100) @(posedge clk);
+        if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d header CRC rejection differs",DATA_WIDTH);
+
+        // A non-contiguous KEEP mask is rejected by both receivers.
+        reset_pair();
+        send_noncontiguous_keep();
+        repeat(10) @(posedge clk);
+        if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d malformed KEEP rejection differs",DATA_WIDTH);
 
         $display("PASS differential byte-array vs RAM-backed RX DATA_WIDTH=%0d PAYLOAD_LEN=%0d",DATA_WIDTH,PAYLOAD_LEN);
         $finish;
