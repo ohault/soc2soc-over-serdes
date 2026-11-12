@@ -134,8 +134,8 @@ module bonded_phy_8b10b_word_adapter #(
     assign {rx_sop,rx_keep,rx_data}=rx_mem[rd_ptr];
 
     initial begin
-        if((SYMBOLS_PER_WORD!=2) && (SYMBOLS_PER_WORD!=4))
-            $error("SYMBOLS_PER_WORD must be 2 or 4");
+        if((SYMBOLS_PER_WORD!=2) && (SYMBOLS_PER_WORD!=4) && (SYMBOLS_PER_WORD!=8))
+            $error("SYMBOLS_PER_WORD must be 2, 4 or 8");
         if(RX_FIFO_DEPTH<2 || (RX_FIFO_DEPTH & (RX_FIFO_DEPTH-1))!=0)
             $error("RX_FIFO_DEPTH must be a power of two >= 2");
         if(IDLE_K==EMPTY_K)
