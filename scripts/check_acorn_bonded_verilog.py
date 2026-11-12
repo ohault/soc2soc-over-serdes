@@ -30,7 +30,7 @@ def main() -> None:
     def count_instances(primitive: str) -> int:
         # Migen also mentions primitive names in hierarchy comments and in the
         # closing instance labels; count only the parameterized module headers.
-        pattern = rf"(?m)^\s*{re.escape(primitive)}\s+#\s*\\("
+        pattern = rf"(?m)^\s*{re.escape(primitive)}\s+#\s*\("
         return len(re.findall(pattern, verilog))
 
     counts = {
