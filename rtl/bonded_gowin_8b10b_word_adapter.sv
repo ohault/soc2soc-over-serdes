@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
-// Gowin Customized PHY 8b/10b interface mapper for an 80-bit TX / 88-bit RX
-// fabric word (eight 10-bit symbols plus eight RX decoder-error flags).
-// The generic side is eight decoded bytes plus eight K-character flags.
+// Gowin Customized PHY 8b/10b interface mapper for 2/4/8 symbols per word.
+// TX uses 10 bits per symbol; RX uses 10 bits per symbol plus one decoder-
+// error flag per symbol. The generic side uses 8 data bits plus one K flag.
 module bonded_gowin_8b10b_word_adapter #(
     parameter integer SYMBOLS_PER_WORD=4
 ) (
