@@ -123,9 +123,11 @@ module bonded_wire_rx_lane_parallel #(
 
             if(state==ST_CHECK) begin
                 header_crc_calc=16'hffff;
-                for(i=0;i<22;i=i+1) header_crc_calc=crc16_byte(header_crc_calc,frame_mem[i]);
                 frame_crc_calc=32'hffffffff;
-                for(i=0;i<rx_count-4;i=i+1) frame_crc_calc=crc32_byte(frame_crc_calc,frame_mem[i]);
+                if(rx_count>=32) begin
+                    for(i=0;i<22;i=i+1) header_crc_calc=crc16_byte(header_crc_calc,frame_mem[i]);
+                    for(i=0;i<rx_count-4;i=i+1) frame_crc_calc=crc32_byte(frame_crc_calc,frame_mem[i]);
+                end
                 frame_sequence_received={frame_mem[16],frame_mem[17],frame_mem[18],frame_mem[19]};
                 if(rx_count<32 || frame_mem[0]!=8'h53 || frame_mem[1]!=8'h42 ||
                    frame_mem[2]!=8'h01 || frame_mem[3]!=8'h01 || frame_mem[4]!=0 ||
