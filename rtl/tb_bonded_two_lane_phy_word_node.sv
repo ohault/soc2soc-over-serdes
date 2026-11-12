@@ -420,6 +420,7 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
         while((!active_a || !active_b) && cycles<20000) begin
             @(posedge bond_a);cycles=cycles+1;
         end
+        recovery_debug=0;
         if(!active_a || !active_b || fault_a || fault_b) begin
             $display("A epoch=%h changed=%b initiated=%b active=%b fault=%b hello=%b ready=%b sent=%b/%b restart=%b age=%0d",
                 node_a.node.control_manager.active_session_id,node_a.node.control_manager.session_changed,
