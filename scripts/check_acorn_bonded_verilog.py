@@ -24,16 +24,18 @@ def main() -> None:
     for path in candidates:
         print(f"  {path}")
     verilog = "\n".join(path.read_text(encoding="utf-8") for path in candidates)
-    for line_number, line in enumerate(verilog.splitlines(), start=1):
-        if "GTPE2_" in line:
-            print(f"{line_number}: {line.strip()}")
-
     def count(primitive: str) -> int:
         return len(re.findall(rf"\b{re.escape(primitive)}\b", verilog))
 
+    def count_instances(primitive: str) -> int:
+        # Migen also mentions primitive names in hierarchy comments and in the
+        # closing instance labels; count only the parameterized module headers.
+        pattern = rf"(?m)^\s*{re.escape(primitive)}\s+#\s*\\("
+        return len(re.findall(pattern, verilog))
+
     counts = {
-        "GTPE2_COMMON": count("GTPE2_COMMON"),
-        "GTPE2_CHANNEL": count("GTPE2_CHANNEL"),
+        "GTPE2_COMMON": count_instances("GTPE2_COMMON"),
+        "GTPE2_CHANNEL": count_instances("GTPE2_CHANNEL"),
         "TXDATA": count("TXDATA"),
         "RXDATA": count("RXDATA"),
         "TXCHARISK": count("TXCHARISK"),
