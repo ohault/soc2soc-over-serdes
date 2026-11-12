@@ -161,20 +161,22 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 node_a.node.control_manager.ctrl_rx_lane,node_a.node.control_manager.ctrl_rx_body_length,
                 fault_a,node_a.node.control_manager.restart_pending,
                 node_a.node.control_manager.active_session_id);
-        if(recovery_debug && fault_a && !fault_a_d)
+        if(recovery_debug && fault_a && !fault_a_d) begin
             $display("RECOV A FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b phy_tx=%b%b phy_rx=%b%b tx_frame=%b%b rx_frame=%b%b lane_sync=%b rxerr_sync=%b txerr_sync=%b",
                 node_a.node.control_manager.active_session_id,node_a.node.control_manager.rx_opcode,
                 node_a.node.control_manager.ctrl_rx_session_id,node_a.node.control_manager.all_lanes_up,
                 node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen,
                 a1txerr,a0txerr,a1rxerr,a0rxerr,a1tf,a0tf,a1rf,a0rf,
                 node_a.node.lane_up_sync2,node_a.node.lane_rx_error_sync2,node_a.node.lane_tx_error_sync2);
-            $display("RECOV A RXDETAIL framer=%b%b demux=%b%b ctrl=%b%b data=%b%b map=%b%b duplicate=%b",
+            $display("RECOV A RXDETAIL overflow=%b%b framer=%b%b demux=%b%b ctrl=%b%b data=%b%b map=%b%b duplicate=%b",
+                node_a.lane1_rx_overflow,node_a.lane0_rx_overflow,
                 node_a.node.lane1_framer_error,node_a.node.lane0_framer_error,
                 node_a.node.endpoint.rx_path.ctrl1_demux_error,node_a.node.endpoint.rx_path.ctrl0_demux_error,
                 node_a.node.endpoint.rx_path.ctrl1_frame_error,node_a.node.endpoint.rx_path.ctrl0_frame_error,
                 node_a.node.endpoint.rx_path.lane1_data_frame_error,node_a.node.endpoint.rx_path.lane0_data_frame_error,
                 node_a.node.endpoint.rx_path.lane1_map_error,node_a.node.endpoint.rx_path.lane0_map_error,
                 node_a.node.endpoint.rx_path.duplicate_remote_lane_id);
+        end
     end
     always @(posedge bond_b) begin
         fault_b_d<=fault_b;
