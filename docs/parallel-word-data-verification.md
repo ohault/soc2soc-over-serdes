@@ -26,3 +26,23 @@ not available in the current working environment, and the GitHub status
 endpoint has not exposed a run result for the branch push. Therefore the
 regressions are added but not yet reported as passing. Hardware validation is
 not relevant to this stage.
+
+
+## Cross-implementation interoperability regressions
+
+Three connected testbenches now cover the important encoder/decoder pairings:
+
+- `tb_bonded_serial_tx_parallel_rx`: byte-serial TX is packed into compact
+  32-bit words and consumed by the parallel RX.
+- `tb_bonded_parallel_tx_serial_rx`: parallel TX words are unpacked into
+  byte-stream transfers for the byte-serial RX.
+- `tb_bonded_parallel_loopback`: parallel TX connects directly to parallel RX.
+
+Each sends a three-byte payload and checks the recovered bytes and packet/frame
+metadata. These tests are included in the RTL GitHub Actions job. Together with
+the existing byte-serial TX/RX tests, this establishes the intended four-way
+compatibility test structure.
+
+The testbenches are committed but have not yet been executed in an available
+simulator. Their inclusion in CI is not evidence of a passing result; inspect
+the GitHub Actions job output after the branch push.
