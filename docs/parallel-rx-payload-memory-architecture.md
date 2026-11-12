@@ -112,3 +112,24 @@ This is an implementation specification, not a claim that a word-wide RAM
 has already been inferred. The current RTL remains unchanged until the
 candidate can be compiled, simulated and compared. In particular, do not
 enable the candidate in the bonded node based only on source-level inspection.
+
+
+## Reusable synchronous payload RAM primitive
+
+The first RTL building block is now isolated as `rtl/bonded_payload_word_ram.sv`.
+It provides one word-wide write port with per-byte enables and a one-cycle
+synchronous read port. The data array is not reset, preserving the possibility
+of block-RAM inference; reset only invalidates the read response and clears its
+output register.
+
+The primitive is parameterized for 8-, 16-, and 32-bit words. Its focused
+self-checking testbench covers independent addresses, byte-enable preservation,
+read-valid timing, and reset without memory clearing. A dedicated GitHub Actions
+matrix compiles and simulates all three widths.
+
+This is deliberately **not yet connected** to
+`bonded_wire_rx_lane_parallel`. The receiver still uses its existing byte
+array until the primitive's CI evidence and a differential receiver test are
+available. Same-address read/write behavior is not part of the contract because
+the intended receiver writes during frame collection and reads only after
+integrity validation.
