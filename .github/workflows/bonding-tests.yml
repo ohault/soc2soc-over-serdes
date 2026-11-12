@@ -75,10 +75,12 @@ jobs:
           python -m pip install --upgrade pip
           curl -L https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py -o /tmp/litex_setup.py
           python /tmp/litex_setup.py --init --install --user --config=standard
-      - name: Elaborate Acorn bonded target without running Vivado
+      - name: Elaborate Acorn bonded target and inspect generated Verilog
         run: |
-          python acorn_bonded.py --cpu-type=None --uart-name=uartbone
-          python acorn_bonded.py --cpu-type=None --uart-name=uartbone --linerate=5e9
+          python acorn_bonded.py --cpu-type=None --uart-name=uartbone --output-dir=build/acorn-2p5
+          python scripts/check_acorn_bonded_verilog.py --build-dir build/acorn-2p5
+          python acorn_bonded.py --cpu-type=None --uart-name=uartbone --linerate=5e9 --output-dir=build/acorn-5g
+          python scripts/check_acorn_bonded_verilog.py --build-dir build/acorn-5g
 
   rtl-frame-boundary:
     runs-on: ubuntu-latest
