@@ -33,9 +33,12 @@ admission, so later changes on those input signals do not alter an active frame.
 
 - Neither parallel DATA module is connected to `bonded_lane_tx_mux` or the
   integrated two-lane node.
-- The parallel RX buffers the complete frame and currently performs its CRC
-  scan in a single clocked procedural loop. This is a correctness prototype,
-  not an acceptable timing/resource architecture until redesigned or measured.
+- The parallel RX buffers the complete frame, but now updates header CRC-16
+  and frame CRC-32C incrementally as input words arrive. This removes the
+  frame-length-dependent CRC loop from the end-of-frame critical path.
+- The byte-addressed frame buffer still needs synthesis inspection: its
+  multi-byte writes and parallel output reads may map to registers or LUT RAM
+  rather than block RAM. A payload-word buffer may be preferable.
 - Negative coverage is growing, but malformed header/length, truncation,
   premature SOP recovery, sequence mismatch and reset during collection still
   need dedicated regressions.
@@ -65,9 +68,11 @@ the same 8-, 16- and 32-bit widths.
 
 The receive path deliberately buffers the full frame before releasing payload,
 matching the existing byte-stream receiver's integrity-before-delivery
-behavior. This is a correctness-first reference implementation, not yet a
-streaming/high-throughput architecture. In particular, the frame buffer and
-CRC scan need synthesis review before hardware use.
+behavior. Header CRC-16 and frame CRC-32C are accumulated incrementally during
+collection using a four-byte rolling tail, so the end-of-frame check is bounded
+rather than iterating over the entire frame in one clock. The byte-addressed
+buffer still needs synthesis review for RAM inference, write-port cost and
+parallel read-port cost before hardware use.
 
 A dedicated receive regression generates a valid seven-byte DATA frame and
 checks the released payload and sequence metadata. CI is configured to run it
