@@ -295,6 +295,12 @@ jobs:
             rtl/bonded_phy_8b10b_adapter.sv rtl/tb_bonded_phy_8b10b_adapter.sv
           vvp /tmp/tb_phy_8b10b
 
+      - name: Compile and run delayed-valid PHY FIFO adapter regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_phy_fifo_read_adapter -o /tmp/tb_phy_fifo_read \
+            rtl/bonded_phy_fifo_read_adapter.sv rtl/tb_bonded_phy_fifo_read_adapter.sv
+          vvp /tmp/tb_phy_fifo_read
+
       - name: Compile and run safe one-byte-per-word PHY rate regression
         run: |
           iverilog -g2012 -Wall -s tb_bonded_byte_to_phy_word_rate -o /tmp/tb_phy_byte_rate \
