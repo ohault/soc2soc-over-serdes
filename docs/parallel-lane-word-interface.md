@@ -113,8 +113,9 @@ simultaneous DATA traffic in both directions. It passed CI run 43115216096.
 
 ## Current integration throughput limit
 
-The standalone PHY adapter can encode/decode multiple bytes per PHY word,
-but the present bonded node's wire framing interfaces are still byte-wide:
+The standalone PHY adapter and configurable packer can encode/decode multiple
+bytes per PHY word, but the present bonded node's wire framing interfaces are
+still byte-wide:
 `bonded_wire_tx_lane` emits one byte per lane clock and
 `bonded_wire_rx_framer` consumes one byte per lane clock. The bridge's RX
 word-to-byte gearbox also drains one byte per RX clock. Consequently, a
@@ -131,8 +132,13 @@ implementation or connect it to an unthrottled live PHY for sustained DATA.**
 The next datapath milestone must widen both sides of the wire boundary:
 parallel TX framing/CRC generation and parallel RX framing/CRC validation,
 with multi-byte ready/valid lane streams carried into the packet scheduler and
-reorder path. Until that is done, use the one-byte-per-word bring-up profile
-or enforce an explicit PHY-side rate limit compatible with the byte-wide core.
+reorder path. Until that is done, the per-lane bridge and two-lane PHY node default to
+`DATA_BYTES_PER_WORD=1` / `PHY_DATA_BYTES_PER_WORD=1`: one payload byte per
+PHY user-clock word, with K28.5 reserved for SOP and K28.0 in unused symbols.
+This is the safe interoperability/bring-up mode, not a bandwidth optimization.
+The packer parameter can be raised for isolated gearbox experiments, but must
+not be raised in the integrated byte-wide node until the wide wire datapath is
+implemented.
 
 ## Integration strategy
 
