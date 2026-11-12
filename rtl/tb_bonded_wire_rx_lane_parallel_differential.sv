@@ -314,7 +314,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         end
         if(!ref_valid || !ram_valid)
             $fatal(1,"WIDTH=%0d failed to reach simultaneous output stall",DATA_WIDTH);
-        @(negedge clk); rst=1; force_stall=0;
+        @(negedge clk); rst=1; force_stall=0; ref_stalled=0; ram_stalled=0;
         repeat(3) @(posedge clk);
         if(ref_valid || ram_valid)
             $fatal(1,"WIDTH=%0d reset failed to clear stalled output valid",DATA_WIDTH);
