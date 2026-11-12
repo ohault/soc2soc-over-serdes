@@ -26,7 +26,8 @@ module tb_bonded_parallel_tx_serial_rx;
     wire rx_out_valid,rx_out_sop,rx_out_eop;
     wire [7:0] rx_out_data;
     reg rx_out_ready=1;
-    integer got=0,cycles=0,valid_count;
+    integer got=0,cycles=0;
+    wire [31:0] valid_count;
 
     function integer keep_count(input [3:0] k);
         integer q; begin keep_count=0; for(q=0;q<4;q=q+1) keep_count=keep_count+k[q]; end
