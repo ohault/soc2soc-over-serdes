@@ -214,6 +214,42 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
             $fatal(1,"WIDTH=%0d invalid frame handling differs or leaked payload",DATA_WIDTH);
 
+        // A valid frame from an old session is silently discarded by both.
+        @(negedge clk);
+        rst=1; got_ref=0; got_ram=0; ref_eop_seen=0; ram_eop_seen=0;
+        ref_stalled=0; ram_stalled=0;
+        expected_session_id=64'h1112131415161718;
+        expected_frame_sequence_override=0; expected_lane_id=8'ha5;
+        repeat(3) @(posedge clk);
+        @(negedge clk); rst=0;
+        build_frame(); send_complete_frame();
+        repeat(100) @(posedge clk);
+        if(ref_error || ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d stale-session handling differs",DATA_WIDTH);
+
+        // Unexpected frame sequence must be rejected by both receivers.
+        @(negedge clk);
+        rst=1; got_ref=0; got_ram=0; ref_eop_seen=0; ram_eop_seen=0;
+        expected_session_id=64'h0102030405060708;
+        expected_frame_sequence_override=1; expected_lane_id=8'ha5;
+        repeat(3) @(posedge clk);
+        @(negedge clk); rst=0;
+        build_frame(); send_complete_frame();
+        repeat(100) @(posedge clk);
+        if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d frame-sequence rejection differs",DATA_WIDTH);
+
+        // Dynamic lane mismatch must also reject the frame before delivery.
+        @(negedge clk);
+        rst=1; got_ref=0; got_ram=0; ref_eop_seen=0; ram_eop_seen=0;
+        expected_frame_sequence_override=0; expected_lane_id=8'h5a;
+        repeat(3) @(posedge clk);
+        @(negedge clk); rst=0;
+        build_frame(); send_complete_frame();
+        repeat(100) @(posedge clk);
+        if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
+            $fatal(1,"WIDTH=%0d lane-mismatch rejection differs",DATA_WIDTH);
+
         $display("PASS differential byte-array vs RAM-backed RX DATA_WIDTH=%0d PAYLOAD_LEN=%0d",DATA_WIDTH,PAYLOAD_LEN);
         $finish;
     end
