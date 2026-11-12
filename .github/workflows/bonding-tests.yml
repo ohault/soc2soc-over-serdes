@@ -70,6 +70,13 @@ jobs:
             vvp /tmp/tb_wire_rx_parallel_$width
           done
 
+      - name: Compile and run serial TX to parallel RX interoperability
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_serial_tx_parallel_rx -o /tmp/tb_serial_tx_parallel_rx \
+            rtl/bonded_wire_tx_lane.sv rtl/bonded_wire_rx_lane_parallel.sv \
+            rtl/tb_bonded_serial_tx_parallel_rx.sv
+          vvp /tmp/tb_serial_tx_parallel_rx
+
       - name: Compile and run frame TX testbench
         run: |
           iverilog -g2012 -Wall -s tb_bonded_frame_boundary -o /tmp/tb_frame_boundary \
