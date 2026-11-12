@@ -158,3 +158,18 @@ frame trailer is rejected by both implementations without payload leakage.
 The CI width matrix runs this comparison at 8, 16 and 32 bits. This is still
 an initial differential test (short valid payload and trailer corruption);
 boundary-length and extended stall/error matrices remain necessary.
+
+
+## Expanded differential verification matrix
+
+The side-by-side testbench now accepts a compile-time payload length and
+checks that both receivers hold DATA, KEEP, SOP and EOP stable across
+downstream stalls. Its CI matrix covers payload lengths 0, 1, 3, 4, 5, 7,
+31, 4095 and 4096 bytes at each supported word width (8, 16 and 32 bits).
+The zero-length case waits for an actual accepted EOP rather than treating
+the absence of payload bytes as test completion.
+
+These tests broaden boundary coverage but do not yet replace the need for
+independent reset, premature-SOP, malformed-header, session, lane and
+sequence differential scenarios. Simulation results must be checked in
+GitHub Actions before considering the candidate for integration.
