@@ -99,8 +99,8 @@ integrity, FPGA resource utilization or timing closure.
    slices and decoder error status. Do not change the existing SerWB target.
 2. Rerun the complete Python and RTL CI suite against the current branch head;
    fix any compile, simulation or regression failures before synthesis.
-3. Add a hardware-free packet generator/checker to the Acorn target so the
-   first board test can verify bidirectional DATA as well as HELLO/READY.
+3. Review and elaborate the hardware-free bidirectional packet pattern tester
+   in the Acorn target; it checks payload bytes, SOP/EOP and packet boundaries.
 4. Bring up the conservative one-byte-per-PHY-word profile on the Acorn.
    Validate PLL lock, TX/RX initialization, PRBS, polarity, comma alignment
    and sustained traffic.
