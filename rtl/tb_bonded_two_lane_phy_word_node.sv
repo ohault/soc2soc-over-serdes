@@ -162,10 +162,12 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 fault_a,node_a.node.control_manager.restart_pending,
                 node_a.node.control_manager.active_session_id);
         if(recovery_debug && fault_a && !fault_a_d)
-            $display("RECOV A FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b",
+            $display("RECOV A FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b phy_tx=%b%b phy_rx=%b%b tx_frame=%b%b rx_frame=%b%b lane_sync=%b rxerr_sync=%b txerr_sync=%b",
                 node_a.node.control_manager.active_session_id,node_a.node.control_manager.rx_opcode,
                 node_a.node.control_manager.ctrl_rx_session_id,node_a.node.control_manager.all_lanes_up,
-                node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen);
+                node_a.node.control_manager.hello_seen,node_a.node.control_manager.ready_seen,
+                a1txerr,a0txerr,a1rxerr,a0rxerr,a1tf,a0tf,a1rf,a0rf,
+                node_a.node.lane_up_sync2,node_a.node.lane_rx_error_sync2,node_a.node.lane_tx_error_sync2);
     end
     always @(posedge bond_b) begin
         fault_b_d<=fault_b;
@@ -176,10 +178,12 @@ module tb_bonded_two_lane_phy_word_node #(parameter integer SYMBOLS_PER_WORD=4);
                 fault_b,node_b.node.control_manager.restart_pending,
                 node_b.node.control_manager.active_session_id);
         if(recovery_debug && fault_b && !fault_b_d)
-            $display("RECOV B FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b",
+            $display("RECOV B FAULT epoch=%h opcode=%02x rxsession=%h laneup=%b hello=%b ready=%b phy_tx=%b%b phy_rx=%b%b tx_frame=%b%b rx_frame=%b%b lane_sync=%b rxerr_sync=%b txerr_sync=%b",
                 node_b.node.control_manager.active_session_id,node_b.node.control_manager.rx_opcode,
                 node_b.node.control_manager.ctrl_rx_session_id,node_b.node.control_manager.all_lanes_up,
-                node_b.node.control_manager.hello_seen,node_b.node.control_manager.ready_seen);
+                node_b.node.control_manager.hello_seen,node_b.node.control_manager.ready_seen,
+                b1txerr,b0txerr,b1rxerr,b0rxerr,b1tf,b0tf,b1rf,b0rf,
+                node_b.node.lane_up_sync2,node_b.node.lane_rx_error_sync2,node_b.node.lane_tx_error_sync2);
     end
 
     always @(posedge b_rx0)
