@@ -92,18 +92,15 @@ module bonded_two_lane_node #(
     // A session drop flushes both the recovered RX streams and each
     // independent TX lane encoder/packer. Use one toggle per transition so
     // unrelated lane clocks cannot miss a one-bond-clock reset pulse.
-    reg session_active_d,session_drop_toggle,session_rx_reset_toggle;
+    reg session_active_d,session_drop_toggle;
     always @(posedge bond_clk or negedge bond_rst_n) begin
         if(!bond_rst_n) begin
             session_active_d<=1'b0;
             session_drop_toggle<=1'b0;
-            session_rx_reset_toggle<=1'b0;
         end else begin
             session_active_d<=session_active;
-            if(session_drop_event) begin
+            if(session_active_d && !session_active)
                 session_drop_toggle<=~session_drop_toggle;
-                session_rx_reset_toggle<=~session_rx_reset_toggle;
-            end
         end
     end
 
@@ -137,6 +134,11 @@ module bonded_two_lane_node #(
     wire session_established;
     wire [63:0] active_session_id,ctrl_rx_session_id;
     wire session_changed,session_initiated;
+    reg session_rx_reset_toggle;
+    always @(posedge bond_clk or negedge bond_rst_n) begin
+        if(!bond_rst_n) session_rx_reset_toggle<=1'b0;
+        else if(session_initiated) session_rx_reset_toggle<=~session_rx_reset_toggle;
+    end
     wire session_drop_event=session_active_d && !session_active;
     wire control_tx_rst_n=bond_rst_n && !session_drop_event;
     wire [31:0] lane0_tx_seq,lane1_tx_seq;
