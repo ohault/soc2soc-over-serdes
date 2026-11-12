@@ -25,7 +25,7 @@ module tb_bonded_two_lane_rx;
     wire [31:0] local_packet_limit;
 
     bonded_two_lane_rx #(.FIFO_DEPTH(64),.REORDER_WINDOW(4),.MAX_PACKET_BYTES(64)) dut(
-        .bond_rst_n(bond_rst_n),.control_rst_n(bond_rst_n),.expected_session_id(expected_session_id),.session_rx_reset_toggle(1'b0),
+        .bond_rst_n(bond_rst_n),.control_rst_n(bond_rst_n),.expected_session_id(expected_session_id),.session_rx_reset_toggle(1'b0),.session_rx_flush_toggle(1'b0),
         .lane0_clk(lane0_clk),.lane0_rst_n(lane0_rst_n),
         .lane0_valid(lane0_valid),.lane0_ready(lane0_ready),.lane0_data(lane0_data),
         .lane0_sop(lane0_sop),.lane0_eop(lane0_eop),
