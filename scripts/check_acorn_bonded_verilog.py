@@ -23,7 +23,7 @@ def main() -> None:
     print("Generated Verilog files:")
     for path in candidates:
         print(f"  {path}")
-    verilog = "\\n".join(path.read_text(encoding="utf-8") for path in candidates)
+    verilog = "\n".join(path.read_text(encoding="utf-8") for path in candidates)
 
     def count(primitive: str) -> int:
         return len(re.findall(rf"\b{re.escape(primitive)}\b", verilog))
