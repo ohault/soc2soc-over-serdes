@@ -40,7 +40,8 @@ is an integration option, not a dependency of the bonding core.
 - `rtl/bonded_sync_byte_fifo.sv`: per-lane RX elastic buffering.
 - `docs/physical-byte-stream-interface.md`: contract for a board PHY adapter.
 - `docs/dynamic-lane-mapping.md`: remote lane-ID discovery, crossed cabling and duplicate-ID rejection.
-- `docs/acorn-gtp-adapter.md`: exact LiteICLink GTP stream, clock, reset and error mapping for the Acorn.\n- `docs/tang-gowin-phy-adapter.md`: Tang Mega 138K Pro Gowin PHY/FIFO mapping and outstanding-read reservation plan.
+- `docs/acorn-gtp-adapter.md`: exact LiteICLink GTP stream, clock, reset and error mapping for the Acorn.
+- `docs/tang-gowin-phy-adapter.md`: Tang Mega 138K Pro Gowin PHY/FIFO mapping and outstanding-read reservation plan.
 - `docs/rtl-control-transport.md`: RTL control architecture and limitations.
 
 ## Current limitations
