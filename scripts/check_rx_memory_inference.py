@@ -26,11 +26,14 @@ for module_name, module in design.get("modules", {}).items():
 for module_name, cell_name, width, depth in memories:
     print(f"{module_name}.{cell_name}: width={width} depth={depth}")
 
-if not any(width == expected_width and depth == expected_depth
-           for _, _, width, depth in memories):
+if expected_width > 0 and expected_depth > 0 and not any(
+        width == expected_width and depth == expected_depth
+        for _, _, width, depth in memories
+):
     raise SystemExit(
         f"Expected inferred memory width={expected_width}, depth={expected_depth}; "
         f"found {memories}"
     )
 
-print(f"PASS: inferred {expected_width}-bit x {expected_depth}-word memory")
+if expected_width > 0 and expected_depth > 0:
+    print(f"PASS: inferred {expected_width}-bit x {expected_depth}-word memory")
