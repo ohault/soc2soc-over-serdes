@@ -113,7 +113,25 @@ module tb_bonded_wire_rx_lane_parallel;
             $fatal(1,"WIDTH=%0d failed got=%0d err=%b packet=%h frame=%h lane=%d next=%h",
                    DATA_WIDTH,got,frame_error,out_packet_sequence,out_frame_sequence,
                    out_lane_id,expected_frame_sequence);
-        $display("PASS: parallel DATA RX DATA_WIDTH=%0d",DATA_WIDTH);
+
+        // Re-run after reset with a corrupted frame CRC. No payload may escape.
+        @(negedge clk); rst=1; got=0;
+        repeat(3) @(posedge clk); @(negedge clk); rst=0;
+        frame[FRAME_LEN-1]=frame[FRAME_LEN-1]^8'h01;
+        offset=0;
+        while(offset<FRAME_LEN) begin
+            if(offset<28) count=WORD_BYTES;
+            else if(offset<28+PAYLOAD_LEN) begin
+                count=WORD_BYTES; if(offset+count>28+PAYLOAD_LEN) count=28+PAYLOAD_LEN-offset;
+            end else count=WORD_BYTES;
+            if(offset+count>FRAME_LEN) count=FRAME_LEN-offset;
+            send_word(offset,count,(offset==0),(offset+count==FRAME_LEN));
+            offset=offset+count;
+        end
+        repeat(100) @(posedge clk);
+        if(!frame_error || got!=0)
+            $fatal(1,"WIDTH=%0d corrupted CRC was not rejected (err=%b got=%0d)",DATA_WIDTH,frame_error,got);
+        $display("PASS: parallel DATA RX DATA_WIDTH=%0d (valid + CRC rejection)",DATA_WIDTH);
         $finish;
     end
 endmodule
