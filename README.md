@@ -47,8 +47,9 @@ Board-specific SERDES primitives and clocks remain outside the bonding core.
 - [RTL session epoch v1 proposal](docs/session-epoch-v1.md)
 
 The conservative one-byte-per-PHY-word mode is suitable for initial bring-up.
-The multi-byte PHY adapter is not yet safe for sustained full-rate traffic
-until the wire framing and packet datapaths are widened end to end. No hardware
+The multi-byte PHY adapter is not yet safe for sustained full-rate traffic:
+the wire framing and final logical RX application interface are still
+byte-wide and must be widened end to end. No hardware
 validation has been performed yet.
 
 ## Scenarios
