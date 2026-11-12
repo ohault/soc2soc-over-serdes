@@ -16,17 +16,18 @@ is an integration option, not a dependency of the bonding core.
 | Two-lane TX/RX integration | Integrated; CI passing | Current RTL integration is two lanes |
 | CDC and width adaptation | Implemented; CI passing | Common bonding clock and per-lane asynchronous FIFOs |
 | Cumulative flow control | Integrated for v0; CI passing | TX reserves whole-packet byte/packet credits including partial final KEEP; RX reports post-admission overrun |
-| RTL CONTROL frame TX/RX | Implemented as building blocks | Dedicated queues, frame-boundary priority, raw frame decode |
-| RTL control manager | Implemented as v0 manager | HELLO/READY, CREDIT, PING/PONG, lane fault reporting |
-| Autonomous two-lane node | Integrated | Control manager owns session state and drives the byte-oriented endpoint |
+| RTL CONTROL frame TX/RX | Integrated; CI passing | Dedicated queues, frame-boundary priority, raw frame decode, epoch-scoped RX flushing |
+| RTL control manager | Integrated; CI passing | HELLO/READY, CREDIT, PING/PONG, stale-heartbeat clearing and lane/session supervision |
+| Autonomous two-lane node | Integrated; end-to-end CI passing | Full-duplex packets, crossed lanes, backpressure and asymmetric lane-loss recovery |
 | Raw physical byte-stream boundary | Implemented at 8-bit interface | RX elastic FIFO, adapter overrun input and header-CRC-checked SOP/EOP reconstruction |
 | Generic 8b/10b byte adapter | Implemented; regression added | 2/4/8 symbols per PHY word, comma/empty markers, byte FIFO |
 | Parallel 8b/10b word adapter and byte/word gearboxes | Integrated prototype; sustained throughput limited | The safe default is one payload byte per PHY word; multi-byte mode is experimental because the bonded wire TX/RX framing core remains byte-wide and cannot consume full-rate multi-byte RX traffic |
 | PHY FIFO read adapter | Implemented; delayed-valid regression added | Reservation-aware read-enable/data-valid FIFO to ready/valid bridge, including outstanding read tracking |
+| Experimental RAM-backed RX | Candidate regression passing; not integrated | 8/16/32-bit RAM tests, 27 reference-vs-RAM differential configurations and generic Yosys memory inference pass |
 | Gowin 8b/10b FIFO mapper | Implemented; 4/8-symbol mapping regressions added | Maps 40/44-bit and 80/88-bit Gowin interfaces, including disparity and decoder-error flags |
 | Per-lane PHY bridge | Integrated as generic RTL | Independent TX/recovered-RX clocks, word packer/decoder, byte unpacker, session-drop flushing and sticky PHY faults |
-| Two-lane parallel-PHY node wrapper | Integrated RTL; regression authored, current CI unverified | Full-duplex packet tests exist, but they do not establish sustained PHY line-rate capability |
-| Board-specific transceiver adapters | Acorn wrapper and separate bring-up target added; build not verified | Two 20-bit LiteICLink GTP channels are mapped to the generic node; LiteX elaboration and generated-Verilog smoke test remain |
+| Two-lane parallel-PHY node wrapper | Integrated RTL; CI passing | End-to-end parallel-word PHY tests, session-flush recovery and malformed-symbol fault propagation; no sustained line-rate claim |
+| Board-specific transceiver adapters | Acorn wrapper present; LiteX elaboration pending | Two 20-bit LiteICLink GTP channels map to the generic node; no Vivado synthesis or hardware validation yet |
 | PCIe / USB 3.x adapters | Future work | Must preserve each protocol's own ordering and flow-control rules |
 
 ## Current top-level RTL
@@ -68,56 +69,57 @@ is an integration option, not a dependency of the bonding core.
 
 The raw-byte framer regression explicitly stalls its consumer during header
 replay and body forwarding, checking that VALID and DATA remain stable until
-READY. It passes in the current CI baseline.
+READY. The RTL workflow exercises the control encoder/decoder, queueing,
+frame arbitration, receiver credits, raw-byte framing, session-abort recovery,
+the full-duplex endpoint, and an autonomous two-node parallel-PHY test with
+unrelated lane and bonding clocks.
 
-The workflow `.github/workflows/bonding-tests.yml` now contains dedicated
-regressions for the control encoder/decoder, queueing, frame arbitration,
-receiver credits, raw-byte framing, session-abort recovery, and an autonomous
-two-node test with unrelated lane and bonding clocks.
+**Current code verification (12 November 2026):** GitHub Actions run
+[43178198151](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43178198151)
+on commit `eb0f3026fda8a1c501aedc3cad0251c55959e0c9` passes the Python bonding
+tests and the complete RTL frame-boundary workflow, including two-node
+parallel-PHY transport, asymmetric lane-loss recovery, PHY session flushing,
+crossed-lane mapping and full-duplex backpressure. The Acorn LiteX elaboration
+job in that run is still running and must complete before the wrapper can be
+marked elaboration-verified.
 
-**Last explicitly verified CI baseline (not the current branch head):** GitHub Actions run
-[43117263747](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43117263747)
-completed successfully for commit
-`dc0e46f6ece177cd11c9df483a8758a7f7069970`. Both the Python reference-model
-and RTL simulation jobs passed. The feature branch has advanced substantially since that baseline; the later
-session-epoch, dynamic lane-map, parallel-PHY, Acorn-wrapper and packet-tester
-changes must be rerun in GitHub Actions before they can be marked CI-verified. The end-to-end test at that baseline connects two byte-oriented
-nodes through four asynchronous symbol FIFOs with unrelated TX, RX and bonding
-clocks. It transfers eight variable-length packets (1, 2, 3, 4, 5, 7, 11 and
-16 bytes) in one direction and a 13-byte packet simultaneously in the reverse
-direction, checks both physical lanes, applies application RX backpressure,
-and checks packet framing and flow-control behavior.
-Later, unverified-on-this-baseline tests extend coverage to crossed lane mapping,
-dynamic lane-ID discovery, duplicate-ID rejection, session epoch re-arm,
-parallel PHY framing, malformed control-symbol supervision and stale-frame
-discard without resetting the physical channel FIFO.
+The separate payload-RAM workflow
+[43175183427](https://github.com/ohault/soc2soc-over-serdes/actions/runs/43175183427)
+passes the 8/16/32-bit RAM regressions, all 27 reference-versus-RAM receiver
+differential configurations (payload lengths 0 through 4096), and the generic
+Yosys memory-inference check. The RAM-backed receiver remains an experimental
+candidate and is not selected into the endpoint.
 
-This is digital simulation evidence only. It does not model analogue SERDES
-behavior, PLL/CDR lock, actual 8b/10b disparity/code-error indications, signal
-integrity, FPGA resource utilization or timing closure.
+This is digital simulation and generic synthesis evidence only. It does not
+model analogue SERDES behavior, PLL/CDR lock, actual transceiver code/disparity
+indications, signal integrity, vendor BRAM mapping, FPGA resource utilization,
+timing closure or bitstream behavior.
+
 ## Next engineering steps
 
-1. Elaborate the separate Acorn target in a LiteX environment, generate Verilog
-   and verify both SFP channels map to the correct GTP clocks, data/control
-   slices and decoder error status. Do not change the existing SerWB target.
-2. Rerun the complete Python and RTL CI suite against the current branch head;
-   fix any compile, simulation or regression failures before synthesis.
-3. Review and elaborate the hardware-free bidirectional packet pattern tester
-   in the Acorn target; it checks payload bytes, SOP/EOP and packet boundaries.
-4. Bring up the conservative one-byte-per-PHY-word profile on the Acorn.
-   Validate PLL lock, TX/RX initialization, PRBS, polarity, comma alignment
-   and sustained traffic.
+1. Complete the Acorn LiteX elaboration job on the current branch and inspect
+   the generated Verilog for both GTP channels, independent TX/RX clocks,
+   data/control slices, reset domains and decoder-error propagation. Keep the
+   existing SerWB target unchanged.
+2. Run Vivado synthesis and timing analysis for the conservative
+   one-byte-per-PHY-word profile. Check QPLL configuration, resource use, CDC
+   constraints and timing before generating a bitstream.
+3. Bring up the Acorn boards with the two-DAC topology. Validate QPLL lock,
+   TX/RX initialization, PRBS, polarity, comma alignment, lane mapping, session
+   recovery and sustained packet integrity.
+4. Measure aggregate throughput and long-duration backpressure behavior on
+   hardware; the current byte-wide framing and application RX path are not a
+   full-rate multi-byte datapath.
 5. Widen the entire datapath for full-rate operation: TX/RX wire framing and
    CRC, CONTROL/DATA arbitration, per-lane CDC, packet reorder/reassembly and
-   the logical application RX interface. The current byte-wide receiver and
-   byte-wide bond-clock output cannot consume full-rate aggregate traffic.
-6. Add sustained-rate and long-duration backpressure regressions for both
-   two-symbol and four-symbol PHY configurations, including overflow checks.
-7. Audit epoch transitions, delayed CONTROL frames, stale complete DATA frames
-   and asymmetric peer reboot. The epoch counter is volatile across cold boots.
-8. Generate the candidate 5.0-Gb/s Gowin PHY IP (20-bit internal width,
+   the logical application RX interface. Add sustained-rate regressions for
+   two-, four- and eight-symbol PHY words, including overflow checks.
+6. Audit asymmetric peer reboot, delayed CONTROL frames and stale complete
+   DATA frames. The runtime epoch counter is volatile across cold boots and
+   both peers still need the same non-zero initial session seed.
+7. Generate the candidate 5.0-Gb/s Gowin PHY IP (20-bit internal width,
    1:2 ratio, 8b/10b encode/decode and RX word alignment), then add the
    board-specific Tang wrapper using the 40/44-bit FIFO adapter. Keep the
    80/88-bit 1:4 profile available as an alternative.
-9. Add PCIe and USB protocol adapters only after the generic transport is
-   stable on hardware.
+8. Add PCIe and USB protocol adapters only after the generic transport is
+   stable and validated on hardware.
