@@ -191,8 +191,9 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         begin
             @(negedge clk);
             in_data=0; in_keep=0;
-            in_keep[0]=1'b1;
-            if(KEEP_WIDTH>1) in_keep[KEEP_WIDTH-1]=1'b1;
+            if(KEEP_WIDTH>1) begin
+                in_keep[0]=1'b1; in_keep[KEEP_WIDTH-1]=1'b1;
+            end
             in_sop=1; in_eop=0; in_valid=1;
             while(!in_ready_ref || !in_ready_ram) @(negedge clk);
             @(posedge clk);
@@ -364,6 +365,10 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         // A bad header CRC must be rejected before payload release.
         reset_pair();
         build_frame(); frame[22]=frame[22]^8'h01;
+        fcrc=32'hffffffff;
+        for(i=0;i<FRAME_LEN-4;i=i+1) fcrc=crc32_byte(fcrc,frame[i]);
+        frame[FRAME_LEN-4]=~fcrc[31:24]; frame[FRAME_LEN-3]=~fcrc[23:16];
+        frame[FRAME_LEN-2]=~fcrc[15:8]; frame[FRAME_LEN-1]=~fcrc[7:0];
         send_complete_frame();
         repeat(100) @(posedge clk);
         if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
