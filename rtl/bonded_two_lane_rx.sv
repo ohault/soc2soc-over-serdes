@@ -14,6 +14,7 @@ module bonded_two_lane_rx #(
     input wire control_rst_n,
     input wire [63:0] expected_session_id,
     input wire session_rx_reset_toggle,
+    input wire session_rx_flush_toggle,
 
     input wire lane0_clk, input wire lane0_rst_n,
     input wire lane0_valid, output wire lane0_ready,
@@ -71,7 +72,10 @@ module bonded_two_lane_rx #(
     (* async_reg = "true" *) reg [1:0] lane0_epoch_sync;
     reg lane0_epoch_seen;
     wire lane0_epoch_pulse = lane0_epoch_sync[1] != lane0_epoch_seen;
-    wire lane0_control_reset = !control_rst_n || !lane0_rst_n || lane0_epoch_pulse;
+    (* async_reg = "true" *) reg [1:0] lane0_flush_sync;
+    reg lane0_flush_seen;
+    wire lane0_flush_pulse = lane0_flush_sync[1] != lane0_flush_seen;
+    wire lane0_control_reset = !control_rst_n || !lane0_rst_n || lane0_epoch_pulse || lane0_flush_pulse;
     wire rx0_valid, rx0_ready, rx0_sop, rx0_eop;
     wire [7:0] rx0_data;
     wire [31:0] rx0_packet_seq, rx0_frame_seq, rx0_expected_frame;
@@ -93,7 +97,10 @@ module bonded_two_lane_rx #(
     (* async_reg = "true" *) reg [1:0] lane1_epoch_sync;
     reg lane1_epoch_seen;
     wire lane1_epoch_pulse = lane1_epoch_sync[1] != lane1_epoch_seen;
-    wire lane1_control_reset = !control_rst_n || !lane1_rst_n || lane1_epoch_pulse;
+    (* async_reg = "true" *) reg [1:0] lane1_flush_sync;
+    reg lane1_flush_seen;
+    wire lane1_flush_pulse = lane1_flush_sync[1] != lane1_flush_seen;
+    wire lane1_control_reset = !control_rst_n || !lane1_rst_n || lane1_epoch_pulse || lane1_flush_pulse;
     wire rx1_valid, rx1_ready, rx1_sop, rx1_eop;
     wire [7:0] rx1_data;
     wire [31:0] rx1_packet_seq, rx1_frame_seq, rx1_expected_frame;
@@ -175,24 +182,29 @@ module bonded_two_lane_rx #(
     // Flush queued CONTROL messages on both sides of each asynchronous FIFO
     // when a new session epoch is observed. The lane-local reset pulses are
     // synchronized independently; the bonding-clock pulse clears the read side.
-    reg bond_epoch_seen;
+    reg bond_epoch_seen,bond_flush_seen;
     wire bond_epoch_pulse = session_rx_reset_toggle != bond_epoch_seen;
+    wire bond_flush_pulse = session_rx_flush_toggle != bond_flush_seen;
+    wire bond_control_reset = bond_epoch_pulse || bond_flush_pulse;
     always @(posedge bond_clk or negedge control_rst_n) begin
-        if(!control_rst_n) bond_epoch_seen<=1'b0;
-        else if(bond_epoch_pulse) bond_epoch_seen<=session_rx_reset_toggle;
+        if(!control_rst_n) begin bond_epoch_seen<=1'b0;bond_flush_seen<=1'b0;end
+        else begin
+            if(bond_epoch_pulse) bond_epoch_seen<=session_rx_reset_toggle;
+            if(bond_flush_pulse) bond_flush_seen<=session_rx_flush_toggle;
+        end
     end
 
     wire [278:0] ctrl0_cdc_data,ctrl1_cdc_data;
     wire ctrl0_cdc_valid,ctrl1_cdc_valid,ctrl0_cdc_ready,ctrl1_cdc_ready;
     bonded_async_fifo #(.DATA_WIDTH(279),.DEPTH(FIFO_DEPTH)) control_cdc0 (
-        .wr_clk(lane0_clk),.wr_rst_n(control_rst_n && lane0_rst_n && !lane0_epoch_pulse),
+        .wr_clk(lane0_clk),.wr_rst_n(control_rst_n && lane0_rst_n && !lane0_epoch_pulse && !lane0_flush_pulse),
         .wr_valid(ctrl0_message_valid),.wr_ready(ctrl0_message_ready),
         .wr_data({1'b0,ctrl0_received_session_id,ctrl0_message_length,ctrl0_message_body}),
-        .rd_clk(bond_clk),.rd_rst_n(control_rst_n && !bond_epoch_pulse),
+        .rd_clk(bond_clk),.rd_rst_n(control_rst_n && !bond_control_reset),
         .rd_valid(ctrl0_cdc_valid),.rd_ready(ctrl0_cdc_ready),.rd_data(ctrl0_cdc_data)
     );
     bonded_async_fifo #(.DATA_WIDTH(279),.DEPTH(FIFO_DEPTH)) control_cdc1 (
-        .wr_clk(lane1_clk),.wr_rst_n(control_rst_n && lane1_rst_n && !lane1_epoch_pulse),
+        .wr_clk(lane1_clk),.wr_rst_n(control_rst_n && lane1_rst_n && !lane1_epoch_pulse && !lane1_flush_pulse),
         .wr_valid(ctrl1_message_valid),.wr_ready(ctrl1_message_ready),
         .wr_data({1'b1,ctrl1_received_session_id,ctrl1_message_length,ctrl1_message_body}),
         .rd_clk(bond_clk),.rd_rst_n(control_rst_n && !bond_epoch_pulse),
@@ -215,13 +227,16 @@ module bonded_two_lane_rx #(
     always @(posedge lane0_clk or negedge lane0_rx_reset_n) begin
         if(!lane0_rx_reset_n) begin
             lane0_epoch_sync<=0;lane0_epoch_seen<=0;
+            lane0_flush_sync<=0;lane0_flush_seen<=0;
             lane0_expected_wire_sequence<=0;
             lane0_remote_lane_id<=LANE0_ID[7:0];
             lane0_mapping_valid<=!DYNAMIC_LANE_MAP;
             lane0_map_error<=1'b0;
         end else begin
             lane0_epoch_sync<={lane0_epoch_sync[0],session_rx_reset_toggle};
+            lane0_flush_sync<={lane0_flush_sync[0],session_rx_flush_toggle};
             if(lane0_epoch_pulse) lane0_epoch_seen<=lane0_epoch_sync[1];
+            if(lane0_flush_pulse) lane0_flush_seen<=lane0_flush_sync[1];
             if(lane0_epoch_pulse) lane0_expected_wire_sequence<=0;
             else if(rx0_frame_pulse) lane0_expected_wire_sequence<=lane0_expected_wire_sequence+1'b1;
             else if(ctrl0_frame_pulse) begin
@@ -241,13 +256,16 @@ module bonded_two_lane_rx #(
     always @(posedge lane1_clk or negedge lane1_rx_reset_n) begin
         if(!lane1_rx_reset_n) begin
             lane1_epoch_sync<=0;lane1_epoch_seen<=0;
+            lane1_flush_sync<=0;lane1_flush_seen<=0;
             lane1_expected_wire_sequence<=0;
             lane1_remote_lane_id<=LANE1_ID[7:0];
             lane1_mapping_valid<=!DYNAMIC_LANE_MAP;
             lane1_map_error<=1'b0;
         end else begin
             lane1_epoch_sync<={lane1_epoch_sync[0],session_rx_reset_toggle};
+            lane1_flush_sync<={lane1_flush_sync[0],session_rx_flush_toggle};
             if(lane1_epoch_pulse) lane1_epoch_seen<=lane1_epoch_sync[1];
+            if(lane1_flush_pulse) lane1_flush_seen<=lane1_flush_sync[1];
             if(lane1_epoch_pulse) lane1_expected_wire_sequence<=0;
             else if(rx1_frame_pulse) lane1_expected_wire_sequence<=lane1_expected_wire_sequence+1'b1;
             else if(ctrl1_frame_pulse) begin
