@@ -11,7 +11,7 @@ module tb_bonded_wire_tx_lane_parallel;
     reg [31:0] in_packet_sequence=32'h11223344;
     reg [15:0] in_packet_length=3;
     wire out_valid,out_sop,out_eop;
-    reg out_ready=1;
+    reg out_ready=0;
     wire [31:0] out_data;
     wire [3:0] out_keep;
     wire frame_error;
@@ -58,6 +58,13 @@ module tb_bonded_wire_tx_lane_parallel;
         while(!in_ready) @(negedge clk);
         @(posedge clk);
         @(negedge clk);in_valid=0;in_sop=0;in_eop=0;
+        // Hold the first output word under backpressure and verify stability.
+        repeat(3) begin
+            @(posedge clk);
+            if(!out_valid || out_data!==32'h01014253 || out_keep!==4'hf || !out_sop)
+                $fatal(1,"first word was not held stable under backpressure");
+        end
+        @(negedge clk); out_ready=1;
         cycles=0;
         while(got<35 && cycles<100) begin @(posedge clk);cycles=cycles+1;end
         if(got!=35 || frame_error) $fatal(1,"parallel encoder failed got=%0d error=%b",got,frame_error);
