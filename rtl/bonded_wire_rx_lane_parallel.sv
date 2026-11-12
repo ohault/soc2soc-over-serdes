@@ -163,7 +163,7 @@ module bonded_wire_rx_lane_parallel #(
                    {frame_mem[22],frame_mem[23]}!=header_crc_calc ||
                    {frame_mem[20],frame_mem[21]}<4 ||
                    {frame_mem[20],frame_mem[21]}>MAX_PAYLOAD+4 ||
-                   rx_count!=28+{frame_mem[20],frame_mem[21]}+4 ||
+                   rx_count!=24+{frame_mem[20],frame_mem[21]}+4 ||
                    {tail3,tail2,tail1,tail0}!=~frame_crc_calc) begin
                     frame_error<=1; state<=ST_IDLE; rx_count<=0;
                 end else if({frame_mem[8],frame_mem[9],frame_mem[10],frame_mem[11],
