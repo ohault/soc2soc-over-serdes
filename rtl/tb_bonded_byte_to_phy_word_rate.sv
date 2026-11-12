@@ -39,8 +39,37 @@ module tb_bonded_byte_to_phy_word_rate;
         repeat(3) @(posedge clk);@(negedge clk);rst=0;
         send2(8'h53,1,0);send2(8'h42,0,0);send2(8'hbc,0,0);send2(8'h7e,0,1);
         send4(8'h53,1,0);send4(8'h42,0,0);send4(8'hbc,0,0);send4(8'h7e,0,1);
+
+        // With READY permanently high, the packer must accept a new byte on
+        // every clock while the previous one-byte PHY word is being consumed.
+        @(negedge clk);v2=1;s2=1;e2=0;d2=8'h11;
+        @(posedge clk);#1;
+        if(!wv2 || wd2!==16'h0011 || !ws2) $fatal(1,"2-symbol burst byte 0");
+        @(negedge clk);s2=0;d2=8'h22;
+        if(!r2) $fatal(1,"2-symbol packer inserted a bubble");
+        @(posedge clk);#1;
+        if(!wv2 || wd2!==16'h0022 || ws2) $fatal(1,"2-symbol burst byte 1");
+        @(negedge clk);d2=8'h33;e2=1;
+        if(!r2) $fatal(1,"2-symbol packer inserted a second bubble");
+        @(posedge clk);#1;
+        if(!wv2 || wd2!==16'h0033 || ws2) $fatal(1,"2-symbol burst byte 2");
+        @(negedge clk);v2=0;s2=0;e2=0;
+
+        @(negedge clk);v4=1;s4=1;e4=0;d4=8'h41;
+        @(posedge clk);#1;
+        if(!wv4 || wd4!==32'h00000041 || !ws4) $fatal(1,"4-symbol burst byte 0");
+        @(negedge clk);s4=0;d4=8'h42;
+        if(!r4) $fatal(1,"4-symbol packer inserted a bubble");
+        @(posedge clk);#1;
+        if(!wv4 || wd4!==32'h00000042 || ws4) $fatal(1,"4-symbol burst byte 1");
+        @(negedge clk);d4=8'h43;e4=1;
+        if(!r4) $fatal(1,"4-symbol packer inserted a second bubble");
+        @(posedge clk);#1;
+        if(!wv4 || wd4!==32'h00000043 || ws4) $fatal(1,"4-symbol burst byte 2");
+        @(negedge clk);v4=0;s4=0;e4=0;
+
         if(err2 || err4) $fatal(1,"unexpected packer error");
-        $display("PASS: safe one-byte-per-word mode for 2- and 4-symbol PHYs");
+        $display("PASS: safe one-byte-per-word mode for 2/4-symbol PHYs at one byte per clock");
         $finish;
     end
     initial begin #10000;$fatal(1,"timeout");end
