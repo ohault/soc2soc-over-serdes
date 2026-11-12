@@ -20,7 +20,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
     reg [DATA_WIDTH-1:0] in_data=0;
     reg [KEEP_WIDTH-1:0] in_keep=0;
     wire ref_valid,ref_sop,ref_eop,ram_valid,ram_sop,ram_eop;
-    reg out_ready=0;
+    reg out_ready=0;\n    reg force_stall=0;
     wire [DATA_WIDTH-1:0] ref_data,ram_data;
     wire [KEEP_WIDTH-1:0] ref_keep,ram_keep;
     wire [31:0] ref_packet,ref_frame,ref_expected,ram_packet,ram_frame,ram_expected;
@@ -98,7 +98,7 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         if(!rst) begin
             // Input-ready may legitimately differ because the RAM candidate
             // has additional synchronous-read latency; the driver waits for both.
-            out_ready <= ((cycles%5)!=1);
+            out_ready <= force_stall ? 1'b0 : ((cycles%5)!=1);
             cycles=cycles+1;
 
             if(ref_stalled && (!ref_valid || ref_data!==ref_stall_data ||
@@ -180,6 +180,40 @@ module tb_bonded_wire_rx_lane_parallel_differential;
         end
     endtask
 
+    task reset_pair;
+        begin
+            @(negedge clk);
+            rst=1; got_ref=0; got_ram=0;
+            ref_eop_seen=0; ram_eop_seen=0;
+            ref_stalled=0; ram_stalled=0;
+            repeat(3) @(posedge clk);
+            @(negedge clk); rst=0;
+        end
+    endtask
+
+    task send_prefix(input integer prefix_bytes);
+        begin
+            offset=0;
+            while(offset<prefix_bytes) begin
+                count=WORD_BYTES;
+                if(offset+count>prefix_bytes) count=prefix_bytes-offset;
+                send_word(offset,count,(offset==0),1'b0);
+                offset=offset+count;
+            end
+        end
+    endtask
+
+    task wait_for_both_eop(input integer limit);
+        begin
+            watchdog=0;
+            while((!ref_eop_seen || !ram_eop_seen) && watchdog<limit) begin
+                @(posedge clk); watchdog=watchdog+1;
+            end
+            if(!ref_eop_seen || !ram_eop_seen)
+                $fatal(1,"WIDTH=%0d timed out waiting for both receiver EOPs",DATA_WIDTH);
+        end
+    endtask
+
     initial begin
         if(DATA_WIDTH!=8 && DATA_WIDTH!=16 && DATA_WIDTH!=32)
             $fatal(1,"Unsupported DATA_WIDTH=%0d",DATA_WIDTH);
@@ -240,15 +274,54 @@ module tb_bonded_wire_rx_lane_parallel_differential;
             $fatal(1,"WIDTH=%0d frame-sequence rejection differs",DATA_WIDTH);
 
         // Dynamic lane mismatch must also reject the frame before delivery.
-        @(negedge clk);
-        rst=1; got_ref=0; got_ram=0; ref_eop_seen=0; ram_eop_seen=0;
+        reset_pair();
         expected_frame_sequence_override=0; expected_lane_id=8'h5a;
-        repeat(3) @(posedge clk);
-        @(negedge clk); rst=0;
         build_frame(); send_complete_frame();
         repeat(100) @(posedge clk);
         if(!ref_error || !ram_error || got_ref!=0 || got_ram!=0)
             $fatal(1,"WIDTH=%0d lane-mismatch rejection differs",DATA_WIDTH);
+
+        // A new SOP while collecting abandons the partial frame and resynchronizes.
+        reset_pair();
+        expected_lane_id=8'ha5; expected_frame_sequence_override=0;
+        build_frame();
+        send_prefix(32);
+        send_complete_frame();
+        wait_for_both_eop(20000);
+        if(!ref_error || !ram_error || got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
+            $fatal(1,"WIDTH=%0d premature-SOP recovery differs",DATA_WIDTH);
+        for(i=0;i<PAYLOAD_LEN;i=i+1)
+            if(ref_bytes[i]!==payload[i] || ram_bytes[i]!==payload[i])
+                $fatal(1,"WIDTH=%0d premature-SOP recovery payload mismatch",DATA_WIDTH);
+
+        // Reset in the middle of collection must discard partial state in both.
+        reset_pair();
+        send_prefix(32);
+        reset_pair();
+        send_complete_frame();
+        wait_for_both_eop(20000);
+        if(ref_error || ram_error || got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
+            $fatal(1,"WIDTH=%0d reset-during-collection recovery differs",DATA_WIDTH);
+
+        // Reset while both output interfaces are stalled must withdraw valid.
+        reset_pair();
+        force_stall=1;
+        send_complete_frame();
+        watchdog=0;
+        while((!ref_valid || !ram_valid) && watchdog<20000) begin
+            @(posedge clk); watchdog=watchdog+1;
+        end
+        if(!ref_valid || !ram_valid)
+            $fatal(1,"WIDTH=%0d failed to reach simultaneous output stall",DATA_WIDTH);
+        @(negedge clk); rst=1; force_stall=0;
+        repeat(3) @(posedge clk);
+        if(ref_valid || ram_valid)
+            $fatal(1,"WIDTH=%0d reset failed to clear stalled output valid",DATA_WIDTH);
+        @(negedge clk); rst=0;
+        send_complete_frame();
+        wait_for_both_eop(20000);
+        if(ref_error || ram_error || got_ref!=PAYLOAD_LEN || got_ram!=PAYLOAD_LEN)
+            $fatal(1,"WIDTH=%0d reset-during-output recovery differs",DATA_WIDTH);
 
         $display("PASS differential byte-array vs RAM-backed RX DATA_WIDTH=%0d PAYLOAD_LEN=%0d",DATA_WIDTH,PAYLOAD_LEN);
         $finish;
