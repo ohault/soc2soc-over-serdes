@@ -47,3 +47,33 @@ admission, so later changes on those input signals do not alter an active frame.
 4. Add a parallel-word RX path and prove cross-compatibility in both directions.
 5. Integrate through an explicit selectable implementation in the lane mux.
 6. Measure post-synthesis throughput and timing before selecting a default.
+
+
+## Parallel-word receiver
+
+An experimental counterpart, `bonded_wire_rx_lane_parallel`, has been added.
+It accepts compact byte words with contiguous low-order KEEP masks, buffers a
+complete frame, validates the v0 header CRC-16 and frame CRC-32C, checks the
+session/lane/frame sequence, and only then releases payload words. It supports
+the same 8-, 16- and 32-bit widths.
+
+The receive path deliberately buffers the full frame before releasing payload,
+matching the existing byte-stream receiver's integrity-before-delivery
+behavior. This is a correctness-first reference implementation, not yet a
+streaming/high-throughput architecture. In particular, the frame buffer and
+CRC scan need synthesis review before hardware use.
+
+A dedicated receive regression generates a valid seven-byte DATA frame and
+checks the released payload and sequence metadata. CI is configured to run it
+at all three widths. The parser accepts partial KEEP words before EOP because
+the transmitter emits a partial final payload word followed by a separate
+full-width CRC trailer.
+
+## Remaining interoperability gates
+
+- Cross-test byte-serial TX into parallel RX and parallel TX into byte-serial RX.
+- Corrupt header, payload, CRC, lane, session and frame sequence independently.
+- Exercise truncated frames, premature SOP resynchronization, overlength frames,
+  output backpressure, and reset during collection/output.
+- Compare parallel TX output byte-for-byte against the byte-serial TX module.
+- Run Icarus regressions and inspect warnings before claiming RTL verification.
