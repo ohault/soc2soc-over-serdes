@@ -102,6 +102,9 @@ class AcornBondedSerdes(LiteXModule):
             refclk, refclk_freq, linerate, refclk_from_fabric=True
         )
 
+        qpll_lock_sys = Signal()
+        self.specials += MultiReg(qpll.lock, qpll_lock_sys, "sys")
+
         gtp_channels = []
         tx_clocks, rx_clocks = [], []
         tx_resets_n, rx_resets_n = [], []
@@ -156,12 +159,14 @@ class AcornBondedSerdes(LiteXModule):
             # LiteICLink exposes continuous TX/RX streams: sink.ready=1 and
             # source.valid=1. Latch decoder-invalid in recovered RX clock
             # before crossing it to the system/bond clock for lane supervision.
-            invalid = gtp.decoders[0].invalid | gtp.decoders[1].invalid
+            rx_ready_local = Signal()
+            self.specials += MultiReg(gtp.rx_ready, rx_ready_local, rx_cd)
+            invalid = (gtp.decoders[0].invalid | gtp.decoders[1].invalid) & rx_ready_local
             error_latch = ClockDomainsRenamer(rx_cd)(_StickyRxDecoderError(invalid))
             setattr(self.submodules, f"gtp{lane}_rx_error_latch", error_latch)
             invalid_sys = Signal()
             self.specials += MultiReg(error_latch.error, invalid_sys, "sys")
-            lane_up.append(gtp.tx_ready & gtp.rx_ready & qpll.lock & ~invalid_sys)
+            lane_up.append(gtp.tx_ready & gtp.rx_ready & qpll_lock_sys & ~invalid_sys)
 
         tx_ready = Signal()
         rx_valid = Signal()
