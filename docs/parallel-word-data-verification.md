@@ -57,6 +57,7 @@ The parallel RX width-matrix regression now exercises, at 8, 16 and 32 bits:
 - A corrupted frame CRC, which must set `frame_error` and release no payload.
 - A frame from a different session, which must be discarded without treating
   stale traffic as physical-link corruption.
+- An unexpected frame sequence, which must set `frame_error` and release no payload.
 - Reset while a validated payload is stalled, which must flush the pending
   payload and return the receiver to idle.
 
