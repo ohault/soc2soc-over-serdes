@@ -45,6 +45,7 @@ jobs:
       - name: Elaborate Acorn bonded target without running Vivado
         run: |
           python acorn_bonded.py --cpu-type=None --uart-name=uartbone
+          python acorn_bonded.py --cpu-type=None --uart-name=uartbone --linerate=5e9
 
   rtl-frame-boundary:
     runs-on: ubuntu-latest
