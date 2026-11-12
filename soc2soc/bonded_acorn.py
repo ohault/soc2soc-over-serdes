@@ -68,6 +68,7 @@ class AcornBondedSerdes(LiteXModule):
         refclk_freq=125e6,
         linerate=2.5e9,
         sys_clk_freq=100e6,
+        sys_clk=None,
         peer_id=1,
         expected_peer_id=2,
         session_id=1,
@@ -105,6 +106,9 @@ class AcornBondedSerdes(LiteXModule):
             self.qpll = qpll = GTPQuadPLL(
                 refclk, refclk_freq, linerate, refclk_from_fabric=True
             )
+
+        if sys_clk is None:
+            raise ValueError("sys_clk must be provided for timing constraints")
 
         qpll_lock_sys = Signal()
         self.specials += MultiReg(qpll.lock, qpll_lock_sys, "sys")
@@ -146,7 +150,7 @@ class AcornBondedSerdes(LiteXModule):
             platform.add_period_constraint(gtp.cd_tx.clk, 1e9 / gtp.tx_clk_freq)
             platform.add_period_constraint(gtp.cd_rx.clk, 1e9 / gtp.rx_clk_freq)
             platform.add_false_path_constraints(
-                gtp.cd_tx.clk, gtp.cd_rx.clk, ClockSignal("sys")
+                gtp.cd_tx.clk, gtp.cd_rx.clk, sys_clk
             )
             async_phy_clocks.extend([gtp.cd_tx.clk, gtp.cd_rx.clk])
 

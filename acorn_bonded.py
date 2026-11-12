@@ -70,6 +70,7 @@ class BondedAcornSoC(SoC2SoC):
             refclk_freq=refclk_freq,
             linerate=linerate,
             sys_clk_freq=sys_clk_freq,
+            sys_clk=self.crg.cd_sys.clk,
             peer_id=peer_id,
             expected_peer_id=expected_peer_id,
             session_id=session_id,
