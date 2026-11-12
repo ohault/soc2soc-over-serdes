@@ -295,6 +295,12 @@ jobs:
             rtl/bonded_phy_8b10b_adapter.sv rtl/tb_bonded_phy_8b10b_adapter.sv
           vvp /tmp/tb_phy_8b10b
 
+      - name: Compile and run Gowin 80/88-bit symbol mapper regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_gowin_8b10b_word_adapter -o /tmp/tb_gowin_phy_map \
+            rtl/bonded_gowin_8b10b_word_adapter.sv rtl/tb_bonded_gowin_8b10b_word_adapter.sv
+          vvp /tmp/tb_gowin_phy_map
+
       - name: Compile and run delayed-valid PHY FIFO adapter regression
         run: |
           iverilog -g2012 -Wall -s tb_bonded_phy_fifo_read_adapter -o /tmp/tb_phy_fifo_read \
