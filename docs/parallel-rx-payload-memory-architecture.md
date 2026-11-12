@@ -133,3 +133,18 @@ array until the primitive's CI evidence and a differential receiver test are
 available. Same-address read/write behavior is not part of the contract because
 the intended receiver writes during frame collection and reads only after
 integrity validation.
+
+
+## Experimental RAM-backed receiver candidate
+
+`rtl/bonded_wire_rx_lane_parallel_ram.sv` is now a separate experimental
+implementation. It keeps the 28-byte header and integrity metadata in
+registers, writes only payload bytes into `bonded_payload_word_ram`, and
+uses an explicit synchronous-read request/wait pipeline plus output holding
+registers. The original byte-array receiver remains untouched as the reference.
+
+The candidate has a parallel testbench derived from the reference receiver's
+current regression cases. This is an initial independent regression, not yet
+a true side-by-side differential comparison. Do not select the candidate for
+the bonded endpoint until the dedicated CI matrix is green and a differential
+test compares both implementations under identical input and backpressure.
