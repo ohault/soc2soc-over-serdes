@@ -181,6 +181,8 @@ module bonded_control_manager #(
                 session_established<=0;
                 fault<=1;
                 tx_pending<=0;
+                ping_pending<=0;ping_queued<=0;
+                pong_pending<=0;pong_queued<=0;
                 restart_pending<=1;
                 restart_age<=0;
             end
@@ -290,7 +292,11 @@ module bonded_control_manager #(
 
             if(ping_pending && !epoch_transition) begin
                 if(ping_age<PONG_TIMEOUT_CYCLES) ping_age<=ping_age+1'b1;
-                else begin fault<=1;session_established<=0;restart_pending<=1;restart_age<=0; end
+                else begin
+                    fault<=1;session_established<=0;restart_pending<=1;restart_age<=0;
+                    tx_pending<=0;ping_pending<=0;ping_queued<=0;
+                    pong_pending<=0;pong_queued<=0;
+                end
             end
             if(restart_pending && all_lanes_up && LOCAL_PEER_ID<EXPECTED_PEER_ID) begin
                 if(restart_age<RESTART_BACKOFF_CYCLES) restart_age<=restart_age+1'b1;
