@@ -27,6 +27,25 @@ jobs:
       - name: Run bonding unit and integration tests
         run: python -m unittest discover -s test -p "test_bonding_*.py" -v
 
+
+  acorn-migen-elaboration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install standard LiteX environment
+        run: |
+          python -m pip install --upgrade pip
+          curl -L https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py -o /tmp/litex_setup.py
+          python /tmp/litex_setup.py --init --install --user --config=standard
+      - name: Elaborate Acorn bonded target without running Vivado
+        run: |
+          python acorn_bonded.py --cpu-type=None --uart-name=uartbone
+
   rtl-frame-boundary:
     runs-on: ubuntu-latest
     steps:
