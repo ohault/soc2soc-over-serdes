@@ -9,7 +9,10 @@ module bonded_control_manager #(
     parameter [63:0] INITIAL_SESSION_ID = 64'h1,
     parameter [31:0] RESTART_BACKOFF_CYCLES = 32'd64,
     parameter [31:0] PING_INTERVAL_CYCLES = 32'd100000000,
-    parameter [31:0] PONG_TIMEOUT_CYCLES = 32'd300000000
+    parameter [31:0] PONG_TIMEOUT_CYCLES = 32'd300000000,
+    // HELLO/READY are resent at this interval until the session is
+    // established: a frame sent before the peer's receiver is up is lost.
+    parameter [31:0] HELLO_RETRY_CYCLES = 32'd1000000
 ) (
     input wire clk,
     input wire rst,
@@ -53,6 +56,7 @@ module bonded_control_manager #(
     reg [63:0] highest_peer_session_id;
     reg restart_pending;
     reg [31:0] restart_age;
+    reg [31:0] hello_retry_age;
     wire tx_handshake = tx_pending && ctrl_tx_ready;
     wire rx_handshake = ctrl_rx_valid && ctrl_rx_ready;
     wire [7:0] rx_opcode = ctrl_rx_body[207:200];
@@ -94,6 +98,8 @@ module bonded_control_manager #(
             $error("RESTART_BACKOFF_CYCLES must be non-zero");
         if(PING_INTERVAL_CYCLES==0 || PONG_TIMEOUT_CYCLES<=PING_INTERVAL_CYCLES)
             $error("PONG timeout must exceed a non-zero PING interval");
+        if(HELLO_RETRY_CYCLES==0)
+            $error("HELLO_RETRY_CYCLES must be non-zero");
     end
 
     task automatic queue_hello;
@@ -173,6 +179,7 @@ module bonded_control_manager #(
             session_established<=0;fault<=0;
             active_session_id<=INITIAL_SESSION_ID;highest_peer_session_id<=INITIAL_SESSION_ID;
             session_changed<=0;session_initiated<=0;restart_pending<=0;restart_age<=0;
+            hello_retry_age<=0;
         end else begin
             session_changed<=1'b0;
             session_initiated<=1'b0;
@@ -185,6 +192,19 @@ module bonded_control_manager #(
                 pong_pending<=0;pong_queued<=0;
                 restart_pending<=1;
                 restart_age<=0;
+            end
+
+            // Until the session is established, resend HELLO (then READY,
+            // once both peer HELLOs are seen) every HELLO_RETRY_CYCLES. Both
+            // are idempotent at the receiver. Later epoch transitions in this
+            // block override these assignments.
+            if(session_established || fault || !all_lanes_up || !hello_sent)
+                hello_retry_age<=0;
+            else if(hello_retry_age<HELLO_RETRY_CYCLES)
+                hello_retry_age<=hello_retry_age+1'b1;
+            else if(!tx_pending) begin
+                hello_retry_age<=0;
+                hello_sent<=0;ready_sent<=0;ready_queued<=0;
             end
 
             if(tx_handshake) begin
@@ -254,13 +274,19 @@ module bonded_control_manager #(
                             hello_seen<=hello_seen | rx_lane_mask;
                             if(rx_hello_bytes>remote_byte_limit) remote_byte_limit<=rx_hello_bytes;
                             if(rx_hello_packets>remote_packet_limit) remote_packet_limit<=rx_hello_packets;
+                            // A HELLO after establishment means the peer is
+                            // still retrying: our READY was lost. Resend
+                            // READY only (never HELLO), so this cannot loop.
+                            if(session_established && !tx_handshake) ready_sent<=1'b0;
                         end
                     end
                     8'h02: begin
                         if(ctrl_rx_body_length!=12 || rx_peer_id!=EXPECTED_PEER_ID ||
-                           rx_lane_count!=2 || rx_profile!=PROFILE_ID ||
-                           !hello_seen[ctrl_rx_lane]) begin
+                           rx_lane_count!=2 || rx_profile!=PROFILE_ID) begin
                             fault<=1;session_established<=0;
+                        end else if(!hello_seen[ctrl_rx_lane]) begin
+                            // READY before this lane's HELLO: the HELLO was
+                            // lost. Ignore it; the peer resends both.
                         end else begin
                             ready_seen<=ready_seen | rx_lane_mask;
                             if((ready_seen | rx_lane_mask)==2'b11 &&

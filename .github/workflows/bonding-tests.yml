@@ -337,6 +337,12 @@ jobs:
             rtl/bonded_control_manager.sv rtl/tb_bonded_control_manager.sv
           vvp /tmp/tb_control_manager
 
+      - name: Compile and run CONTROL HELLO/READY retransmission regression
+        run: |
+          iverilog -g2012 -Wall -s tb_bonded_control_manager_retry -o /tmp/tb_control_manager_retry \
+            rtl/bonded_control_manager.sv rtl/tb_bonded_control_manager_retry.sv
+          vvp /tmp/tb_control_manager_retry
+
       - name: Compile and run raw-byte RX framer regression
         run: |
           iverilog -g2012 -Wall -s tb_bonded_wire_rx_framer -o /tmp/tb_wire_framer \
